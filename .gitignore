@@ -1,0 +1,8 @@
+node_modules/
+dist/
+vite.*.log
+.codex/tmp/
+.tmp-chrome-capture-profile/
+.env
+.env.local
+public/zenith-full-state-current.json

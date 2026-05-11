@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "noImplicitAny": false,
+    "strict": true,
+    "target": "ES2022",
+    "types": ["vitest/globals", "node"]
+  },
+  "include": ["eslint.config.js", "server.mjs", "src/**/*.js"]
+}

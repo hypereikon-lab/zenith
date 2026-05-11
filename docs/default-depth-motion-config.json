@@ -1,0 +1,175 @@
+{
+  "schema": "zenith.depth-motion-config",
+  "version": 1,
+  "exportedAt": "2026-05-11T09:20:46.004Z",
+  "source": {
+    "name": "Runway inpaint 1",
+    "kind": "image",
+    "width": 1920,
+    "height": 1920,
+    "duration": 0,
+    "fpsEstimate": 24
+  },
+  "depthMap": {
+    "name": "",
+    "loaded": false,
+    "width": 0,
+    "height": 0,
+    "model": "gemini_image3_pro"
+  },
+  "viewer": {
+    "viewMode": "theater",
+    "camera": {
+      "insideYaw": 44.808000000000106,
+      "insidePitch": 0.6360000000000006,
+      "theaterYaw": 0.2160000000000016,
+      "orbitYaw": 408.3824207998323,
+      "orbitPitch": 0.21300000000000016,
+      "orbitDistance": 1.6305548183768994
+    },
+    "controls": {
+      "projectionMode": "equidistant",
+      "fov": 80,
+      "renderScale": 1,
+      "meshQuality": 2,
+      "radiusScale": 1.007,
+      "rotation": 180,
+      "domeTilt": -1,
+      "theaterEyeDrop": 0.26,
+      "theaterSeatBack": 0.38,
+      "theaterPitch": 50.6,
+      "customCurve": 0.38,
+      "shellShade": 0,
+      "floorOpacity": 0.71,
+      "exposure": 1.06,
+      "overlayOpacity": 0.24,
+      "mirror": false,
+      "showRings": true,
+      "showSpokes": true,
+      "showHorizon": true,
+      "showLabels": true,
+      "showSourceCircle": true,
+      "showZenith": true
+    }
+  },
+  "plateSketch": {
+    "placementModelVersion": 8,
+    "controls": {
+      "plateFit": "contain",
+      "plateFeather": 0,
+      "editPlacement": false,
+      "activePlate": "0"
+    },
+    "activePlateIndex": 0,
+    "plates": [
+      {
+        "name": "hypereikon_httpss.mj.runH1b_6iuqGYI_httpss.mj.rungE7F-sXgL5s_ht_b8d28ad8-33c1-4c3e-8099-385dddae3428.png",
+        "width": 1024,
+        "height": 1024,
+        "aspect": 1
+      },
+      {
+        "name": "hypereikon_httpss.mj.run1sf2LQw-KqE_httpss.mj.runhNwVTy8YbfE__dcce9db8-946d-4ffb-822c-34814d384f48_3.png",
+        "width": 1424,
+        "height": 832,
+        "aspect": 1.7115384615384615
+      },
+      {
+        "name": "hypereikon_httpss.mj.run1sf2LQw-KqE_httpss.mj.runhNwVTy8YbfE__dcce9db8-946d-4ffb-822c-34814d384f48_2.png",
+        "width": 1424,
+        "height": 832,
+        "aspect": 1.7115384615384615
+      }
+    ],
+    "placements": [
+      {
+        "azimuth": -8.898463670050432,
+        "radius": 0.5257978446693106,
+        "scale": 0.6812733176437584,
+        "spin": 16.30072568238097,
+        "opacity": 1,
+        "flipX": false,
+        "flipY": false
+      },
+      {
+        "azimuth": 84.61687012594189,
+        "radius": 0.6472162968855301,
+        "scale": 1.55,
+        "spin": -22.238040365345114,
+        "opacity": 1,
+        "flipX": false,
+        "flipY": false
+      },
+      {
+        "azimuth": -114.37962915281707,
+        "radius": 0.6394208138109876,
+        "scale": 2.17,
+        "spin": 0.8718582179355963,
+        "opacity": 1,
+        "flipX": false,
+        "flipY": false
+      }
+    ]
+  },
+  "inpaint": {
+    "model": "gpt_image_2",
+    "prompt": "Use @PlateSketch as an exact square domemaster guide. It is an equidistant 180 fulldome map with the zenith at the center and the horizon at the outer circle. Preserve the existing plate content, orientation, scale, and fisheye geometry. Treat pure white areas inside the circle, between plates, and in the center gap as missing pixels to fill, not objects. Complete them as a coherent continuation of the scene. No visible white patches, mask edges, checkerboards, dividers, radial spokes, central holes, or repair boundaries. Output a clean opaque square domemaster image.",
+    "controls": {
+      "runwayQuality": "high",
+      "runwayOutputCount": 1
+    },
+    "outputCount": 1
+  },
+  "depthMotion": {
+    "prompt": "Generate a metric depth map visualization where depth values are represented on a grayscale gradient from black (nearest objects) to white (farthest objects). Use precise linear interpolation across the depth range. Render as a clean, high-contrast grayscale image with smooth tonal transitions. No color, no overlays, no labels. Pure depth-to-brightness mapping where each shade of gray corresponds to a specific distance value in the scene. Preserve the square 180-degree domemaster fisheye layout exactly, including zenith center, circular horizon, and pure black outside the projection circle.",
+    "controls": {
+      "depthPolarity": "brightFar",
+      "depthGuideMode": "depthMap",
+      "depthSketchSize": "720",
+      "depthNear": 1,
+      "depthFar": 12.02,
+      "depthSketchDuration": 6,
+      "depthSketchFps": 25,
+      "depthMotionGain": 4,
+      "depthContrast": 0.5,
+      "depthGuideNoise": 0,
+      "depthSketchYaw": -0.5,
+      "depthSketchPitch": -0.7,
+      "depthSketchRoll": 0.1,
+      "depthSketchTruck": -0.17,
+      "depthSketchLift": 0.01,
+      "depthSketchPush": 0.02,
+      "depthSketchGapFill": 3
+    },
+    "normalizedSettings": {
+      "nearMeters": 1,
+      "farMeters": 12.02,
+      "polarity": "brightFar",
+      "yawDegrees": -0.5,
+      "pitchDegrees": -0.7,
+      "rollDegrees": 0.1,
+      "truckMeters": -0.17,
+      "liftMeters": 0.01,
+      "pushMeters": 0.02,
+      "motionGain": 4,
+      "depthContrast": 0.5,
+      "guideMode": "depthMap",
+      "guideNoise": 0,
+      "gapFillPasses": 3,
+      "splatRadius": 1
+    }
+  },
+  "seedance": {
+    "model": "seedance2",
+    "promptMode": "auto",
+    "generatedPrompt": "",
+    "generatedPromptFresh": false,
+    "outputCount": 0,
+    "activeOutputIndex": 0,
+    "imageToVideo": {
+      "promptMode": "auto",
+      "generatedPrompt": "",
+      "generatedPromptFresh": false
+    }
+  }
+}
