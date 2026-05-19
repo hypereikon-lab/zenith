@@ -1,5 +1,6 @@
 import js from "@eslint/js";
 import globals from "globals";
+import tseslint from "typescript-eslint";
 
 const webGpuGlobals = {
   GPUBufferUsage: "readonly",
@@ -13,8 +14,9 @@ export default [
     ignores: ["dist/**", "node_modules/**", ".tmp-chrome-capture-profile/**", "*.log"],
   },
   js.configs.recommended,
+  ...tseslint.configs.recommended,
   {
-    files: ["src/**/*.js", "server.mjs", "scripts/**/*.mjs", "*.config.js"],
+    files: ["src/**/*.ts", "server.mjs", "scripts/**/*.mjs", "*.config.js"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
@@ -26,11 +28,12 @@ export default [
     },
     rules: {
       "no-console": "off",
-      "no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
+      "no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
     },
   },
   {
-    files: ["src/**/*.test.js"],
+    files: ["src/**/*.test.ts"],
     languageOptions: {
       globals: {
         ...globals.vitest,

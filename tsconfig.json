@@ -1,16 +1,15 @@
 {
   "compilerOptions": {
-    "allowJs": true,
-    "checkJs": false,
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "noEmit": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "noImplicitAny": false,
+    "noImplicitAny": true,
+    "strictNullChecks": false,
     "strict": true,
     "target": "ES2022",
-    "types": ["vitest/globals", "node"]
+    "types": ["vitest/globals", "node", "@webgpu/types"]
   },
-  "include": ["eslint.config.js", "server.mjs", "src/**/*.js"]
+  "include": ["src/**/*.ts"]
 }
