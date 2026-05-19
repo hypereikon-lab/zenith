@@ -70,6 +70,7 @@ type PointerToolControls = {
   domeTilt?: ValueControl;
   mirror?: CheckboxControl;
   plateFit?: ValueControl;
+  plateCornerMode?: ValueControl;
 };
 type PointerToolState = {
   viewMode: string;
@@ -230,7 +231,8 @@ export function createPointerToolController({
     if (handle.action === "scale") {
       const direction = metrics.sourceDirectionAt(point);
       const prepared = preparePlatePlacement(placement, activePlate());
-      if ((event.altKey || event.shiftKey) && handle.corner) {
+      const useWarpCorner = (event.altKey || event.shiftKey || controls.plateCornerMode?.value === "warp") && handle.corner;
+      if (useWarpCorner && handle.corner) {
         return {
           action: "warp",
           corner: handle.corner,

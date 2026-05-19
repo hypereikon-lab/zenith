@@ -1,9 +1,9 @@
 import { DEFAULT_ACTIVE_PLATE_INDEX, DEFAULT_PLATE_PLACEMENTS } from "../app/default-profile.js";
 import { downloadBlob } from "../media/canvas-utils.js";
 import { clamp } from "../projection.js";
-import { normalizePlatePlacement } from "./plate-placement.js";
+import { PLATE_CORNERS, normalizePlatePlacement } from "./plate-placement.js";
 import type { PlateSource, ScheduleWorkspaceAutosave, SetGpuState } from "../app/types.js";
-import type { PlatePlacementInput, PlateLike, NormalizedPlatePlacement } from "./plate-placement.js";
+import type { PlateCornerOffsets, PlatePlacementInput, PlateLike, NormalizedPlatePlacement } from "./plate-placement.js";
 import type { PlateRenderOptions } from "./plate-gpu-compositor.js";
 
 const PLATE_COMPOSITE_SIZE = 2048;
@@ -24,6 +24,7 @@ type PlateControllerOptions = {
     plateFit: { value: string; disabled: boolean };
     editPlacement: { checked: boolean; disabled: boolean };
     activePlate: { value: string; disabled: boolean; replaceChildren: () => void; append: (option: HTMLOptionElement) => void };
+    plateCornerMode: { value: string; disabled: boolean };
     patchAzimuth: { value: string; disabled: boolean };
     patchRadius: { value: string; disabled: boolean };
     patchSpin: { value: string; disabled: boolean };
@@ -38,6 +39,7 @@ type PlateControllerOptions = {
     patchTransform: { hidden: boolean | string; classList: { toggle: (token: string, force?: boolean) => unknown } };
     autoArrangePatches: { disabled: boolean };
     resetPatch: { disabled: boolean };
+    resetPatchWarp: { disabled: boolean };
     flipPatchX: { disabled: boolean };
     flipPatchY: { disabled: boolean };
   };
@@ -86,6 +88,7 @@ export function createPlateController({
     patchTransform,
     autoArrangePatches,
     resetPatch,
+    resetPatchWarp,
     flipPatchX,
     flipPatchY,
   } = elements;
@@ -134,6 +137,17 @@ export function createPlateController({
     resetActivePlatePlacement();
     updatePatchControlsFromActive();
     if (hasEnoughPlatesForLayout()) schedulePlatePreview(0);
+  }
+
+  function handleResetPatchWarp() {
+    if (!canEditPlacement()) return;
+    ensurePlatePlacements();
+    const placement = state.platePlacements[state.activePlateIndex];
+    if (!placement) return;
+    placement.cornerOffsets = emptyPlateCornerOffsets();
+    updatePatchControlsFromActive();
+    if (hasEnoughPlatesForLayout()) schedulePlatePreview(0);
+    actions.scheduleWorkspaceAutosave("plate-warp-reset", 250);
   }
 
   function handleFlipPatchX() {
@@ -292,6 +306,13 @@ export function createPlateController({
     state.platePlacements[index] = normalizePlatePlacement(defaultPlatePlacement(index, plateCount, plate), plate);
   }
 
+  function emptyPlateCornerOffsets(): PlateCornerOffsets {
+    return PLATE_CORNERS.reduce((offsets, corner) => {
+      offsets[corner] = { x: 0, y: 0 };
+      return offsets;
+    }, {} as PlateCornerOffsets);
+  }
+
   function syncPlateCountOptions() {
     const previous = controls.plateCount.value || "auto";
     controls.plateCount.replaceChildren();
@@ -355,6 +376,8 @@ export function createPlateController({
     controls.activePlate.disabled = true;
     autoArrangePatches.disabled = !editing;
     resetPatch.disabled = !editing;
+    resetPatchWarp.disabled = !editing;
+    controls.plateCornerMode.disabled = !editing;
     if (flipPatchX) flipPatchX.disabled = !editing;
     if (flipPatchY) flipPatchY.disabled = !editing;
     [
@@ -506,6 +529,7 @@ export function createPlateController({
     handlePatchTransformInput,
     handleAutoArrangePatches,
     handleResetPatch,
+    handleResetPatchWarp,
     handleFlipPatchX,
     handleFlipPatchY,
     handlePlateCountFitChange,

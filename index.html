@@ -43,6 +43,28 @@
             Ship
           </button>
         </nav>
+        <ol class="workflow-status" aria-label="Workflow status">
+          <li data-flow-step="source">
+            <span>Source</span>
+            <strong id="flowSourceState">Default map</strong>
+          </li>
+          <li data-flow-step="plates">
+            <span>Plates</span>
+            <strong id="flowPlateState">Load images</strong>
+          </li>
+          <li data-flow-step="inpaint">
+            <span>Inpaint</span>
+            <strong id="flowInpaintState">Needs plates</strong>
+          </li>
+          <li data-flow-step="motion">
+            <span>Motion</span>
+            <strong id="flowMotionState">Needs depth</strong>
+          </li>
+          <li data-flow-step="export">
+            <span>Export</span>
+            <strong id="flowExportState">Not ready</strong>
+          </li>
+        </ol>
 
         <div class="section workspace-section" data-workspace="create">
           <div class="section-title">Plate sketch</div>
@@ -50,20 +72,20 @@
             <input id="platesInput" type="file" accept="image/*" multiple />
             <span>Load images</span>
           </label>
-          <label class="select-row" hidden>
+          <label class="select-row">
             <span>Count</span>
             <select id="plateCount">
               <option value="auto">All loaded</option>
             </select>
           </label>
-          <label class="select-row" hidden>
+          <label class="select-row">
             <span>Fit</span>
             <select id="plateFit">
               <option value="contain">Contain ratio</option>
               <option value="cover">Cover crop</option>
             </select>
           </label>
-          <div class="control-grid" hidden>
+          <div class="control-grid">
             <label>
               <span>Edge fade</span>
               <input id="plateFeather" type="range" min="0" max="0.18" value="0" step="0.005" />
@@ -81,8 +103,15 @@
               <select id="activePlate"></select>
             </label>
             <div class="placement-hint">
-              Click a plate to select it. Drag inside the selected plate to move it. Corner handles resize, Alt/Shift+corner warps, the round handle rotates, wheel scales, and Shift+wheel rotates.
+              Click a plate to select it. Drag inside to move. Corner handles use the selected corner mode. The round handle rotates, wheel scales, and Shift+wheel rotates.
             </div>
+            <label class="select-row">
+              <span>Corner drag</span>
+              <select id="plateCornerMode">
+                <option value="scale" selected>Resize plate</option>
+                <option value="warp">Warp corners</option>
+              </select>
+            </label>
             <div id="patchTransform" class="control-grid" hidden>
               <label>
                 <span>Azimuth</span>
@@ -101,15 +130,16 @@
                 <input id="patchOpacity" type="range" min="0.05" max="1" value="1" step="0.01" />
               </label>
             </div>
-            <div class="button-row four">
+            <div class="button-row five">
               <button id="autoArrangePatches" type="button" disabled>Auto arrange</button>
               <button id="resetPatch" type="button" disabled>Reset plate</button>
+              <button id="resetPatchWarp" type="button" disabled>Reset warp</button>
               <button id="flipPatchX" type="button" disabled>Flip H</button>
               <button id="flipPatchY" type="button" disabled>Flip V</button>
             </div>
           </div>
           <div class="button-row">
-            <button id="commitPlateMap" type="button" disabled hidden>Commit map</button>
+            <button id="commitPlateMap" type="button" disabled>Commit map</button>
             <button id="exportPlateMap" type="button" disabled>Export plate PNG</button>
           </div>
           <dl class="mini-readout">
@@ -146,7 +176,7 @@
             <button id="exportRunwayOutput" type="button" disabled>Export PNG</button>
           </div>
           <button id="useRunwayOutput" class="primary-action secondary" type="button" disabled hidden>Use result</button>
-          <div id="runwayResults" class="result-strip" aria-live="polite" hidden></div>
+          <div id="runwayResults" class="result-strip" aria-live="polite"></div>
           <dl class="mini-readout">
             <div>
               <dt>Inpaint</dt>
@@ -157,6 +187,16 @@
 
         <div class="section workspace-section" data-workspace="ship">
           <div class="section-title">2.5D motion reference</div>
+          <div class="reference-strip" aria-label="Seedance motion inputs">
+            <div>
+              <span>Still reference</span>
+              <strong id="seedanceStillReference">Current source image</strong>
+            </div>
+            <div>
+              <span>Motion reference</span>
+              <strong id="seedanceMotionReference">2.5D MP4 guide</strong>
+            </div>
+          </div>
           <button id="runwayDepthMap" class="primary-action" type="button" disabled>Generate depth</button>
           <label class="textarea-row compact-textarea">
             <span>Depth prompt</span>
@@ -264,17 +304,12 @@
             <button id="previewDepthMotion" type="button" disabled>Play GPU</button>
             <button id="exportDepthMotion" class="primary-action" type="button" disabled>Export MP4</button>
             <button id="codexSeedancePrompt" type="button" disabled hidden>Plan prompt</button>
-            <button id="runwaySeedance" class="primary-action" type="button" disabled>Generate video</button>
-          </div>
-          <div class="button-row two">
-            <button id="showSeedanceOutput" class="primary-action secondary" type="button" disabled>Show video</button>
-            <button id="exportSeedanceOutput" type="button" disabled>Export Seedance</button>
+            <button id="runwaySeedance" class="primary-action" type="button" disabled>Generate from guide</button>
           </div>
           <div class="button-row two">
             <button id="copyDepthMotionConfig" type="button">Copy config</button>
             <button id="exportDepthMotionConfig" type="button">Export config</button>
           </div>
-          <div id="seedanceResults" class="result-strip video-results" aria-live="polite"></div>
           <dl class="mini-readout">
             <div>
               <dt>Depth</dt>
@@ -285,6 +320,16 @@
 
         <div class="section workspace-section" data-workspace="ship">
           <div class="section-title">Image to fulldome video</div>
+          <div class="reference-strip" aria-label="Seedance image inputs">
+            <div>
+              <span>Still reference</span>
+              <strong id="imageSeedanceReference">Current source image</strong>
+            </div>
+            <div>
+              <span>Motion source</span>
+              <strong>Prompt-guided Seedance</strong>
+            </div>
+          </div>
           <div class="generated-prompt-row">
             <div class="generated-prompt-header">
               <span>Image prompt</span>
@@ -314,12 +359,21 @@
           </label>
           <div class="button-row two">
             <button id="codexImageSeedancePrompt" type="button" disabled hidden>Plan image prompt</button>
-            <button id="runwayImageSeedance" class="primary-action" type="button" disabled>Generate video</button>
+            <button id="runwayImageSeedance" class="primary-action" type="button" disabled>Generate from image</button>
           </div>
         </div>
 
         <div class="section workspace-section" data-workspace="ship">
-          <div class="section-title">Versions</div>
+          <div class="section-title">Video results</div>
+          <div class="button-row two">
+            <button id="showSeedanceOutput" class="primary-action secondary" type="button" disabled>Show video</button>
+            <button id="exportSeedanceOutput" type="button" disabled>Export video</button>
+          </div>
+          <div id="seedanceResults" class="result-strip video-results" aria-live="polite"></div>
+        </div>
+
+        <div class="section workspace-section" data-workspace="ship">
+          <div class="section-title">Session & versions</div>
           <div class="button-row three">
             <button id="saveWorkspace" type="button">Save now</button>
             <button id="restoreWorkspace" type="button" disabled>Restore last</button>
@@ -373,8 +427,8 @@
           </div>
         </div>
 
-        <div class="section workspace-section" data-workspace="review" hidden>
-          <div class="section-title">Projection</div>
+        <div class="section workspace-section" data-workspace="review">
+          <div class="section-title">Projection tuning</div>
           <label class="select-row">
             <span>Lens</span>
             <select id="projectionMode">
@@ -460,7 +514,7 @@
         </div>
 
         <div class="section workspace-section" data-workspace="ship">
-          <div class="section-title">Output</div>
+          <div class="section-title">Capture & demos</div>
           <div class="button-row">
             <button id="captureFrame" type="button">Screenshot</button>
             <button id="captureSquareFrame" type="button">Square PNG</button>

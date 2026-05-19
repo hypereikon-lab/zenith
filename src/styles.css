@@ -28,6 +28,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html,
 body,
 .app {
@@ -308,6 +312,67 @@ button.active {
   color: #fff4c7;
 }
 
+.workflow-status {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workflow-status li {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 7px 6px;
+  border: 1px solid rgba(244, 241, 232, 0.09);
+  border-radius: 8px;
+  background: rgba(244, 241, 232, 0.045);
+}
+
+.workflow-status span,
+.workflow-status strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-status span {
+  color: var(--dim);
+  font-size: 10px;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.workflow-status strong {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 680;
+  line-height: 1.15;
+}
+
+.workflow-status li[data-state="ready"] {
+  border-color: rgba(124, 231, 238, 0.25);
+  background: rgba(124, 231, 238, 0.07);
+}
+
+.workflow-status li[data-state="active"] {
+  border-color: rgba(246, 200, 95, 0.3);
+  background: rgba(246, 200, 95, 0.08);
+}
+
+.workflow-status li[data-state="done"] {
+  border-color: rgba(154, 241, 109, 0.28);
+  background: rgba(154, 241, 109, 0.075);
+}
+
+.workflow-status li[data-state="warning"] {
+  border-color: rgba(255, 123, 114, 0.32);
+  background: rgba(255, 123, 114, 0.075);
+}
+
 button.progressing,
 button.progressing:disabled {
   opacity: 1;
@@ -396,6 +461,17 @@ button.progressing:disabled {
 
 .button-row.four {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.button-row.five {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.button-row.five button {
+  min-width: 0;
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 1.15;
 }
 
 .primary-action:not(:disabled) {
@@ -553,6 +629,44 @@ button.progressing:disabled {
 
 .generated-prompt-row p.stale {
   border-color: rgba(246, 200, 95, 0.35);
+}
+
+.reference-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.reference-strip div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid rgba(124, 231, 238, 0.14);
+  border-radius: 8px;
+  background: rgba(124, 231, 238, 0.045);
+}
+
+.reference-strip span,
+.reference-strip strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-strip span {
+  color: var(--dim);
+  font-size: 10px;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.reference-strip strong {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 660;
+  line-height: 1.2;
 }
 
 textarea {

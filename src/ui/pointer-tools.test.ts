@@ -894,6 +894,63 @@ describe("pointer placement edit gate", () => {
     expect(state.platePlacements[0].cornerOffsets?.nw).toEqual({ x: 0, y: 0 });
   });
 
+  test("corner warp mode drags a corner without a keyboard modifier", () => {
+    const placement: PlatePlacementInput = {
+      azimuth: 0,
+      radius: 0.45,
+      scale: 0.4,
+      spin: 0,
+      opacity: 1,
+    };
+    const state = {
+      viewMode: "flat",
+      plates: [{ name: "plate.png", aspect: 2 }],
+      activePlateIndex: 0,
+      platePlacements: [placement],
+      pointer: { active: false, mode: null as null, x: 0, y: 0 },
+      camera: {},
+    };
+    const controls = {
+      editPlacement: { checked: true },
+      activePlate: { value: "0" },
+      fov: { value: "92" },
+      radiusScale: { value: "1" },
+      theaterPitch: { value: "28" },
+      plateCornerMode: { value: "warp" },
+    };
+    const controller = createPointerToolController({
+      canvas: {
+        clientWidth: 100,
+        clientHeight: 100,
+        setPointerCapture() {},
+        releasePointerCapture() {},
+        classList: {
+          add() {},
+          remove() {},
+        },
+      },
+      state,
+      controls,
+      getCssLayout: () => ({ flatRect: { x: 0, y: 0, width: 100, height: 100 } }),
+      activeDomeCamera: () => "orbit",
+      actions: {
+        ensurePlatePlacements() {},
+        updatePatchControlsFromActive() {},
+        schedulePlatePreview() {},
+        scheduleWorkspaceAutosave() {},
+      },
+    });
+    const corner = plateUvToFlatPoint(preparePlatePlacement(placement, state.plates[0]), 1, 0, 50, 50, 50);
+
+    controller.handlePointerDown({ clientX: corner.x, clientY: corner.y, pointerId: 1 });
+    controller.handlePointerMove({ clientX: corner.x + 8, clientY: corner.y - 5, pointerId: 1 });
+
+    expect(state.platePlacements[0].scale).toBe(0.4);
+    expect(state.platePlacements[0].cornerOffsets?.ne.x).not.toBe(0);
+    expect(state.platePlacements[0].cornerOffsets?.ne.y).not.toBe(0);
+    expect(state.platePlacements[0].cornerOffsets?.sw).toEqual({ x: 0, y: 0 });
+  });
+
   test("rotation handle follows screen drag direction", () => {
     const placement = {
       azimuth: 0,

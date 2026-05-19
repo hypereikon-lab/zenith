@@ -14,8 +14,10 @@ describe("plate controller edit gate", () => {
     expect(controls.patchRadius.disabled).toBe(true);
     expect(elements.autoArrangePatches.disabled).toBe(true);
     expect(elements.resetPatch.disabled).toBe(true);
+    expect(elements.resetPatchWarp.disabled).toBe(true);
     expect(elements.flipPatchX.disabled).toBe(true);
     expect(elements.flipPatchY.disabled).toBe(true);
+    expect(controls.plateCornerMode.disabled).toBe(true);
     expect(elements.commitPlateMap.disabled).toBe(false);
     expect(elements.patchEditor.hidden).toBe(true);
 
@@ -27,8 +29,10 @@ describe("plate controller edit gate", () => {
     expect(controls.patchRadius.disabled).toBe(false);
     expect(elements.autoArrangePatches.disabled).toBe(false);
     expect(elements.resetPatch.disabled).toBe(false);
+    expect(elements.resetPatchWarp.disabled).toBe(false);
     expect(elements.flipPatchX.disabled).toBe(false);
     expect(elements.flipPatchY.disabled).toBe(false);
+    expect(controls.plateCornerMode.disabled).toBe(false);
     expect(elements.patchEditor.hidden).toBe(false);
   });
 
@@ -55,6 +59,25 @@ describe("plate controller edit gate", () => {
 
     expect(state.platePlacements[0].flipX).toBe(true);
     expect(state.platePlacements[0].flipY).toBe(true);
+  });
+
+  test("resets active plate warp only while edit placement is checked", () => {
+    const { controller, state, controls } = buildPlateControllerHarness();
+    state.platePlacements[0].cornerOffsets.ne = { x: 0.24, y: -0.16 };
+
+    controller.handleResetPatchWarp();
+    expect(state.platePlacements[0].cornerOffsets.ne).toEqual({ x: 0.24, y: -0.16 });
+
+    controls.editPlacement.checked = true;
+    controller.handleResetPatchWarp();
+
+    expect(state.platePlacements[0].scale).toBe(0.8);
+    expect(state.platePlacements[0].cornerOffsets).toEqual({
+      nw: { x: 0, y: 0 },
+      ne: { x: 0, y: 0 },
+      se: { x: 0, y: 0 },
+      sw: { x: 0, y: 0 },
+    });
   });
 
   test("commits the plate map when leaving edit placement", async () => {
@@ -95,6 +118,7 @@ function buildPlateControllerHarness() {
     plateFit: control("contain"),
     editPlacement: checkbox(false),
     activePlate: control("0"),
+    plateCornerMode: control("scale"),
     patchAzimuth: control("0"),
     patchRadius: control("0.35"),
     patchSpin: control("0"),
@@ -109,6 +133,7 @@ function buildPlateControllerHarness() {
     patchTransform: panel(),
     autoArrangePatches: button(),
     resetPatch: button(),
+    resetPatchWarp: button(),
     flipPatchX: button(),
     flipPatchY: button(),
   };

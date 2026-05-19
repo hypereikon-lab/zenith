@@ -37,6 +37,7 @@ type ZenithEventActions = {
   handlePatchTransformInput: () => void;
   handleAutoArrangePatches: () => void;
   handleResetPatch: () => void;
+  handleResetPatchWarp: () => void;
   handleFlipPatchX: () => void;
   handleFlipPatchY: () => void;
   handlePlateCountFitChange: () => void;
@@ -155,6 +156,7 @@ export function bindZenithEvents(dom: ZenithDom, actions: ZenithEventActions): v
   });
   dom.autoArrangePatches.addEventListener("click", actions.handleAutoArrangePatches);
   dom.resetPatch.addEventListener("click", actions.handleResetPatch);
+  dom.resetPatchWarp.addEventListener("click", actions.handleResetPatchWarp);
   dom.flipPatchX.addEventListener("click", actions.handleFlipPatchX);
   dom.flipPatchY.addEventListener("click", actions.handleFlipPatchY);
   [controls.plateCount, controls.plateFit].forEach((control) => {

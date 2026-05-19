@@ -49,6 +49,12 @@ const {
   canvas,
   demoCursor,
   gpuState,
+  workflowSteps,
+  flowSourceState,
+  flowPlateState,
+  flowInpaintState,
+  flowMotionState,
+  flowExportState,
   commitPlateMap,
   exportPlateMap,
   platesReadout,
@@ -56,6 +62,7 @@ const {
   patchTransform,
   autoArrangePatches,
   resetPatch,
+  resetPatchWarp,
   flipPatchX,
   flipPatchY,
   runwayInpaint,
@@ -77,8 +84,11 @@ const {
   seedanceResults,
   seedancePromptPreview,
   seedancePromptState,
+  seedanceStillReference,
+  seedanceMotionReference,
   imageSeedancePromptPreview,
   imageSeedancePromptState,
+  imageSeedanceReference,
   depthMotionReadout,
   saveWorkspace,
   restoreWorkspace,
@@ -256,6 +266,7 @@ const plateController = createPlateController({
     patchTransform,
     autoArrangePatches,
     resetPatch,
+    resetPatchWarp,
     flipPatchX,
     flipPatchY,
   },
@@ -373,11 +384,13 @@ async function init() {
   plateController.updatePlateLayoutUi();
   versionController.updateVersionUi();
   updateWorkspaceUi();
+  updateWorkflowStatus();
   viewController.updateUiState();
   depthMotionController.updateDepthMotionUiState();
   inpaintController.checkRunwayStatus().finally(() => depthMotionController.updateDepthMotionUiState());
   setGpuState("Ready", false);
   renderer.startFrameLoop();
+  window.setInterval(updateWorkflowStatus, 700);
 }
 
 async function loadDefaultPlateReferences() {
@@ -473,6 +486,7 @@ function eventActions() {
     handlePatchTransformInput: plateController.handlePatchTransformInput,
     handleAutoArrangePatches: plateController.handleAutoArrangePatches,
     handleResetPatch: plateController.handleResetPatch,
+    handleResetPatchWarp: plateController.handleResetPatchWarp,
     handleFlipPatchX: plateController.handleFlipPatchX,
     handleFlipPatchY: plateController.handleFlipPatchY,
     handlePlateCountFitChange: plateController.handlePlateCountFitChange,
@@ -512,6 +526,7 @@ function eventActions() {
 function setWorkspace(workspace: WorkspaceId = "create"): void {
   state.activeWorkspace = workspace || "create";
   applyWorkspaceDom(domeForgeDom, state.activeWorkspace);
+  updateWorkflowStatus();
   scheduleWorkspaceAutosave("workspace", 350);
 }
 
@@ -709,6 +724,69 @@ function updateWorkspaceUi({ preserveText = false }: { preserveText?: boolean } 
   if (!preserveText) {
     sessionReadout.textContent = hasSaved ? `Saved ${formatVersionDate(state.workspaceSavedAt)}` : "No saved session";
   }
+  updateWorkflowStatus();
+}
+
+type WorkflowState = "waiting" | "ready" | "active" | "done" | "warning";
+
+function updateWorkflowStatus(): void {
+  const hasSource = Boolean(state.sourceCanvas || state.mediaKind === "video" || (state.sourceWidth && state.sourceHeight));
+  const hasPlates = state.plates.length > 0;
+  const hasPlatePreview = Boolean(state.plateCompositeTexture);
+  const hasCommittedPlateMap = Boolean(state.plateCompositeCanvas && !state.plateCompositeDirty);
+  const hasInpaintOutput = state.runwayOutputs.length > 0;
+  const hasDepthMap = Boolean(state.depthMapCanvas);
+  const hasSeedanceOutput = state.seedanceOutputs.length > 0;
+
+  setWorkflowStep("source", hasSource ? "Ready" : "Waiting", hasSource ? "done" : "waiting");
+  setWorkflowStep(
+    "plates",
+    hasCommittedPlateMap
+      ? "Committed"
+      : state.plateCompositeDirty
+        ? "Preview dirty"
+        : hasPlatePreview
+          ? "Preview"
+          : hasPlates
+            ? "Arrange"
+            : "Load images",
+    hasCommittedPlateMap ? "done" : hasPlates ? "active" : "waiting",
+  );
+  setWorkflowStep(
+    "inpaint",
+    hasInpaintOutput ? "Result ready" : hasCommittedPlateMap ? "Ready" : "Needs plate map",
+    hasInpaintOutput ? "done" : hasCommittedPlateMap ? "ready" : "waiting",
+  );
+  setWorkflowStep(
+    "motion",
+    hasSeedanceOutput ? "Video ready" : hasDepthMap ? "Depth ready" : hasSource ? "Needs depth" : "Needs source",
+    hasSeedanceOutput ? "done" : hasDepthMap ? "ready" : "waiting",
+  );
+  setWorkflowStep(
+    "export",
+    hasSeedanceOutput ? "Video ready" : hasSource ? "Image/capture" : "Waiting",
+    hasSeedanceOutput ? "done" : hasSource ? "ready" : "waiting",
+  );
+
+  seedanceStillReference.textContent = hasSource ? `${state.sourceName || "Current source"} still` : "Needs source";
+  seedanceMotionReference.textContent = hasDepthMap ? "2.5D MP4 guide" : "Needs depth map";
+  imageSeedanceReference.textContent = hasSource ? `${state.sourceName || "Current source"} still` : "Needs source";
+}
+
+function setWorkflowStep(step: string, text: string, status: WorkflowState): void {
+  const item = workflowSteps.find((element) => element.dataset.flowStep === step);
+  if (item) item.dataset.state = status;
+  const label = workflowLabelForStep(step);
+  if (label) label.textContent = text;
+}
+
+function workflowLabelForStep(step: string): HTMLElement | null {
+  if (step === "source") return flowSourceState;
+  if (step === "plates") return flowPlateState;
+  if (step === "inpaint") return flowInpaintState;
+  if (step === "motion") return flowMotionState;
+  if (step === "export") return flowExportState;
+  return null;
 }
 
 function workspaceSaveSummary(snapshot: WorkspaceSnapshot | null): string {
