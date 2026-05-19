@@ -51,7 +51,7 @@ const CODEX_PROMPT_REASONING = sanitizeChoice(
   "medium",
 );
 const DEFAULT_DEPTH_PROMPT = `Generate a metric depth map visualization where depth values are represented on a grayscale gradient from black (nearest objects) to white (farthest objects). Use precise linear interpolation across the depth range. Render as a clean, high-contrast grayscale image with smooth tonal transitions. No color, no overlays, no labels. Pure depth-to-brightness mapping where each shade of gray corresponds to a specific distance value in the scene. Preserve the square 180-degree domemaster fisheye layout exactly, including zenith center, circular horizon, and pure black outside the projection circle.`;
-const DEFAULT_SEEDANCE_PROMPT = `Use the input video as a rough fulldome domemaster motion guide. Preserve the circular fisheye composition, camera timing, parallax direction, scene identity, and pitch-black area outside the projection circle. Convert the depth-projected guide into coherent natural motion without adding text, borders, rectangular framing, UI marks, or visible mask artifacts.`;
+const DEFAULT_SEEDANCE_PROMPT = `Use the still image reference as the source of truth for scene identity, composition, materials, lighting, color, and detail. Use the video reference only as a rough fulldome domemaster motion guide for camera timing, parallax direction, and motion rhythm. Preserve the circular fisheye composition and pitch-black area outside the projection circle. Convert the depth-projected guide into coherent natural motion without adding text, borders, rectangular framing, UI marks, or visible mask artifacts.`;
 const DEFAULT_SEEDANCE_IMAGE_PROMPT = `Use the input image as the source of truth for a square fulldome domemaster scene. Animate it as one seamless shot with a gentle spatial camera drift, subtle foreground parallax, natural material motion, and stable distant background. Preserve the circular fisheye projection, the original composition, and the pitch-black exterior outside the projection circle. Do not add text, borders, UI overlays, new major objects, cuts, or rectangular reframing.`;
 const CODEX_SEEDANCE_SCHEMA = {
   type: "object",
@@ -435,6 +435,7 @@ async function createRunwaySeedanceVideo(payload, onProgress = () => {}, options
   if (buffer.length > SEEDANCE_VIDEO_MAX_BYTES) {
     throw httpError(413, "Seedance video-to-video input must be 32 MB or smaller.");
   }
+  const sourceImage = payload.imageDataUrl ? parseImageDataUrl(payload.imageDataUrl) : null;
 
   const promptText = clampPrompt(String(payload.prompt || DEFAULT_SEEDANCE_PROMPT), SEEDANCE_PROMPT_MAX);
   const filename = safeMediaFilename(payload.filename, "fulldome-depth-motion.mp4");
@@ -446,15 +447,37 @@ async function createRunwaySeedanceVideo(payload, onProgress = () => {}, options
     onProgress,
     signal: options.signal,
   });
+  const promptImage = sourceImage
+    ? await uploadEphemeralFile({
+        apiKey,
+        filename: safeMediaFilename(payload.imageFilename, "fulldome-seedance-source.png"),
+        buffer: sourceImage.buffer,
+        mime: sourceImage.mime,
+        onProgress,
+        signal: options.signal,
+      })
+    : null;
 
-  const body = {
-    model: SEEDANCE_MODEL,
-    promptVideo,
-    promptText,
-  };
+  const body = promptImage
+    ? {
+        model: SEEDANCE_MODEL,
+        promptText,
+        references: [{ uri: promptImage }],
+        referenceVideos: [{ type: "video", uri: promptVideo }],
+        ratio: sanitizeSeedanceRatio(payload.ratio),
+        duration: clampSeedanceDuration(payload.duration),
+      }
+    : {
+        model: SEEDANCE_MODEL,
+        promptVideo,
+        promptText,
+        ratio: sanitizeSeedanceRatio(payload.ratio),
+        duration: clampSeedanceDuration(payload.duration),
+      };
+  const endpoint = promptImage ? "/v1/text_to_video" : "/v1/video_to_video";
 
   onProgress({ type: "progress", stage: "Creating Seedance task", progress: 0.34 });
-  const task = await runwayJson(apiKey, "/v1/video_to_video", {
+  const task = await runwayJson(apiKey, endpoint, {
     method: "POST",
     body,
     signal: options.signal,
@@ -477,6 +500,9 @@ async function createRunwaySeedanceVideo(payload, onProgress = () => {}, options
     model: SEEDANCE_MODEL,
     promptText,
     inputBytes: buffer.length,
+    referenceMode: promptImage ? "source-image-and-motion-video" : "motion-video-only",
+    ratio: body.ratio,
+    duration: body.duration,
     outputs,
   };
 }
@@ -503,10 +529,10 @@ async function createRunwaySeedanceImageVideo(payload, onProgress = () => {}, op
 
   const body = {
     model: SEEDANCE_MODEL,
-    promptImage,
+    promptImage: [{ uri: promptImage, position: "first" }],
     promptText,
-    ratio: sanitizeSeedanceImageRatio(payload.ratio),
-    duration: clampInt(payload.duration || 5, 2, 15),
+    ratio: sanitizeSeedanceRatio(payload.ratio),
+    duration: clampSeedanceDuration(payload.duration),
   };
 
   onProgress({ type: "progress", stage: "Creating Seedance image task", progress: 0.34 });
@@ -679,12 +705,12 @@ function buildSeedancePromptPlannerInstruction(payload) {
   return `You are a local Codex prompt planner inside Zenith, a WebGPU fulldome domemaster tool.
 
 Goal:
-Create a Runway Seedance 2.0 video-to-video prompt for an MP4 guide generated from a final/inpainted source image plus metric depth map. The attached images are in this order:
+Create a Runway Seedance 2.0 reference prompt for a still source image plus an MP4 guide generated from that image and a metric depth map. The planning attachments are in this order:
 1. Image1: the final/inpainted source domemaster frame and source of truth for appearance.
 2. Depth map: generation aid only.
 3+. Video1 frame samples: sampled frames from the generated 2.5D/depth-warp motion plate.
 
-The Seedance input video is a depth-reprojected guide. The prompt must treat it as a damaged motion plate, not the visual target. It should tell Seedance to preserve the guide's timing, camera path, parallax direction, fisheye geometry, black outside-circle mask, and motion rhythm, while rebuilding appearance from Image1.
+The Seedance request will include Image1 as a still image reference and the 2.5D MP4 as a video reference. The prompt must make that relationship explicit: use the still image reference as the visual source of truth, and use the video reference as choreography/camera guide. It should tell Seedance to preserve the guide's timing, camera path, parallax direction, fisheye geometry, black outside-circle mask, and motion rhythm, while rebuilding appearance from Image1.
 
 Use the current prompt as a starting point, but rewrite it with more intent if the motion settings imply a clearer camera move.
 
@@ -694,11 +720,12 @@ ${promptPackContext}
 Hard constraints:
 - Return only the requested JSON object.
 - seedancePrompt must be under ${SEEDANCE_PROMPT_MAX} characters.
-- Do not mention "attached image", "depth map", "WebGPU", UI controls, sampled frames, or implementation details in seedancePrompt.
+- Do not mention "depth map", "WebGPU", UI controls, sampled frames, or implementation details in seedancePrompt.
+- It is recommended to say "still image reference", "source frame", "video reference", or "motion guide" when describing how Seedance should use each input.
 - Do not ask Seedance to change the scene identity.
 - Do not ask for text, labels, rectangular borders, UI overlays, subtitles, logos, or visible masks.
 - Preserve the square domemaster, circular fisheye projection, and pitch-black exterior outside the projection circle.
-- Treat the MP4 as the choreography/camera guide, not just a style reference.
+- Treat the MP4 as the choreography/camera guide, not as the visual source of truth.
 - Never say "preserve Video1 exactly" or "preserve the original video exactly" for this workflow.
 - Use Image1 as the source of truth for appearance; use Video1 only for timing, camera motion, parallax direction, and broad motion rhythm.
 - Name likely 2.5D/depth-warp defects as artifacts to reject.
@@ -712,7 +739,7 @@ JSON fields:
 - sceneCardSummary: compact SceneCard-style summary of Image1.
 - motionPlateCardSummary: compact MotionPlateCard-style summary of Video1 frame samples and motion settings.
 - selectedMode: strict_repair, conservative_lock, or more_volumetric.
-- seedancePrompt: final prompt to send to Runway Seedance video-to-video using selectedMode.
+- seedancePrompt: final prompt to send to Runway Seedance with the still image reference plus video reference using selectedMode.
 - promptStrategy: one sentence explaining why this prompt should help Seedance.
 - variants.strictRepair: paste-ready strict repair variant.
 - variants.conservativeLock: paste-ready conservative lock variant.
@@ -1116,7 +1143,7 @@ function sanitizeRatio(ratio, fallback) {
   return typeof ratio === "string" && /^\d+:\d+$/.test(ratio) ? ratio : fallback;
 }
 
-function sanitizeSeedanceImageRatio(ratio) {
+function sanitizeSeedanceRatio(ratio) {
   return sanitizeChoice(
     ratio,
     [
@@ -1135,6 +1162,10 @@ function sanitizeSeedanceImageRatio(ratio) {
     ],
     "960:960",
   );
+}
+
+function clampSeedanceDuration(value) {
+  return clampInt(value || 5, 5, 15);
 }
 
 function sanitizeChoice(value, choices, fallback) {
