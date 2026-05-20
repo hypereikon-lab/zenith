@@ -30,6 +30,7 @@ Choose one:
 - ambient: the scene breathes through particles, light, water, foliage, cloth, smoke, or reflections
 - event: one small visible event unfolds
 - material: surfaces and details animate in place
+- emergence: native image materials form a temporary visible phenomenon, then dissolve
 
 The spine should be easy to see in the image.
 
@@ -39,6 +40,7 @@ For fulldome domemaster images, choose the spine from the dome topology:
 - radial event: motion travels from one visible ring, ray, branch, or interface mark to another
 - center event: sky, cloud, light, or particles visibly change in the center, then affect the surrounding dome
 - material event: glass, petals, holographic marks, water, or atmosphere animate in place while the camera stays mostly fixed
+- source-derived emergence: petals, pollen, dew, glass, mist, clouds, or particles coalesce into a temporary halo, bloom, aperture, branching tendril, or light current that remains native to the source image
 
 ## Step 4: Add Local Verbs
 
@@ -74,7 +76,7 @@ Use short locks:
 ```text
 Keep [identity/layout] unchanged.
 Preserve [style/materials/lighting].
-No cuts, no new major objects, no text, no redesign.
+No cuts, no unrelated major objects, no text, no redesign.
 ```
 
 ## Length Discipline

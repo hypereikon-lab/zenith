@@ -29,6 +29,7 @@ Goal: write one compact Seedance prompt that turns Image1 into a plausible video
    - ambient: atmosphere, light, particles, water, reflections, foliage, cloth, or smoke moves
    - event: one visible event unfolds
    - material: surfaces and details animate in place
+   - emergence: one temporary source-derived phenomenon forms from visible materials, travels or transforms, then resolves
    - for fulldome botanical/interface images, prefer a visible path event around the rim, through rings, through particles, or across existing materials
    - for fulldome images, choose a concrete thesis from the motion catalog instead of writing only general ambience
 4. Choose one camera behavior.
@@ -68,7 +69,8 @@ Allow 120-180 words only for real contextual burden: continuation, edit preserva
 
 - one visible event with two or three beats
 - event must emerge from existing image content
-- no new major objects
+- no unrelated or permanent major objects
+- temporary source-derived forms are allowed when they clearly grow from visible materials and dissolve back into the scene
 
 `material_life`:
 
@@ -121,6 +123,9 @@ If Image1 is a fulldome/domemaster image, name a specific motion thesis before w
 - particle current
 - refractive dome caustics
 - botanical response
+- source-derived emergence
+- glass vine growth
+- petal or pollen apparition
 - interface shimmer
 - sky emergence
 - constellation reveal
@@ -132,6 +137,29 @@ Do not ship a prompt whose only motion is `gentle ambience`, `cinematic drift`, 
 Keep the thesis differentiated. Do not reuse the same generic support motions for every thesis. A scan prompt should foreground scan path and ring brightness; a particle prompt should foreground gather/thread/disperse; a refractive prompt should foreground sliding highlights; a botanical prompt should foreground petal/leaf response. Use a start-path-settle shape when possible.
 
 Empirical result note: bioluminescent rim pulse and refractive caustics worked well for the botanical fulldome test image. Standalone interface shimmer produced an unwanted cut, so treat interface shimmer as a support layer unless the prompt strongly specifies one unbroken locked shot with the same composition from first frame to last frame.
+
+## Source-Derived Emergence
+
+Use this lane when faithful material motion is too still or the source image has strong negative space, glass, flowers, particles, clouds, mist, light, or abstract marks that could plausibly form a transient event.
+
+Emergence is not arbitrary invention. It is a visible temporary event made from Image1's own materials:
+
+- sky light can open into a cloud aperture, luminous bloom, or star field, then send light outward
+- petals, pollen, dew, or particles can coalesce into a temporary stream, halo, or flower-like apparition, then disperse
+- glass loops, stems, vines, or refractions can extend, branch, bloom at the tips, then retract or dissolve
+- interface marks can activate as reflected light only if the image already contains interface marks
+
+Use stronger verbs than ambient motion: `opens`, `coalesces`, `unfurls`, `extends`, `branches`, `surges`, `cascades`, `materializes`, `dissolves`.
+
+The prompt should name:
+
+1. the visible anchor where the phenomenon starts
+2. the source material it is made from
+3. the formed visible payoff
+4. the path through the dome
+5. how it resolves without redesigning the source image
+
+Do not use emergence to add unrelated characters, logos, readable text, rectangular UI, or permanent new objects. It can create temporary source-matched light, particles, petals, glass tendrils, cloud shapes, or abstract apparitions if they remain visually native to Image1.
 
 ## Layered Motion Requirement
 

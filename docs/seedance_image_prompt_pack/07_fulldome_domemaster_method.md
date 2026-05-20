@@ -90,7 +90,7 @@ camera-only animation
 Use this shape for most fulldome image-to-video prompts:
 
 ```text
-Use Image1 as the visual base. In the circular fulldome [scene], [one visible event/path] moves through [existing rim/rings/materials]. [Three local details] [move with concrete verbs]. Use a locked-off camera or rim-anchored micro drift that keeps the circular composition centered. Preserve the square domemaster frame, circular fisheye projection, stable zenith orientation, original layout, and black exterior outside the projection circle. No cuts, no new major objects, no readable text, no rectangular crop, no style drift.
+Use Image1 as the visual base. In the circular fulldome [scene], [one visible event/path] moves through [existing rim/rings/materials]. [Three local details] [move with concrete verbs]. Use a locked-off camera or rim-anchored micro drift that keeps the circular composition centered. Preserve the square domemaster frame, circular fisheye projection, stable zenith orientation, original layout, and black exterior outside the projection circle. No cuts, no unrelated major objects, no readable text, no rectangular crop, no style drift.
 ```
 
 ## Why Holographic Scan Works

@@ -76,6 +76,24 @@ const MOTION_PRESETS = {
     currentPrompt:
       "Motion preset: sky aperture. Make the primary event happen in the central sky only if the sky visibly changes: clouds part, star particles appear, or a soft dawn-like glow emerges and travels outward. Do not use a generic inward push into empty sky. Keep the botanical rim and fisheye dome locked.",
   },
+  source_derived_emergence: {
+    mode: "scene_event",
+    label: "preset-source-derived-emergence",
+    currentPrompt:
+      "Motion thesis: source-derived emergence. Create one visible temporary phenomenon made only from this image's own materials: sky light, petals, pollen, dew, glass loops, mist, or particles coalesce into a clear moving shape, travel through the circular dome, then dissolve back into the original composition. This should be more eventful than subtle ambience, but no unrelated objects, text, or scene redesign.",
+  },
+  glass_vine_growth: {
+    mode: "scene_event",
+    label: "preset-glass-vine-growth",
+    currentPrompt:
+      "Motion thesis: glass vine growth. Existing transparent stems, glass loops, or vine-like refractions extend and branch from the visible paths, cross part of the sky or rim, bloom with light at the tips, then retract or dissolve. Keep the source domemaster composition and black exterior, but make the growth visibly happen.",
+  },
+  petal_pollen_apparition: {
+    mode: "scene_event",
+    label: "preset-petal-pollen-apparition",
+    currentPrompt:
+      "Motion thesis: petal or pollen apparition. Existing flowers release petals, pollen, dew sparks, or tiny light motes that gather into a temporary halo, flower silhouette, or spiral current inside the dome, then break apart and return to the rim. Make the apparition clearly visible and source-matched; no unrelated subjects or readable symbols.",
+  },
   constellation_reveal: {
     mode: "scene_event",
     label: "preset-constellation-reveal",
@@ -306,10 +324,11 @@ function buildCurrentPlannerInstruction(input) {
       `- The prompt must create visible content motion from the still image: one motion spine, relevant local material/detail verbs, and at most one restrained camera/depth instruction.`,
       `- For fulldome/domemaster images, reason about center/rim topology. If the center is sparse sky or negative space, do not use a slow push or zoom toward it; use locked camera, rim-anchored micro drift, local depth breathing, or a visible path event through existing rings/materials.`,
       `- Keep the selected thesis differentiated. Do not make every preset use the same generic petals/leaves/motes support layer; choose support details that clarify the thesis and use a start-path-settle shape when possible.`,
+      `- If the prompt needs stronger action, allow one temporary source-derived phenomenon made from visible light, clouds, mist, particles, petals, pollen, dew, glass, vines, or marks. It may coalesce, open, branch, cascade, materialize, travel, and dissolve, but it must remain native to Image1 and must not become an unrelated subject, readable symbol, or permanent redesign.`,
       `- If interface shimmer is involved, make it a support layer or explicitly keep one unbroken locked shot with the same composition from first frame to last frame; avoid scene transitions, cuts, title-card behavior, or viewpoint changes.`,
       `- If background and materials should move independently, write layered choreography: sky/background slow behind the scene, mid-layer particles/glass/interface/reflections separate, foreground visible materials local. Name only materials visible in Image1 and keep the camera locked to avoid global warp.`,
       `- Do not import interface, holographic, water, grass, or entity language unless those materials are visible in Image1.`,
-      `- Unless currentPrompt explicitly requires readable in-scene text, do not ask for text, labels, rectangular borders, UI overlays, subtitles, logos, scene redesign, or new major objects.`,
+      `- Unless currentPrompt explicitly requires readable in-scene text, do not ask for text, labels, rectangular borders, UI overlays, subtitles, logos, unrelated subjects, or permanent scene redesign. For source-derived emergence, do not use the lock "no new major objects"; use "no unrelated permanent objects" or "no unrelated subjects" instead.`,
     ],
   });
 }
@@ -320,7 +339,7 @@ function buildOriginalPlannerInstruction(input) {
     promptPackContext: loadOriginalPromptPackContext(),
     extraConstraints: [
       `- The prompt must create visible content motion from the still image: at minimum one concrete scene event or local happening, three scene-specific material/detail motions, and one restrained camera/depth instruction.`,
-      `- Do not ask for text, labels, rectangular borders, UI overlays, subtitles, logos, scene redesign, or new major objects.`,
+      `- Do not ask for text, labels, rectangular borders, UI overlays, subtitles, logos, unrelated subjects, or permanent scene redesign.`,
     ],
   });
 }

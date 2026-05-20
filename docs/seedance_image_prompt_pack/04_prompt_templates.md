@@ -51,13 +51,13 @@ Use only when readable text is actually required.
 ## Ambient Grammar
 
 ```text
-Use Image1 as the visual base. Keep the scene almost unchanged as [atmosphere/light/material] gently [verb], [verb], and [verb]. Use a [camera behavior] only to reveal depth. Preserve [geometry/style]. No cuts, no redesign, no new objects.
+Use Image1 as the visual base. Keep the scene almost unchanged as [atmosphere/light/material] gently [verb], [verb], and [verb]. Use a [camera behavior] only to reveal depth. Preserve [geometry/style]. No cuts, no redesign, no unrelated objects.
 ```
 
 ## Event Grammar
 
 ```text
-Use Image1 as the visual base. [Visible subject/event] begins to [action], then [second beat] while [local details] [verb]. The camera [behavior]. Keep [identity/layout] consistent. No cuts, no new major objects, no style drift.
+Use Image1 as the visual base. [Visible subject/event] begins to [action], then [second beat] while [local details] [verb]. The camera [behavior]. Keep [identity/layout] consistent. No cuts, no unrelated major objects, no style drift.
 ```
 
 ## Material Grammar
@@ -101,7 +101,7 @@ Choose only relevant negatives:
 ```text
 No cuts.
 No redesign.
-No new major objects.
+No unrelated permanent objects.
 No readable text or UI marks.
 No rectangular crop.
 Do not push toward empty central sky.

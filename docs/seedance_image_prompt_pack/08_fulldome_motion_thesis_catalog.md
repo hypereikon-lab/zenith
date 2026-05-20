@@ -28,6 +28,24 @@ Sky emergence:
 Use only when the center is visibly active. Clouds part, star particles appear, or a soft glow forms in the sky and travels outward into the surrounding dome.
 ```
 
+Source-derived emergence:
+
+```text
+A temporary phenomenon forms from Image1's own materials: light, petals, pollen, dew, glass, mist, particles, or visible marks coalesce into a clear moving shape, travel through the dome, then dissolve back into the original scene.
+```
+
+Glass vine growth:
+
+```text
+Transparent stems, glass loops, or vine-like refractions extend from existing paths, branch across the sky or rim, bloom with light at the tips, then retract or dissolve without changing the dome layout.
+```
+
+Petal or pollen apparition:
+
+```text
+Existing flowers release petals, pollen, dew sparks, or tiny light motes that gather into a temporary halo, flower silhouette, or spiral current, then break apart and return to the rim.
+```
+
 Constellation reveal:
 
 ```text
@@ -185,6 +203,25 @@ For sky emergence:
 - support with clouds parting or light forming in the center
 - support with that light traveling outward to the rim
 - avoid an inward camera push as the event
+
+For source-derived emergence:
+
+- support with one temporary source-matched form or phenomenon
+- name what it is made from: petals, pollen, dew, glass, mist, clouds, particles, or visible light
+- give it a visible payoff: aperture, halo, flower silhouette, luminous current, branching glass tendril, or star field
+- avoid unrelated subjects, permanent new objects, logos, readable symbols, or a full scene redesign
+
+For glass vine growth:
+
+- support with refraction, tip glow, and small petal/dew response where the growth passes
+- keep the growth attached to existing glass loops, stems, or vines
+- avoid making it a sci-fi interface unless those marks are visible
+
+For petal or pollen apparition:
+
+- support with petals, pollen, dew sparks, or motes gathering into one readable temporary form
+- keep the source flower rim visible while the apparition forms and dissolves
+- avoid adding new flower species or changing the whole floral layout
 
 For orbital parallax or depth breathing:
 

@@ -5,7 +5,7 @@ Good Seedance language is direct, visual, and moving.
 ## Strong
 
 ```text
-Use Image1 as the visual base. A rain-soaked alley glows under cold blue light as puddles ripple, mist curls along the brick wall, and poster edges tremble slightly in the wind. The camera slowly pushes toward the wall. Keep the character, alley layout, paper texture, and noir lighting unchanged. No cuts, no new objects, no style drift.
+Use Image1 as the visual base. A rain-soaked alley glows under cold blue light as puddles ripple, mist curls along the brick wall, and poster edges tremble slightly in the wind. The camera slowly pushes toward the wall. Keep the character, alley layout, paper texture, and noir lighting unchanged. No cuts, no unrelated objects, no style drift.
 ```
 
 Why it works:

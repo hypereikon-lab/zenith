@@ -37,7 +37,8 @@ The prompt supplies:
 - Preserve the task context: continue, edit, restyle, animate, and transfer motion are different verbs.
 - Use present-tense action: `drifts`, `pushes`, `glows`, `ripples`, `clears`, `turns`, `reveals`.
 - Use `while`, `as`, `then`, or `continues` to thread motion over time.
-- For fulldome images, pick a named motion thesis before writing: scan path, rim pulse, particle current, refractive caustics, botanical response, interface shimmer, sky emergence, constellation reveal, locked depth breathing, or rim-anchored drift.
+- For fulldome images, pick a named motion thesis before writing: scan path, rim pulse, particle current, refractive caustics, botanical response, source-derived emergence, glass vine growth, petal or pollen apparition, interface shimmer, sky emergence, constellation reveal, locked depth breathing, or rim-anchored drift.
+- When a still image feels too static, prefer one source-derived event over more subtle ambience: native light, particles, petals, pollen, glass, clouds, mist, or visible marks may coalesce, open, branch, travel, and dissolve if they remain visually native to Image1.
 - Use one camera instruction unless the user asks for multi-shot coverage.
 - For fulldome domemaster images, do not use camera motion to push detailed rim content toward empty central sky. Prefer locked camera, rim-anchored micro drift, local depth breathing, or a visible event path through existing rings/materials.
 - Use short locks: `Keep...`, `Preserve...`, `No...`, `Avoid...`.
