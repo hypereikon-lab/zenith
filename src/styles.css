@@ -669,6 +669,17 @@ button.progressing:disabled {
   line-height: 1.2;
 }
 
+.preset-summary {
+  margin: -4px 0 0;
+  padding: 8px 9px;
+  border: 1px solid rgba(246, 200, 95, 0.14);
+  border-radius: 8px;
+  background: rgba(246, 200, 95, 0.045);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 textarea {
   width: 100%;
   min-height: 112px;

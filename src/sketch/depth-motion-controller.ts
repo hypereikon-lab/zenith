@@ -12,6 +12,11 @@ import {
 } from "../runway/client.js";
 import { clearProgressButton, setProgressButton } from "../ui/progress-buttons.js";
 import { errorMessage } from "../utils/errors.js";
+import {
+  CUSTOM_DEPTH_MOTION_PRESET_ID,
+  DEPTH_MOTION_PRESETS,
+  findDepthMotionPreset,
+} from "./depth-motion-presets.js";
 import { createDepthProjectionProfile, normalizeDepthMotionSettings } from "./depth-parallax-renderer.js";
 import { createDepthWebGpuPreviewRenderer } from "./depth-webgpu-renderer.js";
 import type { OperationToken } from "../operation-manager.js";
@@ -25,6 +30,7 @@ import type {
 } from "../app/types.js";
 import type { ZenithControls } from "../ui/dom.js";
 import type { DepthMotionSettings } from "./depth-parallax-renderer.js";
+import type { DepthMotionPresetControlKey } from "./depth-motion-presets.js";
 
 const DEPTH_MAP_MODEL = "gemini_image3_pro";
 const DEPTH_MAP_RATIO = "2048:2048";
@@ -75,6 +81,7 @@ type DepthMotionControllerOptions = {
     seedanceResults: HTMLElement;
     seedancePromptPreview: HTMLElement;
     seedancePromptState: HTMLElement;
+    depthMotionPresetDescription: HTMLElement;
     imageSeedancePromptPreview: HTMLElement;
     imageSeedancePromptState: HTMLElement;
     depthMotionReadout: HTMLElement;
@@ -117,6 +124,7 @@ export function createDepthMotionController({
     seedanceResults,
     seedancePromptPreview,
     seedancePromptState,
+    depthMotionPresetDescription,
     imageSeedancePromptPreview,
     imageSeedancePromptState,
     depthMotionReadout,
@@ -139,6 +147,7 @@ export function createDepthMotionController({
     ? "Checking WebCodecs MP4 encoder"
     : "WebCodecs MP4 export is not available in this browser";
 
+  syncDepthMotionPresetSelection();
   refreshMp4ExportSupport();
 
   function setDepthMapCanvas(canvas: HTMLCanvasElement | null, name?: string): void {
@@ -678,6 +687,7 @@ export function createDepthMotionController({
       depthMotion: {
         prompt: controls.depthPrompt.value,
         controls: controlSnapshot([
+          "depthMotionPreset",
           "depthPolarity",
           "depthGuideMode",
           "depthSketchSize",
@@ -732,6 +742,36 @@ export function createDepthMotionController({
     state.seedanceOutputs = [...(state.seedanceOutputs || []), ...outputs];
     state.activeSeedanceOutputIndex = startIndex;
     return startIndex;
+  }
+
+  function applyDepthMotionPreset() {
+    const preset = findDepthMotionPreset(controls.depthMotionPreset.value);
+    if (!preset) {
+      controls.depthMotionPreset.value = CUSTOM_DEPTH_MOTION_PRESET_ID;
+      syncDepthMotionPresetDescription();
+      updateDepthMotionUiState({ preserveText: true });
+      return;
+    }
+
+    for (const [key, value] of Object.entries(preset.controls) as Array<
+      [DepthMotionPresetControlKey, string | number]
+    >) {
+      const control = controls[key];
+      if (control) control.value = String(value);
+    }
+    syncDepthMotionPresetDescription();
+    scheduleDepthGpuPreviewRefresh();
+    depthMotionReadout.textContent = `Applied ${preset.label} 2.5D preset`;
+    actions.scheduleWorkspaceAutosave("depth-motion-preset", 250);
+    updateDepthMotionUiState({ preserveText: true });
+  }
+
+  function handleDepthMotionControlInput() {
+    if (controls.depthMotionPreset.value !== CUSTOM_DEPTH_MOTION_PRESET_ID) {
+      controls.depthMotionPreset.value = CUSTOM_DEPTH_MOTION_PRESET_ID;
+      syncDepthMotionPresetDescription();
+    }
+    scheduleDepthGpuPreviewRefresh();
   }
 
   function serializeSeedanceOutputs() {
@@ -1251,6 +1291,7 @@ export function createDepthMotionController({
   function updateDepthMotionUiState(options: { preserveText?: boolean } | string = {}) {
     syncSeedancePromptPreview();
     syncImageSeedancePromptPreview();
+    syncDepthMotionPresetDescription();
     const hasSource = hasSourceFrame();
     const ready = Boolean(state.depthMapCanvas && hasSource);
     const hasSeedanceOutput = (state.seedanceOutputs?.length || 0) > 0;
@@ -1279,6 +1320,7 @@ export function createDepthMotionController({
     if (exportDepthMotionConfigButton) {
       exportDepthMotionConfigButton.disabled = busy;
     }
+    controls.depthMotionPreset.disabled = busy;
     if (options && typeof options === "string") {
       depthMotionReadout.textContent = options;
       return;
@@ -1296,6 +1338,19 @@ export function createDepthMotionController({
       const depthSize = `${state.depthMapCanvas.width} x ${state.depthMapCanvas.height}`;
       depthMotionReadout.textContent = `${state.depthMapName || "Depth map"} (${depthSize}), ${depthGuideModeLabel()}`;
     }
+  }
+
+  function syncDepthMotionPresetSelection(): void {
+    const validIds = new Set([CUSTOM_DEPTH_MOTION_PRESET_ID, ...DEPTH_MOTION_PRESETS.map((preset) => preset.id)]);
+    if (!validIds.has(controls.depthMotionPreset.value)) {
+      controls.depthMotionPreset.value = CUSTOM_DEPTH_MOTION_PRESET_ID;
+    }
+    syncDepthMotionPresetDescription();
+  }
+
+  function syncDepthMotionPresetDescription(): void {
+    const preset = findDepthMotionPreset(controls.depthMotionPreset.value);
+    depthMotionPresetDescription.textContent = preset?.description || "Manual 2.5D settings.";
   }
 
   async function refreshMp4ExportSupport() {
@@ -1422,6 +1477,8 @@ export function createDepthMotionController({
     exportActiveSeedanceOutput,
     copyDepthMotionConfig,
     exportDepthMotionConfig,
+    applyDepthMotionPreset,
+    handleDepthMotionControlInput,
     renderSeedanceResults,
     scheduleDepthGpuPreviewRefresh,
     updateDepthMotionUiState,

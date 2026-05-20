@@ -124,6 +124,7 @@
     "prompt": "Generate a metric depth map visualization where depth values are represented on a grayscale gradient from black (nearest objects) to white (farthest objects). Use precise linear interpolation across the depth range. Render as a clean, high-contrast grayscale image with smooth tonal transitions. No color, no overlays, no labels. Pure depth-to-brightness mapping where each shade of gray corresponds to a specific distance value in the scene. Preserve the square 180-degree domemaster fisheye layout exactly, including zenith center, circular horizon, and pure black outside the projection circle.",
     "controls": {
       "depthPolarity": "brightFar",
+      "depthMotionPreset": "custom",
       "depthGuideMode": "depthMap",
       "depthSketchSize": "720",
       "depthNear": 1,

@@ -83,6 +83,7 @@ export const DEFAULT_CONTROL_VALUES = {
   runwayQuality: stringOr(inpaintControls.runwayQuality, "high"),
   runwayOutputCount: numberOr(inpaintControls.runwayOutputCount, 1),
   seedancePromptMode: stringOr(seedance.promptMode, "auto"),
+  depthMotionPreset: stringOr(depthMotionControls.depthMotionPreset, "custom"),
   imageSeedancePromptMode: stringOr(seedance.imageToVideo?.promptMode, "auto"),
   imageSeedanceRatio: stringOr(seedance.imageToVideo?.ratio, "640:640"),
   depthPolarity: stringOr(depthMotionControls.depthPolarity, "brightFar"),

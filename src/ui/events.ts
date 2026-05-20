@@ -20,7 +20,8 @@ type ZenithEventActions = {
   exportDepthMotionConfig: () => void;
   planImageSeedancePrompt: () => Promise<void>;
   sendImageToSeedance: () => Promise<void>;
-  refreshDepthMotionPreview: () => void;
+  applyDepthMotionPreset: () => void;
+  handleDepthMotionControlInput: () => void;
   setWorkspace: (workspace?: string) => void;
   saveWorkspaceSnapshot: (reason?: string) => Promise<unknown>;
   exportWorkspaceState: () => Promise<void>;
@@ -109,6 +110,7 @@ export function bindZenithEvents(dom: ZenithDom, actions: ZenithEventActions): v
   dom.exportDepthMotionConfig.addEventListener("click", actions.exportDepthMotionConfig);
   dom.codexImageSeedancePrompt.addEventListener("click", actions.planImageSeedancePrompt);
   dom.runwayImageSeedance.addEventListener("click", actions.sendImageToSeedance);
+  controls.depthMotionPreset.addEventListener("change", actions.applyDepthMotionPreset);
   [
     controls.depthPolarity,
     controls.depthGuideMode,
@@ -129,8 +131,8 @@ export function bindZenithEvents(dom: ZenithDom, actions: ZenithEventActions): v
     controls.depthSketchPush,
     controls.depthSketchGapFill,
   ].forEach((control) => {
-    control.addEventListener("input", actions.refreshDepthMotionPreview);
-    control.addEventListener("change", actions.refreshDepthMotionPreview);
+    control.addEventListener("input", actions.handleDepthMotionControlInput);
+    control.addEventListener("change", actions.handleDepthMotionControlInput);
   });
 
   dom.saveWorkspace.addEventListener("click", () => actions.saveWorkspaceSnapshot("manual"));
