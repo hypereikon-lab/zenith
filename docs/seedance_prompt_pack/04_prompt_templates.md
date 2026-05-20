@@ -8,6 +8,22 @@ Use these as grammar patterns, not rigid templates.
 Use the still image reference as the visual base for [identity/materials/light/layout]. Use the video reference only as a motion guide for [camera path/parallax/timing]. [Shot description] with [local motion]. Do not copy [guide artifacts]. Rebuild the motion as [positive repair]. Keep [geometry/identity] unchanged. [Style tail].
 ```
 
+## Motion-Reference Transfer
+
+Use when the guide motion is good and only appearance needs protection:
+
+```text
+Use the still image reference for exact appearance, materials, lighting, color, and layout. Use the video reference only for timing, camera movement, speed, parallax direction, and framing. Follow the motion closely while keeping [identity/materials/geometry] stable.
+```
+
+## Approximate Motion Borrowing
+
+Use when the guide has useful rhythm but visible artifacts:
+
+```text
+Use the still image reference as the visual base. Borrow the video reference's broad camera path, parallax direction, and rhythm, but do not copy its visual defects. Rebuild the motion as stable depth-separated movement with [local scene motion].
+```
+
 ## Strict Repair
 
 ```text
@@ -38,4 +54,6 @@ No flat cutout motion.
 No scene redesign.
 No rectangular crop.
 No style drift.
+No subtitles.
+No extra dialogue.
 ```

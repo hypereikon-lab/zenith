@@ -10,6 +10,8 @@ Prefer 70-140 words. Go shorter for simple images. Go longer only when the promp
 
 The prompt should feel like one threaded direction, not a policy document.
 
+Before writing, identify the task context. The examples use different grammar for a new single shot, a continuation, an edit-only transform, a style conversion, readable text, dialogue/audio, or a motion/reference transfer. Use only the context that is actually present in the request or current prompt.
+
 ## Reference Role
 
 Image1 controls:
@@ -31,10 +33,12 @@ The prompt supplies:
 ## Language Rules
 
 - Start with the visible scene, not abstract intent.
+- Preserve the task context: continue, edit, restyle, animate, and transfer motion are different verbs.
 - Use present-tense action: `drifts`, `pushes`, `glows`, `ripples`, `clears`, `turns`, `reveals`.
 - Use `while`, `as`, `then`, or `continues` to thread motion over time.
 - Use one camera instruction unless the user asks for multi-shot coverage.
 - Use short locks: `Keep...`, `Preserve...`, `No...`, `Avoid...`.
 - Put style at the end as a compressed look, not a pile of adjectives.
+- Do not invent dialogue, subtitles, readable text, or audio direction unless the request already contains that context.
 
 Do not mention attached image, depth map, WebGPU, UI controls, prompt packs, sampled frames, or implementation details in the final prompt.

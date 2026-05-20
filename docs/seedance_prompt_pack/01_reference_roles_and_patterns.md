@@ -14,13 +14,21 @@ Use the still image reference as the visual base for scene identity, composition
 
 ## Video1 Verbs
 
-`follow`, `borrow`, `transfer`, `use only as a motion guide`
+`follow`, `borrow`, `transfer`, `match`, `use only as a motion guide`
 
 Example:
 
 ```text
 Use the video reference only for timing, camera path, parallax direction, and broad motion rhythm.
 ```
+
+For stricter motion transfer, use corpus-style motion-reference language:
+
+```text
+Follow the video reference for timing, camera movement, speed, rotation, and framing while keeping Image1's appearance.
+```
+
+Use `match` or `follow precisely` only when the guide motion is actually good. Use `borrow` when the guide is only approximate or artifact-heavy.
 
 ## Conflict Sentence
 

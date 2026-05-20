@@ -722,9 +722,11 @@ Hard constraints:
 - seedancePrompt must be under ${SEEDANCE_PROMPT_MAX} characters.
 - Aim for 90-160 words unless the guide has clear timed beats; write compact production direction, not an explanation.
 - Do not mention "depth map", "WebGPU", UI controls, sampled frames, or implementation details in seedancePrompt.
+- Preserve the user's task context from currentPrompt when present: continuation, edit-only, style conversion, readable text, dialogue/audio, and motion-reference transfer require different language.
+- Do not invent dialogue, subtitles, readable text, audio direction, or style conversion when the user/currentPrompt did not ask for them.
 - It is recommended to say "still image reference", "source frame", "video reference", or "motion guide" when describing how Seedance should use each input.
 - Do not ask Seedance to change the scene identity.
-- Do not ask for text, labels, rectangular borders, UI overlays, subtitles, logos, or visible masks.
+- Unless currentPrompt explicitly requires readable in-scene text, do not ask for text, labels, rectangular borders, UI overlays, subtitles, logos, or visible masks.
 - Preserve the square domemaster, circular fisheye projection, and pitch-black exterior outside the projection circle.
 - Treat the MP4 as the choreography/camera guide, not as the visual source of truth.
 - Never say "preserve Video1 exactly" or "preserve the original video exactly" for this workflow.
@@ -777,13 +779,15 @@ Hard constraints:
 - seedancePrompt must be under ${SEEDANCE_PROMPT_MAX} characters.
 - Aim for 70-140 words unless the image clearly needs a sequence; write compact production direction, not an explanation.
 - Do not mention "attached image", "depth map", "WebGPU", UI controls, sampled frames, or implementation details in seedancePrompt.
+- Preserve the user's task context from currentPrompt when present: continuation, edit-only, style conversion, readable text, and dialogue/audio require different language.
+- Do not invent dialogue, subtitles, readable text, audio direction, or style conversion when the user/currentPrompt did not ask for them.
 - Do not mention a video guide, motion plate, or video reference.
 - Use Image1 as the source of truth for appearance, scene identity, composition, color, lighting, materials, and detail.
 - Preserve the square domemaster/circular fisheye geometry when Image1 has it, including pure black outside the projection circle.
 - The prompt must create visible content motion from the still image: one motion spine, relevant local material/detail verbs, and at most one restrained camera/depth instruction.
 - Prioritize local scene behavior over global moves. Avoid fast orbit, spin, sweep, rollercoaster, or generic camera-only animation unless the image clearly demands it.
 - Avoid generic prompt-only motion like "make it cinematic" without naming what moves.
-- Do not ask for text, labels, rectangular borders, UI overlays, subtitles, logos, scene redesign, or new major objects.
+- Unless currentPrompt explicitly requires readable in-scene text, do not ask for text, labels, rectangular borders, UI overlays, subtitles, logos, scene redesign, or new major objects.
 - If requestedMode is "auto", choose one of ambient_scene_motion, scene_event, or material_life. If a concrete mode is requested, use that mode for seedancePrompt.
 
 Image-to-video context:

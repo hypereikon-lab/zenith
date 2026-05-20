@@ -47,3 +47,13 @@ Cut in this order:
 3. adjective piles
 4. second camera move
 5. secondary events
+
+## Wrong Context
+
+If the model imports context from the corpus, remove that language directly:
+
+- invented dialogue: add `No dialogue or subtitles.`
+- invented text: add `No readable text or UI marks.`
+- unwanted style conversion: add `No style drift.`
+- accidental edit behavior: replace `change` verbs with animation verbs
+- accidental continuation: remove `continue`, `same previous`, and prior-clip language

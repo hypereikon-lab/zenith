@@ -2,7 +2,20 @@
 
 Build the prompt as a motion thread, not a checklist.
 
-## Step 1: Name The Frame
+## Step 1: Identify Context
+
+Choose the context before choosing motion:
+
+- new still-to-video shot
+- continuation of a prior clip
+- edit-only transform
+- style conversion
+- readable text or UI preservation
+- motion-reference transfer
+
+Most Zenith still-image prompts are new single shots. Do not add continuation, dialogue, audio, or readable text language unless the request carries that context.
+
+## Step 2: Name The Frame
 
 Use one concrete sentence for the visible image:
 
@@ -10,7 +23,7 @@ Use one concrete sentence for the visible image:
 [Subject/scene] in [place/framing], with [materials/light/atmosphere].
 ```
 
-## Step 2: Pick One Motion Spine
+## Step 3: Pick One Motion Spine
 
 Choose one:
 
@@ -20,7 +33,7 @@ Choose one:
 
 The spine should be easy to see in the image.
 
-## Step 3: Add Local Verbs
+## Step 4: Add Local Verbs
 
 Use three to five material verbs. Examples:
 
@@ -32,7 +45,7 @@ Use three to five material verbs. Examples:
 - glass/metal: shimmers, refracts, catches highlights
 - smoke/fog: curls, thins, reveals
 
-## Step 4: Add Camera Only If Useful
+## Step 5: Add Camera Only If Useful
 
 Use one camera behavior:
 
@@ -44,7 +57,7 @@ Use one camera behavior:
 
 Avoid camera-only animation unless the image has no good local motion affordances.
 
-## Step 5: Lock The Image
+## Step 6: Lock The Image
 
 Use short locks:
 
@@ -57,3 +70,5 @@ No cuts, no new major objects, no text, no redesign.
 ## Length Discipline
 
 Target 70-140 words. If a phrase repeats the same control, cut it. If a negative does not address a likely failure, cut it.
+
+Allow 120-180 words only when the prompt has real contextual burden: continuation, edit preservation, readable text, style conversion, or motion-reference transfer.
