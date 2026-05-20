@@ -31,6 +31,38 @@ const ORIGINAL_IMAGE_PACK_FILES = [
   "05_feedback_repair_rules.md",
   "06_fewshot_seedance2_style.md",
 ];
+const MOTION_PRESETS = {
+  holographic_scan: {
+    mode: "scene_event",
+    label: "preset-holographic-scan",
+    currentPrompt:
+      "Motion preset: holographic scan. Make the primary event a soft cyan scan wave traveling clockwise through the existing circular holographic rings and fine interface diagrams. Tiny star particles follow the scan path. Flowers, leaves, and the dome frame remain mostly stable. No readable text.",
+  },
+  botanical_bloom: {
+    mode: "scene_event",
+    label: "preset-botanical-bloom",
+    currentPrompt:
+      "Motion preset: botanical bloom. Make the primary event a gentle living response in the existing flowers: orchid petals flex slightly, blossoms turn toward the sky, long leaves sway, and a few already-visible small petals drift inward. Do not add new flowers or change the dome layout.",
+  },
+  sky_aperture: {
+    mode: "scene_event",
+    label: "preset-sky-aperture",
+    currentPrompt:
+      "Motion preset: sky aperture. Make the primary event happen in the central sky: clouds slowly part and brighten, star particles become more visible, and a soft dawn-like glow travels outward onto the surrounding flowers and glass. Keep the botanical rim and fisheye dome locked.",
+  },
+  particle_current: {
+    mode: "material_life",
+    label: "preset-particle-current",
+    currentPrompt:
+      "Motion preset: particle current. Make the visible star motes, pollen, dew sparks, and cyan interface specks become the main motion. They gather into slow curved streams that travel around the dome and through the flower rim, then disperse. Keep the camera nearly locked.",
+  },
+  orbital_parallax: {
+    mode: "material_life",
+    label: "preset-orbital-parallax",
+    currentPrompt:
+      "Motion preset: orbital parallax. Make the dome feel spatial by using a slow inward push with a tiny clockwise drift. Foreground flowers, leaves, and holographic glass shift slightly more than the central sky. Avoid spin, fast orbit, or horizon flattening.",
+  },
+};
 const CODEX_SEEDANCE_IMAGE_SCHEMA = {
   type: "object",
   properties: {
@@ -110,20 +142,37 @@ const payload = {
 };
 
 const comparisons = [];
-comparisons.push(
-  await runPromptPlanner({
-    label: "current-runtime-recipe",
-    prompt: buildCurrentPlannerInstruction(payload),
-    sourcePath,
-  }),
-);
-comparisons.push(
-  await runPromptPlanner({
-    label: `original-${ORIGINAL_REF}`,
-    prompt: buildOriginalPlannerInstruction(payload),
-    sourcePath,
-  }),
-);
+const presetList = selectedPresets(args.presets);
+if (presetList.length > 0) {
+  for (const preset of presetList) {
+    const presetPayload = { ...payload, currentPrompt: preset.currentPrompt, promptMode: preset.mode };
+    comparisons.push(
+      await runPromptPlanner({
+        label: preset.label,
+        prompt: buildCurrentPlannerInstruction(presetPayload),
+        sourcePath,
+        preset,
+      }),
+    );
+  }
+} else {
+  comparisons.push(
+    await runPromptPlanner({
+      label: "current-runtime-recipe",
+      prompt: buildCurrentPlannerInstruction(payload),
+      sourcePath,
+    }),
+  );
+  if (!args.currentOnly) {
+    comparisons.push(
+      await runPromptPlanner({
+        label: `original-${ORIGINAL_REF}`,
+        prompt: buildOriginalPlannerInstruction(payload),
+        sourcePath,
+      }),
+    );
+  }
+}
 
 for (const item of comparisons) {
   writeFileSync(join(outDir, `${item.label}.prompt.txt`), item.seedancePrompt, "utf8");
@@ -229,7 +278,7 @@ JSON fields:
 - warnings: short array of practical risks, empty if none.`;
 }
 
-async function runPromptPlanner({ label, prompt, sourcePath }) {
+async function runPromptPlanner({ label, prompt, sourcePath, preset = null }) {
   console.log(`Planning prompt: ${label}`);
   const codex = new Codex();
   const thread = codex.startThread({
@@ -253,6 +302,7 @@ async function runPromptPlanner({ label, prompt, sourcePath }) {
   console.log(`Prompt ready: ${label} (${wordCount(result.seedancePrompt)} words, mode ${result.selectedMode})`);
   return {
     label,
+    preset,
     ...result,
     model: process.env.CODEX_PROMPT_MODEL || "codex-default",
     reasoning: process.env.CODEX_PROMPT_REASONING || "medium",
@@ -509,6 +559,10 @@ function writeReport({ outDir, sourcePath, imageSize, ratio, duration, compariso
     lines.push(`## ${item.label}`);
     lines.push("");
     lines.push(`Mode: ${item.selectedMode}`);
+    if (item.preset) {
+      lines.push(`Preset mode request: ${item.preset.mode}`);
+      lines.push(`Preset instruction: ${item.preset.currentPrompt}`);
+    }
     lines.push(`Prompt words: ${wordCount(item.seedancePrompt)}`);
     lines.push("");
     lines.push("Prompt:");
@@ -544,8 +598,23 @@ function parseArgs(argv) {
     else if (arg === "--projection") parsed.projection = argv[++index];
     else if (arg === "--current-prompt") parsed.currentPrompt = argv[++index];
     else if (arg === "--port") parsed.port = argv[++index];
+    else if (arg === "--current-only") parsed.currentOnly = true;
+    else if (arg === "--presets") parsed.presets = argv[++index] || "all";
   }
   return parsed;
+}
+
+function selectedPresets(value) {
+  if (!value) return [];
+  const names = value === "all" ? Object.keys(MOTION_PRESETS) : String(value).split(",");
+  return names.map((name) => {
+    const key = name.trim();
+    const preset = MOTION_PRESETS[key];
+    if (!preset) {
+      throw new Error(`Unknown preset "${key}". Available presets: ${Object.keys(MOTION_PRESETS).join(", ")}`);
+    }
+    return { id: key, ...preset };
+  });
 }
 
 function loadEnvFile(path) {
