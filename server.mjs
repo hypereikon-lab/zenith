@@ -45,6 +45,7 @@ const SEEDANCE_IMAGE_PROMPT_PACK_FILES = [
   "05_feedback_repair_rules.md",
   "06_fewshot_seedance2_style.md",
   "07_fulldome_domemaster_method.md",
+  "08_fulldome_motion_thesis_catalog.md",
 ];
 const CODEX_PROMPT_MODEL = process.env.CODEX_PROMPT_MODEL || "";
 const CODEX_PROMPT_REASONING = sanitizeChoice(
@@ -787,6 +788,8 @@ Hard constraints:
 - Use Image1 as the source of truth for appearance, scene identity, composition, color, lighting, materials, and detail.
 - Preserve the square domemaster/circular fisheye geometry when Image1 has it, including pure black outside the projection circle.
 - The prompt must create visible content motion from the still image: one motion spine, relevant local material/detail verbs, and at most one restrained camera/depth instruction.
+- For fulldome/domemaster images, choose a concrete motion thesis before writing: scan path, rim pulse, particle current, refractive caustics, botanical response, interface shimmer, sky emergence, constellation reveal, locked depth breathing, or rim-anchored drift. General ambience or camera drift alone is not enough.
+- Keep the selected thesis differentiated. Do not make every prompt use the same generic petals/leaves/motes support layer; choose support details that clarify the thesis and use a start-path-settle shape when possible.
 - For fulldome/domemaster images, reason about center/rim topology. If the center is sparse sky or negative space, do not use a slow push or zoom toward it; use locked camera, rim-anchored micro drift, local depth breathing, or a visible path event through existing rings/materials.
 - Prioritize local scene behavior over global moves. Avoid fast orbit, spin, sweep, rollercoaster, or generic camera-only animation unless the image clearly demands it.
 - Avoid generic prompt-only motion like "make it cinematic" without naming what moves.

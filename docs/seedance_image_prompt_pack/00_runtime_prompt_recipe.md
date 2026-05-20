@@ -28,6 +28,7 @@ Goal: write one compact Seedance prompt that turns Image1 into a plausible video
    - event: one visible event unfolds
    - material: surfaces and details animate in place
    - for fulldome botanical/interface images, prefer a visible path event around the rim, through rings, through particles, or across existing materials
+   - for fulldome images, choose a concrete thesis from the motion catalog instead of writing only general ambience
 4. Choose one camera behavior.
    - locked-off, rim-anchored drift, local depth breathing, slight pullback, lateral drift, gentle handheld
    - use slow push-in only when the center contains a visible event or new visible motion that can hold attention
@@ -108,6 +109,25 @@ Orbit through the dome.
 ```
 
 Only use a center-directed move when the prompt also creates visible center content, such as clouds parting, light emerging outward, particles forming, or a sky aperture opening.
+
+## Fulldome Motion Thesis Requirement
+
+If Image1 is a fulldome/domemaster image, name a specific motion thesis before writing the prompt:
+
+- holographic scan path
+- bioluminescent rim pulse
+- particle current
+- refractive dome caustics
+- botanical response
+- interface shimmer
+- sky emergence
+- constellation reveal
+- locked depth breathing
+- rim-anchored drift
+
+Do not ship a prompt whose only motion is `gentle ambience`, `cinematic drift`, `subtle parallax`, or `slow push`. Those can support the thesis, but they are not the thesis.
+
+Keep the thesis differentiated. Do not reuse the same generic support motions for every thesis. A scan prompt should foreground scan path and ring brightness; a particle prompt should foreground gather/thread/disperse; a refractive prompt should foreground sliding highlights; a botanical prompt should foreground petal/leaf response. Use a start-path-settle shape when possible.
 
 ## Context Overrides
 

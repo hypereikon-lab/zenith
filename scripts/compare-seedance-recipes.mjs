@@ -22,6 +22,7 @@ const CURRENT_IMAGE_PACK_FILES = [
   "05_feedback_repair_rules.md",
   "06_fewshot_seedance2_style.md",
   "07_fulldome_domemaster_method.md",
+  "08_fulldome_motion_thesis_catalog.md",
 ];
 const ORIGINAL_IMAGE_PACK_FILES = [
   "00_seedance_image_prompt_compiler_system.md",
@@ -45,17 +46,41 @@ const MOTION_PRESETS = {
     currentPrompt:
       "Motion preset: botanical bloom. Make the primary event a gentle living response in the existing flowers: orchid petals flex slightly, blossoms turn toward the sky, long leaves sway, and a few already-visible small petals drift inward. Do not add new flowers or change the dome layout.",
   },
+  bioluminescent_rim_pulse: {
+    mode: "scene_event",
+    label: "preset-bioluminescent-rim-pulse",
+    currentPrompt:
+      "Motion thesis: bioluminescent rim pulse. A turquoise-white pulse wakes along the existing flower rim and holographic rings, travels clockwise through vines and blossoms, briefly brightens nearby petals, then fades back into the original lighting. Keep the camera locked and do not push toward empty central sky.",
+  },
+  refractive_caustics: {
+    mode: "material_life",
+    label: "preset-refractive-caustics",
+    currentPrompt:
+      "Motion thesis: refractive dome caustics. Glassy highlights and cyan caustic glints slide across existing petals, leaves, interface rings, and curved dome surfaces. Keep botanical shapes stable, keep the camera locked, and preserve the circular fulldome composition.",
+  },
   sky_aperture: {
     mode: "scene_event",
     label: "preset-sky-aperture",
     currentPrompt:
       "Motion preset: sky aperture. Make the primary event happen in the central sky only if the sky visibly changes: clouds part, star particles appear, or a soft dawn-like glow emerges and travels outward. Do not use a generic inward push into empty sky. Keep the botanical rim and fisheye dome locked.",
   },
+  constellation_reveal: {
+    mode: "scene_event",
+    label: "preset-constellation-reveal",
+    currentPrompt:
+      "Motion thesis: constellation reveal. Use existing stars, faint cyan marks, and particles to form subtle temporary constellation-like traces across the central sky and rim, then dissolve back into scattered points. Keep all marks abstract and unreadable; no camera push into the sky.",
+  },
   particle_current: {
     mode: "material_life",
     label: "preset-particle-current",
     currentPrompt:
       "Motion preset: particle current. Make the visible star motes, pollen, dew sparks, and cyan interface specks become the main motion. They gather into slow curved streams around the dome and through the flower rim, then disperse. Keep the camera locked; do not push into the empty center.",
+  },
+  interface_shimmer: {
+    mode: "material_life",
+    label: "preset-interface-shimmer",
+    currentPrompt:
+      "Motion thesis: interface shimmer. Fine holographic rings and radial marks pulse in brightness, rotate only a few degrees, and send small glints through nearby particles and glass. Keep text unreadable and abstract, camera locked, flowers and sky stable.",
   },
   orbital_parallax: {
     mode: "material_life",
@@ -214,6 +239,7 @@ function buildCurrentPlannerInstruction(input) {
       `- Do not invent dialogue, subtitles, readable text, audio direction, or style conversion when the user/currentPrompt did not ask for them.`,
       `- The prompt must create visible content motion from the still image: one motion spine, relevant local material/detail verbs, and at most one restrained camera/depth instruction.`,
       `- For fulldome/domemaster images, reason about center/rim topology. If the center is sparse sky or negative space, do not use a slow push or zoom toward it; use locked camera, rim-anchored micro drift, local depth breathing, or a visible path event through existing rings/materials.`,
+      `- Keep the selected thesis differentiated. Do not make every preset use the same generic petals/leaves/motes support layer; choose support details that clarify the thesis and use a start-path-settle shape when possible.`,
       `- Unless currentPrompt explicitly requires readable in-scene text, do not ask for text, labels, rectangular borders, UI overlays, subtitles, logos, scene redesign, or new major objects.`,
     ],
   });

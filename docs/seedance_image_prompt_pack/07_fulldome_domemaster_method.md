@@ -42,6 +42,25 @@ Material dome:
 Keep the camera nearly fixed while glass refracts, petals flex, particles drift, highlights travel, and light pulses in place.
 ```
 
+## Avoid Vague Ambient Motion
+
+Fulldome prompts often fail when the language only says the scene should breathe, drift, or feel cinematic. That gives Seedance no visible event to perform.
+
+Before writing the prompt, choose a concrete motion thesis from `08_fulldome_motion_thesis_catalog.md`. The thesis should answer:
+
+- where does the motion start?
+- what visible path or material carries it?
+- what changes first, second, and then settles?
+- what stays locked so the dome does not redesign itself?
+
+For a sparse-sky botanical dome, the safest default is:
+
+```text
+Primary thesis: a visible path event around the rim or through existing rings.
+Support layer: particles, glass refractions, and subtle botanical response.
+Camera: locked or rim-anchored, not center-pushing.
+```
+
 ## Camera Policy
 
 Good camera language:

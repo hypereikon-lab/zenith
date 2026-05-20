@@ -18,3 +18,5 @@ The runtime prompt should usually be short. The corpus median is about 96 words 
 For Zenith, the source image is the visual base. The compiler should infer motion from visible affordances, then write a compact production prompt that sounds like direction, not explanation.
 
 For fulldome and domemaster images, `07_fulldome_domemaster_method.md` is the domain-specific layer. It tells the compiler to reason about center/rim topology before writing camera language, so empty central sky is not treated as the default target for slow pushes or zooms.
+
+`08_fulldome_motion_thesis_catalog.md` is the action vocabulary. Use it to choose a concrete motion thesis before writing the prompt, especially when previous outputs felt too ambient or uneventful.
