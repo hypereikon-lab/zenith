@@ -24,6 +24,7 @@ Goal: write one compact Seedance prompt that turns Image1 into a plausible video
    - domemaster/fisheye geometry if present
    - for domemaster images, note where the useful content lives: rim, center, horizon band, rings, or radial paths
    - for layered motion, inventory visible material layers: sky/background, atmosphere/particles, glass/interface, plants/branches/grass, water, entities
+   - do not import interface, holographic, water, grass, or entity language unless those materials are actually visible
 3. Choose one motion thesis.
    - ambient: atmosphere, light, particles, water, reflections, foliage, cloth, or smoke moves
    - event: one visible event unfolds

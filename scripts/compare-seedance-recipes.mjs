@@ -58,6 +58,18 @@ const MOTION_PRESETS = {
     currentPrompt:
       "Motion thesis: refractive dome caustics. Glassy highlights and cyan caustic glints slide across existing petals, leaves, interface rings, and curved dome surfaces. Keep botanical shapes stable, keep the camera locked, and preserve the circular fulldome composition.",
   },
+  botanical_glass_caustics: {
+    mode: "material_life",
+    label: "preset-botanical-glass-caustics",
+    currentPrompt:
+      "Motion thesis: botanical glass caustics. Make transparent stems, dew bubbles, petals, and glass-like loops catch moving sky light. Caustic highlights slide over visible flowers and droplets, then settle back into the original lighting. Do not add holographic interface marks if absent.",
+  },
+  dew_bubble_current: {
+    mode: "material_life",
+    label: "preset-dew-bubble-current",
+    currentPrompt:
+      "Motion thesis: dew bubble current. Existing droplets and transparent bubbles brighten, drift along stems and curved glass loops, gather briefly around visible flowers, then disperse. Keep camera locked, sky slow, and no new water bodies or droplets.",
+  },
   sky_aperture: {
     mode: "scene_event",
     label: "preset-sky-aperture",
@@ -111,6 +123,12 @@ const MOTION_PRESETS = {
     label: "preset-layered-sky-rim-motion",
     currentPrompt:
       "Motion thesis: layered environmental motion. Make the distant sky/cloud layer drift independently behind the dome while foreground flowers, branches, leaves, particles, glass caustics, and cyan rings each move locally at different speeds. Keep the camera locked; no global warp.",
+  },
+  layered_sky_glass_botanical: {
+    mode: "material_life",
+    label: "preset-layered-sky-glass-botanical",
+    currentPrompt:
+      "Motion thesis: layered sky, glass, and botanical motion. Make the distant sky/cloud layer drift slowly behind the dome; transparent glass loops and dew bubbles refract at a different speed; visible flowers, petals, stems, and leaves move locally. Camera locked, no global warp.",
   },
   counterflow_dome_layers: {
     mode: "material_life",
@@ -290,6 +308,7 @@ function buildCurrentPlannerInstruction(input) {
       `- Keep the selected thesis differentiated. Do not make every preset use the same generic petals/leaves/motes support layer; choose support details that clarify the thesis and use a start-path-settle shape when possible.`,
       `- If interface shimmer is involved, make it a support layer or explicitly keep one unbroken locked shot with the same composition from first frame to last frame; avoid scene transitions, cuts, title-card behavior, or viewpoint changes.`,
       `- If background and materials should move independently, write layered choreography: sky/background slow behind the scene, mid-layer particles/glass/interface/reflections separate, foreground visible materials local. Name only materials visible in Image1 and keep the camera locked to avoid global warp.`,
+      `- Do not import interface, holographic, water, grass, or entity language unless those materials are visible in Image1.`,
       `- Unless currentPrompt explicitly requires readable in-scene text, do not ask for text, labels, rectangular borders, UI overlays, subtitles, logos, scene redesign, or new major objects.`,
     ],
   });

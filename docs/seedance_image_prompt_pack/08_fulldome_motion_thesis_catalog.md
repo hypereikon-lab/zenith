@@ -42,6 +42,18 @@ Refractive dome caustics:
 Glassy dome highlights slide across petals, leaves, and cyan rings as if the curved transparent surface is catching moving light.
 ```
 
+Botanical glass caustics:
+
+```text
+Transparent stems, dew bubbles, petals, and glass-like loops catch moving sky light. Caustic highlights slide over the visible flowers and droplets, then settle back into the original soft lighting.
+```
+
+Dew bubble current:
+
+```text
+Existing droplets and tiny transparent bubbles brighten, drift along stems and curved glass loops, gather briefly around flowers, then disperse without adding new droplets.
+```
+
 Botanical response:
 
 ```text
@@ -137,6 +149,18 @@ For refractive dome caustics:
 - support with sliding highlights on glass, leaves, and petals
 - support with small brightness changes in cyan rings
 - avoid event language that implies a new object or portal
+
+For botanical glass caustics:
+
+- support with transparent stems, dew bubbles, petals, and sky light
+- use glass/refraction language instead of holographic/interface language
+- avoid cyan rings unless the image clearly contains them
+
+For dew bubble current:
+
+- support with droplets brightening, drifting along stems, gathering, and dispersing
+- keep bubbles attached to visible paths or local currents
+- avoid adding new water bodies or new droplets
 
 For particle current:
 
