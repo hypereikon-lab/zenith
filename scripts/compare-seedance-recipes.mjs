@@ -106,6 +106,30 @@ const MOTION_PRESETS = {
     currentPrompt:
       "Motion thesis: living rim current. A soft breeze-like current travels clockwise through the existing flower rim; petals flex, leaf edges sway, pollen sparks thread through the cyan rings, and the motion settles back into stillness. Keep camera locked and avoid the empty central sky.",
   },
+  layered_sky_rim_motion: {
+    mode: "material_life",
+    label: "preset-layered-sky-rim-motion",
+    currentPrompt:
+      "Motion thesis: layered environmental motion. Make the distant sky/cloud layer drift independently behind the dome while foreground flowers, branches, leaves, particles, glass caustics, and cyan rings each move locally at different speeds. Keep the camera locked; no global warp.",
+  },
+  counterflow_dome_layers: {
+    mode: "material_life",
+    label: "preset-counterflow-dome-layers",
+    currentPrompt:
+      "Motion thesis: counterflow dome layers. The central sky breathes and drifts slowly one direction while rim particles and cyan glints travel clockwise through existing rings; flowers, leaves, and branches sway in a separate slower rhythm. Keep one continuous locked fulldome composition.",
+  },
+  all_layers_alive: {
+    mode: "material_life",
+    label: "preset-all-layers-alive",
+    currentPrompt:
+      "Motion thesis: all visible layers alive. In one locked shot, make the background sky, particles, glass reflections, holographic rings, flowers, leaves, branches, grass, water, and entities move only where they are visible, each with small independent local motion. Do not invent missing materials.",
+  },
+  sky_weather_rim_response: {
+    mode: "scene_event",
+    label: "preset-sky-weather-rim-response",
+    currentPrompt:
+      "Motion thesis: sky weather with rim response. The central sky layer slowly rolls and brightens, sending soft light outward; the existing rim flowers, leaves, branches, particles, glass caustics, and cyan rings respond locally with separate motion. Camera locked, rim remains visible.",
+  },
   orbital_parallax: {
     mode: "material_life",
     label: "preset-orbital-parallax",
@@ -265,6 +289,7 @@ function buildCurrentPlannerInstruction(input) {
       `- For fulldome/domemaster images, reason about center/rim topology. If the center is sparse sky or negative space, do not use a slow push or zoom toward it; use locked camera, rim-anchored micro drift, local depth breathing, or a visible path event through existing rings/materials.`,
       `- Keep the selected thesis differentiated. Do not make every preset use the same generic petals/leaves/motes support layer; choose support details that clarify the thesis and use a start-path-settle shape when possible.`,
       `- If interface shimmer is involved, make it a support layer or explicitly keep one unbroken locked shot with the same composition from first frame to last frame; avoid scene transitions, cuts, title-card behavior, or viewpoint changes.`,
+      `- If background and materials should move independently, write layered choreography: sky/background slow behind the scene, mid-layer particles/glass/interface/reflections separate, foreground visible materials local. Name only materials visible in Image1 and keep the camera locked to avoid global warp.`,
       `- Unless currentPrompt explicitly requires readable in-scene text, do not ask for text, labels, rectangular borders, UI overlays, subtitles, logos, scene redesign, or new major objects.`,
     ],
   });

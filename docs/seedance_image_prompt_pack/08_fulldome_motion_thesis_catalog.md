@@ -62,6 +62,18 @@ Atmospheric breathing:
 Cloud light, mist, particles, and reflections slowly brighten and settle while the composition stays almost still.
 ```
 
+Layered environmental motion:
+
+```text
+The distant sky/cloud layer drifts slowly behind the dome while particles, glass reflections, plants, water, and visible entities each move locally at different speeds. The camera stays locked so the layers, not the frame, create motion.
+```
+
+Counterflow dome layers:
+
+```text
+Background sky motion travels one direction while rim particles, flowers, branches, grass, water, or entities respond with separate local motion in another rhythm. Keep it subtle and continuous.
+```
+
 ## Camera/Depth Theses
 
 Locked depth breathing:
@@ -156,6 +168,14 @@ For orbital parallax or depth breathing:
 - support with glass and particles revealing depth
 - avoid spin, orbit, or zoom
 
+For layered environmental motion:
+
+- name the background layer first and make it slow
+- name only visible material layers from Image1
+- give each layer a different verb, direction, speed, or amplitude
+- keep the camera locked so the result is not a global pan or warp
+- avoid saying all materials move at once without separating layers
+
 ## Event Shape
 
 A strong prompt has a start, path, and settle:
@@ -175,3 +195,17 @@ Use these words to control how much happens:
 - strong: wakes, sweeps, opens, cascades, surges
 
 For delicate fulldome images, prefer subtle or medium. Use strong only for one clear event path, not for every material at once.
+
+## Layer Verb Bank
+
+Use different verbs for different layers:
+
+- sky/clouds: drift, part, brighten, darken, breathe, roll slowly
+- stars/particles/pollen: gather, thread, scatter, twinkle, drift, disperse
+- glass/reflections/interface: slide, shimmer, refract, pulse, catch highlights
+- branches/leaves/grass: sway, bend, tremble, rustle, settle
+- flowers/petals: flex, open slightly, turn a few degrees, flutter, settle
+- water: ripple, bead, shimmer, reflect, flow, lap
+- entities: breathe, blink, turn slightly, shift weight, gesture subtly
+
+Use only visible materials. Do not list water, grass, or entities if the source image does not contain them.

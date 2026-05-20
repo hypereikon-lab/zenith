@@ -23,6 +23,7 @@ Goal: write one compact Seedance prompt that turns Image1 into a plausible video
    - style family
    - domemaster/fisheye geometry if present
    - for domemaster images, note where the useful content lives: rim, center, horizon band, rings, or radial paths
+   - for layered motion, inventory visible material layers: sky/background, atmosphere/particles, glass/interface, plants/branches/grass, water, entities
 3. Choose one motion thesis.
    - ambient: atmosphere, light, particles, water, reflections, foliage, cloth, or smoke moves
    - event: one visible event unfolds
@@ -130,6 +131,19 @@ Do not ship a prompt whose only motion is `gentle ambience`, `cinematic drift`, 
 Keep the thesis differentiated. Do not reuse the same generic support motions for every thesis. A scan prompt should foreground scan path and ring brightness; a particle prompt should foreground gather/thread/disperse; a refractive prompt should foreground sliding highlights; a botanical prompt should foreground petal/leaf response. Use a start-path-settle shape when possible.
 
 Empirical result note: bioluminescent rim pulse and refractive caustics worked well for the botanical fulldome test image. Standalone interface shimmer produced an unwanted cut, so treat interface shimmer as a support layer unless the prompt strongly specifies one unbroken locked shot with the same composition from first frame to last frame.
+
+## Layered Motion Requirement
+
+When the user wants the background and materials to move independently, write layered choreography instead of saying `everything moves`.
+
+Use this order:
+
+1. Background layer: sky, clouds, stars, fog, horizon light, or distant environment moves slowly behind the subject.
+2. Mid layer: particles, glass, interface marks, reflections, mist, or water glints move at a different speed or direction.
+3. Foreground/material layer: branches, flowers, grass, leaves, cloth, water surface, or visible entities perform small local motion.
+4. Camera: locked or nearly locked, so the layer motion is not confused with a camera push.
+
+Only name materials that are visible in Image1. For visible entities, use small idle motion such as breathing, turning slightly, blinking, or shifting weight; do not invent new actions. Use `different speeds`, `independent layers`, `behind`, `in front`, and `local motion` to prevent a single global warp.
 
 ## Context Overrides
 

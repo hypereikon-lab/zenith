@@ -61,6 +61,8 @@ Support layer: particles, glass refractions, and subtle botanical response.
 Camera: locked or rim-anchored, not center-pushing.
 ```
 
+If the goal is to keep the whole image alive, use layered motion rather than a bigger camera move. The sky/background can move independently from the rim, but the rim should remain visible and stable in composition. Each visible material gets a small local behavior; the camera stays locked.
+
 ## Camera Policy
 
 Good camera language:
