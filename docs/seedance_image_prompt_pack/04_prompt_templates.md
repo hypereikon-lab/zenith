@@ -5,7 +5,7 @@ Use grammar patterns, not templates to fill blindly.
 ## Single-Shot Grammar
 
 ```text
-Use Image1 as the visual base. [Scene anchor]. [Motion spine] while [local material motions]. [Camera behavior]. Keep [identity/layout/style] unchanged. No [likely failure]. [Compact style tail].
+Use Image1 as the visual base. [Scene anchor]. [Motion spine] while [local material motions]. [Optional camera behavior that keeps the subject in view]. Keep [identity/layout/style] unchanged. No [likely failure]. [Compact style tail].
 ```
 
 ## Continuation Grammar
@@ -74,6 +74,26 @@ Use only when present:
 Preserve the square domemaster frame, circular fisheye projection, stable zenith orientation, and black exterior outside the projection circle.
 ```
 
+## Fulldome Domemaster Grammar
+
+Use when the image is a circular dome/fisheye composition:
+
+```text
+Use Image1 as the visual base. Inside the circular fulldome [scene anchor], [motion path/event] travels through [visible rim/rings/materials] while [particles/light/foliage/glass] [local verbs]. Use a locked-off camera or rim-anchored micro drift that keeps the circular composition centered. Preserve the square domemaster frame, circular fisheye projection, stable zenith orientation, and black exterior outside the projection circle. No cuts, no rectangular crop, no readable text, no style drift.
+```
+
+If the center is mostly sky or empty space, do not use `slow push-in` as the camera clause. Replace it with:
+
+```text
+Use a locked-off camera with gentle depth breathing while the visible motion travels around the dome.
+```
+
+Only use a center-directed move when the center itself changes:
+
+```text
+The central clouds part and release visible particles outward across the dome while the camera stays nearly fixed.
+```
+
 ## Compact Negative Bank
 
 Choose only relevant negatives:
@@ -84,6 +104,7 @@ No redesign.
 No new major objects.
 No readable text or UI marks.
 No rectangular crop.
+Do not push toward empty central sky.
 No style drift.
 Avoid fast orbit or spin.
 No subtitles.

@@ -21,6 +21,7 @@ const CURRENT_IMAGE_PACK_FILES = [
   "04_prompt_templates.md",
   "05_feedback_repair_rules.md",
   "06_fewshot_seedance2_style.md",
+  "07_fulldome_domemaster_method.md",
 ];
 const ORIGINAL_IMAGE_PACK_FILES = [
   "00_seedance_image_prompt_compiler_system.md",
@@ -36,7 +37,7 @@ const MOTION_PRESETS = {
     mode: "scene_event",
     label: "preset-holographic-scan",
     currentPrompt:
-      "Motion preset: holographic scan. Make the primary event a soft cyan scan wave traveling clockwise through the existing circular holographic rings and fine interface diagrams. Tiny star particles follow the scan path. Flowers, leaves, and the dome frame remain mostly stable. No readable text.",
+      "Motion preset: holographic scan. Make the primary event a soft cyan scan wave traveling clockwise through the existing circular holographic rings and fine interface diagrams. Tiny star particles follow the scan path. Flowers, leaves, sky, and the dome frame remain mostly stable. Use a locked camera or rim-anchored micro parallax; do not push toward empty central sky. No readable text.",
   },
   botanical_bloom: {
     mode: "scene_event",
@@ -48,19 +49,19 @@ const MOTION_PRESETS = {
     mode: "scene_event",
     label: "preset-sky-aperture",
     currentPrompt:
-      "Motion preset: sky aperture. Make the primary event happen in the central sky: clouds slowly part and brighten, star particles become more visible, and a soft dawn-like glow travels outward onto the surrounding flowers and glass. Keep the botanical rim and fisheye dome locked.",
+      "Motion preset: sky aperture. Make the primary event happen in the central sky only if the sky visibly changes: clouds part, star particles appear, or a soft dawn-like glow emerges and travels outward. Do not use a generic inward push into empty sky. Keep the botanical rim and fisheye dome locked.",
   },
   particle_current: {
     mode: "material_life",
     label: "preset-particle-current",
     currentPrompt:
-      "Motion preset: particle current. Make the visible star motes, pollen, dew sparks, and cyan interface specks become the main motion. They gather into slow curved streams that travel around the dome and through the flower rim, then disperse. Keep the camera nearly locked.",
+      "Motion preset: particle current. Make the visible star motes, pollen, dew sparks, and cyan interface specks become the main motion. They gather into slow curved streams around the dome and through the flower rim, then disperse. Keep the camera locked; do not push into the empty center.",
   },
   orbital_parallax: {
     mode: "material_life",
     label: "preset-orbital-parallax",
     currentPrompt:
-      "Motion preset: orbital parallax. Make the dome feel spatial by using a slow inward push with a tiny clockwise drift. Foreground flowers, leaves, and holographic glass shift slightly more than the central sky. Avoid spin, fast orbit, or horizon flattening.",
+      "Motion preset: orbital parallax. Make the dome feel spatial with locked-center depth breathing and a tiny rim-following clockwise drift. Foreground flowers, leaves, and holographic glass shift slightly more than the central sky. Avoid spin, fast orbit, horizon flattening, or pushing rim content toward empty sky.",
   },
 };
 const CODEX_SEEDANCE_IMAGE_SCHEMA = {
@@ -212,6 +213,7 @@ function buildCurrentPlannerInstruction(input) {
       `- Preserve the user's task context from currentPrompt when present: continuation, edit-only, style conversion, readable text, and dialogue/audio require different language.`,
       `- Do not invent dialogue, subtitles, readable text, audio direction, or style conversion when the user/currentPrompt did not ask for them.`,
       `- The prompt must create visible content motion from the still image: one motion spine, relevant local material/detail verbs, and at most one restrained camera/depth instruction.`,
+      `- For fulldome/domemaster images, reason about center/rim topology. If the center is sparse sky or negative space, do not use a slow push or zoom toward it; use locked camera, rim-anchored micro drift, local depth breathing, or a visible path event through existing rings/materials.`,
       `- Unless currentPrompt explicitly requires readable in-scene text, do not ask for text, labels, rectangular borders, UI overlays, subtitles, logos, scene redesign, or new major objects.`,
     ],
   });

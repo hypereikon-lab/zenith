@@ -44,6 +44,7 @@ const SEEDANCE_IMAGE_PROMPT_PACK_FILES = [
   "04_prompt_templates.md",
   "05_feedback_repair_rules.md",
   "06_fewshot_seedance2_style.md",
+  "07_fulldome_domemaster_method.md",
 ];
 const CODEX_PROMPT_MODEL = process.env.CODEX_PROMPT_MODEL || "";
 const CODEX_PROMPT_REASONING = sanitizeChoice(
@@ -53,7 +54,7 @@ const CODEX_PROMPT_REASONING = sanitizeChoice(
 );
 const DEFAULT_DEPTH_PROMPT = `Generate a metric depth map visualization where depth values are represented on a grayscale gradient from black (nearest objects) to white (farthest objects). Use precise linear interpolation across the depth range. Render as a clean, high-contrast grayscale image with smooth tonal transitions. No color, no overlays, no labels. Pure depth-to-brightness mapping where each shade of gray corresponds to a specific distance value in the scene. Preserve the square 180-degree domemaster fisheye layout exactly, including zenith center, circular horizon, and pure black outside the projection circle.`;
 const DEFAULT_SEEDANCE_PROMPT = `Use the still image reference as the source of truth for scene identity, composition, materials, lighting, color, and detail. Use the video reference only as a rough fulldome domemaster motion guide for camera timing, parallax direction, and motion rhythm. Preserve the circular fisheye composition and pitch-black area outside the projection circle. Convert the depth-projected guide into coherent natural motion without adding text, borders, rectangular framing, UI marks, or visible mask artifacts.`;
-const DEFAULT_SEEDANCE_IMAGE_PROMPT = `Use the input image as the source of truth for a square fulldome domemaster scene. Animate it as one seamless shot with a gentle spatial camera drift, subtle foreground parallax, natural material motion, and stable distant background. Preserve the circular fisheye projection, the original composition, and the pitch-black exterior outside the projection circle. Do not add text, borders, UI overlays, new major objects, cuts, or rectangular reframing.`;
+const DEFAULT_SEEDANCE_IMAGE_PROMPT = `Use the input image as the source of truth for a square fulldome domemaster scene. Animate it as one seamless shot with one visible motion event or material behavior grounded in the image. Keep camera motion restrained: prefer locked-off, rim-anchored micro drift, or gentle depth breathing over pushing toward empty central sky. Preserve the circular fisheye projection, original composition, stable zenith orientation, and pitch-black exterior outside the projection circle. Do not add text, borders, UI overlays, new major objects, cuts, or rectangular reframing.`;
 const CODEX_SEEDANCE_SCHEMA = {
   type: "object",
   properties: {
@@ -786,6 +787,7 @@ Hard constraints:
 - Use Image1 as the source of truth for appearance, scene identity, composition, color, lighting, materials, and detail.
 - Preserve the square domemaster/circular fisheye geometry when Image1 has it, including pure black outside the projection circle.
 - The prompt must create visible content motion from the still image: one motion spine, relevant local material/detail verbs, and at most one restrained camera/depth instruction.
+- For fulldome/domemaster images, reason about center/rim topology. If the center is sparse sky or negative space, do not use a slow push or zoom toward it; use locked camera, rim-anchored micro drift, local depth breathing, or a visible path event through existing rings/materials.
 - Prioritize local scene behavior over global moves. Avoid fast orbit, spin, sweep, rollercoaster, or generic camera-only animation unless the image clearly demands it.
 - Avoid generic prompt-only motion like "make it cinematic" without naming what moves.
 - Unless currentPrompt explicitly requires readable in-scene text, do not ask for text, labels, rectangular borders, UI overlays, subtitles, logos, scene redesign, or new major objects.
@@ -906,7 +908,7 @@ function loadSeedanceImagePromptPackContext() {
     parts.push(`\n--- ${filename} ---\n${normalizePromptPackText(text)}`);
   }
   if (parts.length === 0) {
-    return `Prompt-pack files were not found. Use the built-in rule: Image1 is the visual source of truth; infer one clear camera path, depth/parallax behavior, and scene-specific material motion from the still image while preserving domemaster geometry.`;
+    return `Prompt-pack files were not found. Use the built-in rule: Image1 is the visual source of truth; infer one clear visible motion event or material behavior from the still image while preserving domemaster geometry. Prefer locked or rim-anchored camera language over pushing toward sparse central sky.`;
   }
   return parts.join("\n");
 }

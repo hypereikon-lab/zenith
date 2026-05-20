@@ -22,12 +22,16 @@ Goal: write one compact Seedance prompt that turns Image1 into a plausible video
    - materials and lighting
    - style family
    - domemaster/fisheye geometry if present
+   - for domemaster images, note where the useful content lives: rim, center, horizon band, rings, or radial paths
 3. Choose one motion thesis.
    - ambient: atmosphere, light, particles, water, reflections, foliage, cloth, or smoke moves
    - event: one visible event unfolds
    - material: surfaces and details animate in place
+   - for fulldome botanical/interface images, prefer a visible path event around the rim, through rings, through particles, or across existing materials
 4. Choose one camera behavior.
-   - locked-off, slow push-in, slight pullback, lateral drift, gentle handheld
+   - locked-off, rim-anchored drift, local depth breathing, slight pullback, lateral drift, gentle handheld
+   - use slow push-in only when the center contains a visible event or new visible motion that can hold attention
+   - avoid pushing toward empty central sky; it moves the detailed rim out of the shot's attention
    - omit camera motion if local motion is enough
 5. Write the final prompt as production direction, not analysis.
 
@@ -73,6 +77,37 @@ Allow 120-180 words only for real contextual burden: continuation, edit preserva
 - choose ambient if the image is delicate or already composed
 - choose event if the image strongly implies an action
 - choose material if the image is texture-rich and subject-light
+- for domemaster images, choose a motion thesis before choosing camera motion
+- if the center is mostly sky or negative space, keep camera locked and animate rim/path/material details instead
+
+## Fulldome Domemaster Bias
+
+Read the image as a dome topology, not a flat postcard.
+
+- Center: often sky, aperture, zenith, or negative space.
+- Rim: often where flowers, architecture, horizon detail, people, or dense world information lives.
+- Rings and radial marks: useful motion paths because they already explain circular movement.
+- Black exterior: protected mask, not empty area to fill.
+
+When the center is sparse, do not make the camera move toward it. Make the event travel around the dome, from ring to ring, along vines, through particles, around the horizon, or outward from an actual visible sky event.
+
+Good fulldome camera language:
+
+```text
+Use a locked-off camera with gentle depth breathing.
+Use a rim-anchored micro drift that keeps the circular composition centered.
+Keep the camera nearly fixed while the scan path moves through the dome.
+```
+
+Risky fulldome camera language:
+
+```text
+Use a slow inward push into the sky.
+Push toward the center to reveal depth.
+Orbit through the dome.
+```
+
+Only use a center-directed move when the prompt also creates visible center content, such as clouds parting, light emerging outward, particles forming, or a sky aperture opening.
 
 ## Context Overrides
 
@@ -114,6 +149,7 @@ The final prompt should pass these checks:
 - It names what moves.
 - Motion comes from image affordances.
 - Camera motion is not the whole idea.
+- In domemaster images, the camera does not push useful rim content into empty sky.
 - Locks are short and relevant.
 - It does not import corpus subjects, dialogue, text, or style families.
 - It is shorter than the analysis that produced it.

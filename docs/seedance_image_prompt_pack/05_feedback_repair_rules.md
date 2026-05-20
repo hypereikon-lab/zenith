@@ -10,6 +10,29 @@ Add a clearer motion spine and three local verbs. Do not add unrelated story.
 
 Reduce the camera clause. Add material or atmosphere motion.
 
+## Empty-Center Push
+
+If a domemaster result slowly pushes toward empty sky and loses the rim content, remove the center-directed camera phrase.
+
+Replace:
+
+```text
+Use a slow inward push to reveal depth.
+```
+
+With:
+
+```text
+Use a locked-off camera with gentle depth breathing while the visible event travels around the dome.
+```
+
+Then add one explicit path:
+
+- scan wave travels through existing circular rings
+- particles gather along the flower rim
+- light ripples around the horizon band
+- clouds part in the center and send visible light outward
+
 ## Scene Redesign
 
 Move locks earlier:

@@ -22,6 +22,7 @@ Image1 controls:
 - lighting and color
 - visual style
 - dome or frame geometry
+- for domemaster images, the center/rim topology and where visual attention lives
 
 The prompt supplies:
 
@@ -37,6 +38,7 @@ The prompt supplies:
 - Use present-tense action: `drifts`, `pushes`, `glows`, `ripples`, `clears`, `turns`, `reveals`.
 - Use `while`, `as`, `then`, or `continues` to thread motion over time.
 - Use one camera instruction unless the user asks for multi-shot coverage.
+- For fulldome domemaster images, do not use camera motion to push detailed rim content toward empty central sky. Prefer locked camera, rim-anchored micro drift, local depth breathing, or a visible event path through existing rings/materials.
 - Use short locks: `Keep...`, `Preserve...`, `No...`, `Avoid...`.
 - Put style at the end as a compressed look, not a pile of adjectives.
 - Do not invent dialogue, subtitles, readable text, or audio direction unless the request already contains that context.

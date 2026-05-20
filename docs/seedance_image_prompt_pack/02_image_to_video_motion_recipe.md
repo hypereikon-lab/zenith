@@ -33,6 +33,13 @@ Choose one:
 
 The spine should be easy to see in the image.
 
+For fulldome domemaster images, choose the spine from the dome topology:
+
+- rim event: light, particles, foliage, people, architecture, or horizon detail moves around the circular edge
+- radial event: motion travels from one visible ring, ray, branch, or interface mark to another
+- center event: sky, cloud, light, or particles visibly change in the center, then affect the surrounding dome
+- material event: glass, petals, holographic marks, water, or atmosphere animate in place while the camera stays mostly fixed
+
 ## Step 4: Add Local Verbs
 
 Use three to five material verbs. Examples:
@@ -50,12 +57,15 @@ Use three to five material verbs. Examples:
 Use one camera behavior:
 
 - locked-off
-- slow push-in
+- rim-anchored micro drift
+- local depth breathing
 - slight pullback
-- lateral drift
+- lateral drift that keeps the main subject in view
 - gentle handheld
 
 Avoid camera-only animation unless the image has no good local motion affordances.
+
+For domemaster images with sparse central sky, do not use a slow push toward the center. The center is often negative space; pushing into it removes the rim content that makes the image work. Use a locked camera, rim-anchored drift, or an actual visible center event that sends light, particles, or cloud motion outward.
 
 ## Step 6: Lock The Image
 

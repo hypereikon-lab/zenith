@@ -16,3 +16,5 @@ The raw examples are evidence, not templates. Their value is in how they thread 
 The runtime prompt should usually be short. The corpus median is about 96 words and the strongest prompts often sit between 60 and 140 words. Longer prompts work when they are shot sequences, not when they repeat rules.
 
 For Zenith, the source image is the visual base. The compiler should infer motion from visible affordances, then write a compact production prompt that sounds like direction, not explanation.
+
+For fulldome and domemaster images, `07_fulldome_domemaster_method.md` is the domain-specific layer. It tells the compiler to reason about center/rim topology before writing camera language, so empty central sky is not treated as the default target for slow pushes or zooms.
