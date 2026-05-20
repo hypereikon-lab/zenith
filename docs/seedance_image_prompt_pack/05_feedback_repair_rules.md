@@ -10,6 +10,30 @@ Add a clearer motion spine and three local verbs. Do not add unrelated story.
 
 Reduce the camera clause. Add material or atmosphere motion.
 
+## Unwanted Cut Or Transition
+
+If a result inserts a cut, second shot, or sudden viewpoint switch, move continuity language earlier and demote abstract motion.
+
+Replace abstract primary events like:
+
+```text
+Fine holographic rings pulse and send glints through particles.
+```
+
+With a physical continuous event:
+
+```text
+In one unbroken locked shot, a soft light pulse starts at the flower rim, travels through existing rings, and fades back into the same frame.
+```
+
+Then add:
+
+```text
+Keep the same composition from first frame to last frame. No cuts, no scene transition, no viewpoint change.
+```
+
+If interface shimmer caused the cut, use it only as a support layer under rim pulse, scan path, or refractive caustics.
+
 ## Empty-Center Push
 
 If a domemaster result slowly pushes toward empty sky and loses the rim content, remove the center-directed camera phrase.

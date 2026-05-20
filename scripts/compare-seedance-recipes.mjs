@@ -82,6 +82,30 @@ const MOTION_PRESETS = {
     currentPrompt:
       "Motion thesis: interface shimmer. Fine holographic rings and radial marks pulse in brightness, rotate only a few degrees, and send small glints through nearby particles and glass. Keep text unreadable and abstract, camera locked, flowers and sky stable.",
   },
+  rim_pulse_caustic_echo: {
+    mode: "scene_event",
+    label: "preset-rim-pulse-caustic-echo",
+    currentPrompt:
+      "Motion thesis: rim pulse with caustic echo. In one unbroken locked shot, a turquoise-white pulse starts along the existing flower rim, travels clockwise through vines and cyan rings, then leaves soft glass caustic highlights sliding over petals before fading back into the same composition.",
+  },
+  caustic_scan_wave: {
+    mode: "material_life",
+    label: "preset-caustic-scan-wave",
+    currentPrompt:
+      "Motion thesis: caustic scan wave. In one continuous locked frame, cyan refractive highlights start at the lower rim, slide through existing holographic rings and curved glass surfaces, briefly brighten petals and dew sparks, then settle back into the original lighting. No scene transition.",
+  },
+  interface_as_reflection: {
+    mode: "material_life",
+    label: "preset-interface-as-reflection",
+    currentPrompt:
+      "Motion thesis: interface shimmer as reflection only. Keep one unbroken locked shot. The holographic rings behave like reflected light on glass: they softly pulse and cast glints into particles while the flowers, sky, and composition remain stable. No cut, no transition, no viewpoint change.",
+  },
+  living_rim_current: {
+    mode: "scene_event",
+    label: "preset-living-rim-current",
+    currentPrompt:
+      "Motion thesis: living rim current. A soft breeze-like current travels clockwise through the existing flower rim; petals flex, leaf edges sway, pollen sparks thread through the cyan rings, and the motion settles back into stillness. Keep camera locked and avoid the empty central sky.",
+  },
   orbital_parallax: {
     mode: "material_life",
     label: "preset-orbital-parallax",
@@ -240,6 +264,7 @@ function buildCurrentPlannerInstruction(input) {
       `- The prompt must create visible content motion from the still image: one motion spine, relevant local material/detail verbs, and at most one restrained camera/depth instruction.`,
       `- For fulldome/domemaster images, reason about center/rim topology. If the center is sparse sky or negative space, do not use a slow push or zoom toward it; use locked camera, rim-anchored micro drift, local depth breathing, or a visible path event through existing rings/materials.`,
       `- Keep the selected thesis differentiated. Do not make every preset use the same generic petals/leaves/motes support layer; choose support details that clarify the thesis and use a start-path-settle shape when possible.`,
+      `- If interface shimmer is involved, make it a support layer or explicitly keep one unbroken locked shot with the same composition from first frame to last frame; avoid scene transitions, cuts, title-card behavior, or viewpoint changes.`,
       `- Unless currentPrompt explicitly requires readable in-scene text, do not ask for text, labels, rectangular borders, UI overlays, subtitles, logos, scene redesign, or new major objects.`,
     ],
   });

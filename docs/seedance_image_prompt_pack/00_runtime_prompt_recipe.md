@@ -129,6 +129,8 @@ Do not ship a prompt whose only motion is `gentle ambience`, `cinematic drift`, 
 
 Keep the thesis differentiated. Do not reuse the same generic support motions for every thesis. A scan prompt should foreground scan path and ring brightness; a particle prompt should foreground gather/thread/disperse; a refractive prompt should foreground sliding highlights; a botanical prompt should foreground petal/leaf response. Use a start-path-settle shape when possible.
 
+Empirical result note: bioluminescent rim pulse and refractive caustics worked well for the botanical fulldome test image. Standalone interface shimmer produced an unwanted cut, so treat interface shimmer as a support layer unless the prompt strongly specifies one unbroken locked shot with the same composition from first frame to last frame.
+
 ## Context Overrides
 
 Continuation:

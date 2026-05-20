@@ -54,6 +54,8 @@ Interface shimmer:
 Fine holographic lines pulse in brightness, rotate only a few degrees, and send small glints through nearby particles. Keep marks abstract and unreadable.
 ```
 
+Use interface shimmer carefully. In tests, it can trigger an unwanted cut or transition when it is the whole event. It is safer as a support layer for a rim pulse, scan path, or refractive caustic event.
+
 Atmospheric breathing:
 
 ```text
@@ -135,6 +137,12 @@ For constellation reveal:
 - support with existing stars and faint linework connecting temporarily
 - support with a dissolve back into scattered points
 - avoid readable text, labels, symbols, or UI diagrams
+
+For interface shimmer:
+
+- use as support for a physical light event rather than the whole event
+- keep the same unbroken frame from first frame to last frame
+- avoid language that sounds like a screen, UI sequence, title card, or transition
 
 For sky emergence:
 
