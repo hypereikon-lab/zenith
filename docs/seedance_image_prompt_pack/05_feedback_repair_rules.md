@@ -1,50 +1,53 @@
-# Feedback repair rules
+# Feedback Repair Rules
 
-## If the video is too static
+Revise the steering function, not the decorative detail.
 
-Add one stronger camera verb and one stronger material verb:
+## If The Scene Changes Too Much
 
-- "slow push-in with subtle parallax"
-- "foreground particles drift past the lens"
-- "light shafts move across the scene"
-- "clouds roll slowly behind the structure"
+- strengthen source contract
+- list stable anchors
+- reduce event scale
+- choose ambient scene motion
+- add "no scene redesign, no new major objects"
 
-Do not add unrelated action.
+## If There Is Not Enough Motion
 
-## If Seedance redesigns the scene
+- add one primary event or material behavior
+- name three visible local motions
+- use stronger verbs tied to visible elements
+- do not add unrelated story
 
-Move source-fidelity language to the first paragraph and add:
+## If Motion Is Only Camera Movement
 
-- "Do not redesign the scene."
-- "Do not introduce new major objects."
-- "Keep the original layout, scale, and object identity."
+- reduce camera permission
+- add local material/atmosphere/subject motion
+- say camera supports the event and does not dominate
 
-## If dome geometry breaks
+## If Geometry Breaks
 
-Add a hard geometry paragraph:
+- add domemaster/fisheye/black exterior locks
+- prohibit rectangular crop, border, letterbox, UI marks
+- mention stable zenith/horizon orientation when relevant
 
-- "Preserve the square domemaster frame."
-- "Keep the circular fisheye projection stable."
-- "Keep the outside-circle area pure black."
-- "No rectangular crop, no horizon flattening, no conventional landscape reframing."
+## If It Invents Text Or Objects
 
-## If textures swim or smear
+- say no invented text, labels, logos, subtitles
+- say no new major objects
+- preserve object count and layout
 
-Add:
+## If Prompt Gets Too Long
 
-- "Textures remain locked to their surfaces."
-- "Object edges stay clean and continuous."
-- "Foreground and background remain physically separated."
+Keep:
 
-## If the motion feels generic
+1. source contract
+2. stable anchors
+3. one motion logic
+4. local motion details
+5. geometry/negative constraints
 
-Replace generic "cinematic" language with exact scene materials:
+Cut:
 
-- clouds, dust, rain, petals, glass, water, fabric, moss, neon reflections, smoke, light beams
-
-## If it invents text
-
-Add:
-
-- "No new text, captions, labels, subtitles, logos, or readable signs."
-- "Existing text, if present, stays stable and unchanged."
+1. style adjectives not observed in Image1
+2. extra events
+3. repeated negatives
+4. camera flourishes

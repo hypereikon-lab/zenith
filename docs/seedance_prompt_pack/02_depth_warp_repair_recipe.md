@@ -1,88 +1,56 @@
-# Recipe: 2.5D depth-warp motion-plate repair
+# Method: Artifact Inversion
 
-Use this recipe when the input video was created by separating layers, applying a depth map, warping the image, or brute-forcing parallax from a still image.
+The 2.5D guide is useful because it contains motion. It is dangerous because it also contains visual failure. The compiler must turn observed or likely failure into explicit repair language.
 
-## Problem definition
+## Pattern
 
-The video is not a clean visual target. It is a rough motion plate. Common artifacts:
+For each failure:
 
-- rubber-sheet warping
-- texture swimming
-- depth-map smearing
-- transparency tearing
-- black gaps or holes from warped edges
-- foreground/background bleeding
-- flat cutout sliding
-- object details stretching or melting
-- sky or background attached to foreground objects
-- fisheye/dome distortion amplified into a glass-marble look
+1. Name the defect plainly.
+2. Say it is an artifact of the guide, not a desired look.
+3. State the positive replacement in spatial/material terms.
 
-## Desired repair
-
-The final animation should look like the original image has been animated naturally in real space, while borrowing the video’s timing and movement.
-
-The compiler should produce language like:
+Template:
 
 ```text
-The input video is not the desired visual result. It is only a rough motion guide.
-Use Image1 to rebuild the final scene.
-Use Video1 only for motion: timing, camera drift, parallax direction, and overall movement rhythm.
-Do not copy the visual defects from Video1.
+Do not copy [defect] from the video reference. Treat it as a guide artifact. Reconstruct [positive target].
 ```
 
-## Artifact-to-repair mapping
+## Failure-to-Target Map
 
-| Observed artifact | Prompt repair language |
+| Defect | Positive replacement |
 |---|---|
-| Rubber-sheet stretching | `No rubbery stretching. The scene should not bend like a flat printed sheet.` |
-| Texture swimming | `Textures and fine details stay locked to their objects.` |
-| Transparency tearing | `Transparent edges remain clean, continuous, and physically stable.` |
-| Black gaps | `No black tearing gaps or exposed warped edges.` |
-| Foreground/background bleeding | `Foreground, midground, and background remain separate stable depth layers.` |
-| Flat cutout sliding | `No flat layer sliding. Use object-stable parallax and volumetric depth.` |
-| Smeared detail | `Preserve crisp detail and material fidelity from Image1 throughout motion.` |
-| Warped sky | `The sky remains a distant stable background and does not smear into foreground objects.` |
-| Over-creative redesign | `Do not redesign the scene, add major objects, or change composition.` |
-| Too little motion | `Follow Video1’s broad camera path, timing, and parallax direction more closely.` |
+| rubber-sheet warping | object-stable motion with forms retaining shape |
+| texture swimming | details locked to their surfaces |
+| foreground/background bleeding | separate foreground, midground, and background layers |
+| black tearing gaps | continuous filled scene edges with clean black outside-circle mask |
+| flat cutout sliding | physically coherent parallax and volumetric depth |
+| transparency tearing | stable transparent edges and continuous refraction |
+| smeared fine detail | crisp material fidelity from Image1 |
+| warped distant sky/background | distant layers remain stable and spatially behind foreground |
+| over-redesign | original layout, object count, and scene identity stay fixed |
+| too little motion | follow the guide's broad timing/path more strongly while preserving appearance |
 
-## Prompt modes
+## Positive Target Vocabulary
 
-### Strict repair
+Use terms that describe the desired physical state:
 
-Use when Seedance copies the bad video look.
+- object-stable
+- depth-separated
+- physically coherent
+- detail locked to surfaces
+- stable distant background
+- clean transparent edges
+- continuous material identity
+- single continuous shot
+- source-image fidelity
 
-Key phrase:
+## Mode Selection
 
-```text
-The input video is not the desired visual result. It is only a rough motion guide.
-```
+`strict_repair`: Use when guide artifacts are likely to contaminate the result. Emphasize that Video1 is not the visual target.
 
-### Conservative lock
+`conservative_lock`: Use when the model tends to redesign. Emphasize almost unchanged Image1 with minimal depth-aware motion.
 
-Use when Seedance redesigns the image too much.
+`more_volumetric`: Use when the result stays too flat. Emphasize separate stable depth layers and physically coherent parallax.
 
-Key phrase:
-
-```text
-Keep the scene almost unchanged from Image1. Only add subtle depth-aware motion following Video1.
-```
-
-### More volumetric
-
-Use when Seedance remains too flat.
-
-Key phrase:
-
-```text
-Reconstruct the scene as a physically coherent volumetric environment with separate stable layers in depth.
-```
-
-### Timed repair
-
-Use when the video has a clear duration and motion progression.
-
-Key phrase:
-
-```text
-Create a single continuous [duration]-second shot with no cuts.
-```
+The modes change steering emphasis. They must not change the scene identity.

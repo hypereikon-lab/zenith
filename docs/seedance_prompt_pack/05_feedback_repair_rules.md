@@ -1,71 +1,73 @@
-# Feedback repair rules
+# Feedback Repair Rules
 
-Use these rules after a failed output.
+When a generated video fails, revise the prompt by changing the steering function, not by adding more decorative detail.
 
-## Failure: output still copies warped/smeared video
+## If It Copies the Broken Guide
 
-Add this block near the top:
+Problem: Seedance preserves warp, smears, gaps, or flattened 2.5D look.
 
-```text
-The visual content of Video1 is corrupted and must not be reproduced. Only the motion timing and camera/parallax path should be transferred. Treat every smear, stretch, black gap, and warped detail in Video1 as an error to remove.
-```
+Revision:
 
-Use `strict_repair` mode.
+- make Video1 explicitly non-visual
+- move artifact rejection earlier
+- add positive object-stability targets
+- choose `strict_repair`
 
-## Failure: output changes the image too much
+## If It Redesigns the Scene
 
-Add:
+Problem: new objects, new layout, changed identity, changed style.
 
-```text
-Keep the scene almost unchanged from Image1. Preserve all major objects, their relative positions, composition, color palette, lighting, and material identity. Only add subtle motion and depth-aware parallax. Do not redesign the scene or add new major elements.
-```
+Revision:
 
-Use `conservative_lock` mode.
+- strengthen Image1 contract
+- list protected anchors
+- reduce secondary motion
+- choose `conservative_lock`
 
-## Failure: output is too static / ignores the video motion
+## If It Is Too Static
 
-Add:
+Problem: no meaningful motion.
 
-```text
-Follow Video1's motion more closely for timing, camera drift, parallax direction, acceleration, and ending position. Keep the same broad movement rhythm while still rebuilding the visuals from Image1.
-```
+Revision:
 
-## Failure: transparent objects tear, smear, or morph
+- describe the guide motion more specifically
+- add one clear motion path
+- add two or three material/local motions
+- avoid vague "animate naturally"
 
-Add:
+## If It Is Too Flat
 
-```text
-Transparent objects must retain continuous geometry and clean refractive edges. Glass, bubbles, liquid, hair, lace, filigree, or thin structures must not tear, melt, smear, or merge with the background.
-```
+Problem: weak depth or cardboard layers.
 
-## Failure: fine details become mushy
+Revision:
 
-Add:
+- choose `more_volumetric`
+- specify foreground/midground/background separation
+- ask for object-stable parallax, not flat sliding
 
-```text
-Preserve high-frequency detail from Image1 throughout the entire clip. Fine textures remain crisp and anchored to their objects. No over-smoothing, low-detail simplification, or blurry texture collapse.
-```
+## If It Breaks Dome Geometry
 
-## Failure: background moves like it is glued to foreground
+Problem: rectangular crop, border, mask loss, changed fisheye.
 
-Add:
+Revision:
 
-```text
-The background remains a distant stable layer. It should not warp with foreground objects, attach to them, or smear across them. Foreground, midground, and background must move with separate depth behavior.
-```
+- move geometry locks near the end and priority order
+- say black outside-circle region remains clean
+- say no rectangular reframing, letterboxing, UI marks, or border
 
-## Failure: model makes it too cinematic / changes style
+## If Prompt Gets Too Long
 
-Add:
+Cut in this order:
 
-```text
-Do not reinterpret the style. Keep Image1's exact visual language and rendering quality. Do not convert it into a different genre, medium, color grade, or art style.
-```
+1. style adjectives not visible in Image1
+2. redundant negative terms
+3. extra secondary motion
+4. time coding
 
-## Failure: model needs stronger physical reconstruction
+Keep:
 
-Add:
-
-```text
-Rebuild the scene as a physically coherent volumetric environment instead of editing the damaged plate. The final video should feel like a clean reshoot of Image1 in motion, not like a repair applied to Video1 pixels.
-```
+1. reference roles
+2. appearance anchors
+3. motion transfer
+4. artifact inversion
+5. priority order

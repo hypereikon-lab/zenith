@@ -1,29 +1,84 @@
-# Prompt templates
+# Prompt Assembly Grammar
 
-## Ambient scene motion
+Assemble image-to-video prompts from clause functions. Do not use fixed scene templates.
 
-Use Image1 as the source of truth for the final appearance, scene identity, composition, materials, lighting, color, and detail. Keep the scene almost unchanged, but let it become alive through slow local motion that already belongs to the image.
+## Clause Order
 
-Over [duration], [material/detail motion 1], [material/detail motion 2], [material/detail motion 3], and [atmosphere/light motion] move gently within the existing composition. The camera remains mostly stable with only [minimal drift/depth cue] so the viewer can read the details.
+1. `source_contract`: Image1 controls appearance.
+2. `stable_anchors`: preserve identity, layout, materials, lighting, geometry.
+3. `motion_logic`: ambient, event, or material life.
+4. `local_motion`: name three to five visible things that move.
+5. `camera_permission`: one restrained camera/depth behavior.
+6. `geometry_locks`: preserve dome/frame if present.
+7. `negative_constraints`: prevent redesign and artifacts.
+8. `priority_order`: resolve conflicts.
 
-Preserve the square fulldome domemaster composition, circular fisheye geometry, zenith/horizon orientation, and pure black outside the projection circle when present. Do not add text, logos, rectangular framing, borders, UI marks, new major objects, cuts, fast orbiting, spinning, or visible mask artifacts.
+## Clause Patterns
 
-Priority order: preserve Image1 fidelity first; animate local scene details second; preserve dome geometry third.
+### Source Contract
 
-## Scene event
+```text
+Use the source image as the exact visual reference for scene identity, composition, materials, lighting, color, and detail.
+```
 
-Use Image1 as the exact source of truth for scene identity, materials, lighting, color, and composition. Create one continuous [duration]-second shot where a single event naturally unfolds from what is already visible in the image: [event].
+### Stable Anchors
 
-The event should develop slowly and physically: [event beat 1], then [event beat 2], then [event beat 3]. Surrounding details respond naturally: [local response 1], [local response 2], [local response 3]. Use only a restrained [camera/depth behavior] to support the event, not to dominate it.
+```text
+Preserve [subject/layout], [material language], [lighting], [important silhouettes], and [geometry].
+```
 
-Keep the final video faithful to the original image. Preserve any square domemaster/circular fisheye layout and keep black outside-circle areas clean. No cuts, no scene redesign, no new major objects, no invented text, no rectangular crop, no border, no UI overlay, no generic spin or fast orbit.
+### Ambient Scene Motion
 
-## Material life
+```text
+Keep the scene almost unchanged while [atmosphere/light/material details] move gently within the existing composition.
+```
 
-Use Image1 as the visual source of truth. Turn the still into a tactile living surface study where the visible materials animate in place without changing the scene design.
+### Scene Event
 
-Animate [material 1] with [specific behavior], [material 2] with [specific behavior], [material 3] with [specific behavior], and [light/reflection/particle behavior]. Fine details stay locked to their surfaces. Transparent/refractive materials keep clean edges and stable identity.
+```text
+Create one continuous shot where [one event] unfolds from visible scene content: [beat 1], [beat 2], [beat 3].
+```
 
-The camera is nearly locked, with only [subtle push/lateral drift/depth breathing] if needed. Preserve the square fulldome domemaster, circular fisheye projection, center/zenith orientation, and pitch-black exterior outside the circle. No cuts, no new major objects, no text, no borders, no rectangular reframing, no camera-only animation.
+### Material Life
 
-Priority order: source image fidelity, local material behavior, physically coherent depth, dome geometry.
+```text
+Animate the visible materials in place: [material 1 + behavior], [material 2 + behavior], [material 3 + behavior].
+```
+
+### Camera Permission
+
+```text
+Use only [locked camera / slow push / slight pullback / lateral drift] to reveal depth; do not let camera motion dominate.
+```
+
+### Geometry Locks
+
+```text
+Preserve the square domemaster frame, circular fisheye projection, stable zenith/horizon orientation, and clean black exterior outside the projection circle when present.
+```
+
+### Negative Constraints
+
+```text
+No cuts, no new major objects, no scene redesign, no invented text, no rectangular crop, no border, no UI marks, no fast orbit or spin.
+```
+
+## Mode Deltas
+
+Ambient scene motion:
+
+- weakest global motion
+- strongest fidelity lock
+- motion comes from atmosphere, light, particles, and materials
+
+Scene event:
+
+- one clear event
+- slow beats
+- no unrelated new objects
+
+Material life:
+
+- no big story
+- surfaces, reflections, particles, and tactile details animate locally
+- camera almost locked

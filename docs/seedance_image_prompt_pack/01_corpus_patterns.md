@@ -1,63 +1,84 @@
-# Distilled Seedance 2 patterns from curated prompts
+# Corpus Distillation: Language Mechanics
 
-The raw corpus shows that strong Seedance prompts usually do not rely on abstract style labels alone. They give the model an ordered visual situation, a concrete action or event, material motion, and explicit constraints. For Zenith image-to-video, camera verbs are secondary; they should support scene content, not replace it.
+The corpus should not be copied for subjects, genres, or scene specifics. Its useful contribution is how strong prompts steer video models.
 
-## Useful structures
+## Mechanics Found in Strong Prompts
 
-### Single continuous take
+### Ordered Situation
 
-Best for Zenith image-to-video. It preserves the source image while creating motion:
+Strong prompts first establish what exists before asking for motion. They name subject, environment, material, light, and composition in an ordered way.
 
-- "Create a single seamless shot without edits."
-- "Begin close, then pull back gradually."
-- "The camera slowly glides forward..."
-- "Only the environment moves..."
-- "Keep the subject/layout stable while the world breathes around it."
+Function:
 
-### Local event
+```text
+Anchor the model before motion begins.
+```
 
-Useful when the image implies that something could happen without redesigning the scene:
+### Concrete Motion Verbs
 
-- flowers open, bubbles rise, particles gather, fog parts, light blooms, leaves sway, liquid ripples
-- a visible subject reacts, unfolds, glows, pulses, drifts, or transforms subtly within its existing identity
-- the event develops in one continuous shot and stays grounded in what is already visible
+Strong prompts use verbs tied to visible materials:
 
-### Material animation
+- light blooms, glints, flickers, travels
+- particles drift, rise, gather, scatter
+- water ripples, reflects, beads, flows
+- cloth breathes, flutters, settles
+- glass refracts, shimmers, catches highlights
+- foliage sways, bends, rustles
+- smoke curls, thins, reveals
 
-The corpus often gets better motion from concrete materials:
+Function:
 
-- dust swirls, clouds drift, rain streaks, neon reflects, ferns sway, cloth ripples
-- glass shimmers, petals move, tiny particles glint, water ripples, smoke curls
-- light shafts drift, shadows crawl, reflections slide across wet or glossy surfaces
+```text
+Make motion emerge from what is already visible.
+```
 
-### Camera verbs
+### Single Continuity Frame
 
-Use at most one, and keep it restrained:
+Strong prompts often lock continuity:
 
-- slow push-in
-- slow pullback
-- lateral tracking drift
-
-Avoid using global camera movement as the whole idea. Do not default to fast orbiting, spinning, sweeping, or camera-only animation.
-
-### Continuity constraints
-
-Strong prompts name what must not change:
-
-- one uninterrupted shot
+- one continuous shot
 - no cuts
-- no new major objects
-- no layout redesign
-- no unreadable or invented text
-- preserve the central subject
-- preserve physical paper/object stillness when needed
+- no redesign
+- preserve layout
+- keep subject identity stable
 
-### Style line
+Function:
 
-Use style as a closing compression, after scene and motion:
+```text
+Prevent the model from solving motion by changing the scene.
+```
 
-- photoreal cinematic, subtle film grain, volumetric light
-- premium abstract 3D motion-design render, soft bloom, glossy materials
-- immersive fulldome domemaster, stable circular fisheye geometry
+### Camera Restraint
 
-Avoid long style piles unless the image itself clearly supports that look.
+Camera verbs are useful but dangerous. Use one restrained camera behavior only when it supports image content:
+
+- slow push
+- slight pullback
+- lateral drift
+- tiny depth breathing
+- almost locked camera
+
+Function:
+
+```text
+Use camera motion as depth support, not as the main event.
+```
+
+### Style Compression
+
+Style language works best after concrete scene and motion clauses. It should compress the observed image look, not import a new aesthetic.
+
+Function:
+
+```text
+Preserve visual identity instead of decorating the prompt.
+```
+
+## Anti-Patterns
+
+- generic cinematic adjectives without motion permissions
+- unrelated story imported from examples
+- fast orbit/spin/sweep as the only motion idea
+- too many simultaneous events
+- adding new major objects to create action
+- style piles that contradict the image

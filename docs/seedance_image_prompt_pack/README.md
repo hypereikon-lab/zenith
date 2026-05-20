@@ -1,31 +1,35 @@
-# Seedance 2 Prompt Pack: Still-image to moving domemaster
+# Seedance 2 Image-to-Video Prompt Methodology
 
-This prompt pack is for creating a Seedance 2 image-to-video prompt directly from a still or inpainted Zenith image.
+This pack is for still-image-to-video prompts. It is not a prompt-example library. It distills the corpus into reusable steering methods.
 
-It is different from `docs/seedance_prompt_pack`, which repairs a depth-warped MP4 motion plate. In this workflow there is no video guide. Codex must read the source image, infer what can move, and write a prompt that invites motion without redesigning the scene.
+The compiler receives one source image and must infer plausible motion from what is already visible. The prompt should not import story, genre, props, or actions from unrelated corpus examples.
 
-## Runtime flow
+## Core Contract
 
-1. Analyze the source image as a `SceneCard`.
-2. Infer a `MotionPlan`: camera path, subject motion, environmental motion, material motion, and dome-geometry locks.
-3. Compile one paste-ready prompt plus variants.
-4. Send the source image as `promptImage` and the compiled prompt as `promptText` to Seedance 2 image-to-video.
+`Image1` is the only visual authority. Motion must emerge from its existing subjects, materials, atmosphere, lighting, spatial layers, and geometry.
 
-## Core principle
+There is no motion plate. Therefore the prompt must provide a motion plan, but the plan must stay subordinate to Image1.
 
-The still image is the visual source of truth. Motion should emerge from the scene's existing spatial cues, materials, atmosphere, and implied depth. The prompt must not ask Seedance to invent a different scene.
+## Method
 
-## Recommended runtime files
+1. Read the image into anchors: identity, layout, subject, materials, light, spatial layers, and geometry locks.
+2. Identify motion affordances: things visible in the image that can move without redesigning it.
+3. Choose one motion logic: ambient scene motion, scene event, or material life.
+4. Compose a continuous-shot prompt with source fidelity, motion plan, local details, camera restraint, geometry locks, and negative constraints.
+5. Keep style language derived from the image, not from the corpus.
 
-- `00_seedance_image_prompt_compiler_system.md`
-- `01_corpus_patterns.md`
-- `02_image_to_video_motion_recipe.md`
-- `03_analysis_schemas.md`
-- `04_prompt_templates.md`
-- optionally `05_feedback_repair_rules.md`
+## Language Principle
 
-`06_fewshot_seedance2_style.md` is useful as few-shot style material when the generated prompt is too flat.
+Strong image-to-video prompts steer through verbs and permissions:
 
-## Raw corpus
+- what may animate
+- what must remain stable
+- how the camera may move
+- what kind of continuity is required
+- what the model must not invent
 
-The curated raw prompt corpus is kept as reference material, not loaded into every request. Runtime should use the distilled files above.
+The raw corpus is useful only as evidence of language mechanics: ordered situation, concrete action, material motion, continuity constraints, and restrained camera verbs.
+
+## Runtime Files
+
+The server loads the Markdown files in this folder as prompt compiler context. Keep them procedural and abstract. The raw prompt corpus in `references/prompts_only.md` is offline reference material, not runtime instruction style.

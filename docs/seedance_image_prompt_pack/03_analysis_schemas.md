@@ -1,50 +1,63 @@
-# Analysis schemas
+# Analysis Ontology
+
+Use these schemas to organize what the compiler sees. The final prompt should be natural language, not schema prose.
 
 ## SceneCard
 
 ```json
 {
-  "subject": "main visual subject or absence of subject",
-  "environment": "where the scene is",
-  "foreground": "closest visible objects/materials",
-  "midground": "middle spatial layer",
-  "background": "distant layer",
-  "materials": ["glass", "petals", "clouds"],
-  "atmosphere": "haze, rain, particles, light shafts, reflections",
-  "projection": "flat, square domemaster, circular fisheye, unknown",
-  "mustPreserve": ["composition", "subject identity", "black outside circle"]
+  "identity": "what the image is",
+  "subject": "main subject or no clear subject",
+  "environment": "where it appears to be",
+  "composition": "layout, camera view, framing",
+  "foreground": ["closest visible anchors"],
+  "midground": ["middle-layer anchors"],
+  "background": ["distant anchors"],
+  "materials": ["visible material types"],
+  "lighting": "light source, color, contrast, atmosphere",
+  "style_quality": "observed rendering or photographic style",
+  "geometry_locks": ["domemaster", "fisheye", "black exterior", "none"],
+  "must_preserve": ["identity", "layout", "materials", "silhouettes"]
 }
 ```
 
-## MotionPlan
+## MotionAffordanceMap
+
+```json
+{
+  "primary_motion_candidate": "one thing that can happen",
+  "local_motions": [
+    {
+      "element": "visible element",
+      "verb": "specific motion verb",
+      "strength": "subtle / medium / strong"
+    }
+  ],
+  "camera_permission": "locked / slow push / slight pullback / lateral drift",
+  "depth_behavior": "how foreground and background separate",
+  "redesign_risks": ["what the model might invent or break"]
+}
+```
+
+## PromptPlan
 
 ```json
 {
   "mode": "ambient_scene_motion | scene_event | material_life",
-  "durationFeel": "short 5-6 second continuous motion",
-  "camera": "one clear camera path",
-  "subjectMotion": "what visible subjects do",
-  "environmentMotion": "wind, water, clouds, dust, light, reflections",
-  "depthBehavior": "foreground parallax vs stable distant layer",
-  "locks": ["one continuous shot", "no cuts", "no new major objects"]
+  "source_contract": "Image1 is visual truth",
+  "stable_anchors": [],
+  "motion_permissions": [],
+  "camera_permission": "",
+  "geometry_locks": [],
+  "negative_constraints": [],
+  "priority_order": []
 }
 ```
 
-## Compiler output
+## Extraction Rules
 
-```json
-{
-  "diagnosis": "2-5 sentences",
-  "sceneCardSummary": "compact scene card",
-  "selectedMode": "ambient_scene_motion",
-  "seedancePrompt": "paste-ready prompt",
-  "promptStrategy": "one sentence",
-  "variants": {
-    "ambientSceneMotion": "paste-ready prompt",
-    "sceneEvent": "paste-ready prompt",
-    "materialLife": "paste-ready prompt"
-  },
-  "negativeTerms": ["new objects", "rectangular crop"],
-  "warnings": []
-}
-```
+- Do not invent story to justify motion.
+- Do not use nouns absent from the image unless they name general materials or atmosphere.
+- Convert visible materials into verbs.
+- Convert likely failure modes into constraints.
+- Prefer fewer, stronger motion permissions over many unrelated actions.

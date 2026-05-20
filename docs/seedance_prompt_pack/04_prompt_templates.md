@@ -1,64 +1,84 @@
-# Prompt templates
+# Prompt Assembly Grammar
 
-## Template A: strict repair prompt
+Do not use fixed scene templates. Assemble prompts from functional clauses. Each clause has a job.
 
-Use this when the 2.5D video artifacts are likely to contaminate the output.
+## Clause Order
 
-```text
-The input video is not the desired visual result. It is only a rough motion guide.
+1. `role_contract`: define what each reference controls.
+2. `appearance_anchors`: state what Image1 must preserve.
+3. `motion_transfer`: state what Video1 contributes.
+4. `artifact_rejection`: name and reject guide failure modes.
+5. `positive_reconstruction`: describe the desired physical state.
+6. `secondary_motion`: add only scene-consistent local motion.
+7. `geometry_locks`: preserve domemaster/frame constraints.
+8. `priority_order`: resolve conflicts.
 
-Use {image_ref} to rebuild the final scene. {image_ref} defines the real appearance: {scene_identity}. Preserve {protected_features}. Maintain {style_quality}, with {materials}, {lighting_color}, and the original composition: {composition_summary}.
+## Clause Patterns
 
-Use {video_ref} only for motion: {desired_motion_to_transfer}. Follow its {motion_summary}, but do not copy its visual quality, pixels, flattened look, or artifacts.
-
-Do not copy the visual defects from {video_ref}. The video contains 2.5D depth-warp damage: {observed_artifacts}. These are artifacts to remove, not style to preserve.
-
-Make the final animation look like {image_ref} moving naturally in real space. Keep objects stable, crisp, detailed, and physically separated in depth. {object_stability_sentences}
-
-Motion should be {motion_character}. Add only natural animation that fits the scene: {natural_motion_candidates}.
-
-No warped still-image look. No flat parallax plate. No smear. No morphing. No scene redesign. No loss of {image_ref} detail.
-
-Priority order: preserve {image_ref}'s scene identity, composition, material quality, and visual fidelity first; transfer {video_ref}'s timing, camera motion, parallax direction, and broad motion rhythm second; add subtle natural animation third; reject all 2.5D artifacts from {video_ref}.
-```
-
-## Template B: compact app prompt
+### Role Contract
 
 ```text
-Use {image_ref} as the source of truth for the final appearance, scene identity, materials, lighting, and composition. Use {video_ref} only as a rough motion plate for duration, timing, camera drift, parallax direction, and broad movement rhythm.
-
-Recreate {scene_identity} with {style_quality}: {composition_summary}, {materials}, {lighting_color}, and protected details: {protected_features}.
-
-The final animation should follow the motion of {video_ref} but look like {image_ref} moving naturally in real space. Keep foreground, midground, and background as separate stable depth layers. Textures stay locked to objects. Transparent edges remain clean. The background remains stable and distant.
-
-Do not preserve the 2.5D depth-warp defects visible in {video_ref}: {observed_artifacts}. No rubber-sheet warping, texture swimming, black gaps, foreground-background bleeding, flat cutout sliding, smearing, morphing, or loss of detail.
-
-Priority: {image_ref} visual fidelity first, {video_ref} motion second.
+Use the still image reference as the source of truth for appearance, composition, materials, lighting, color, and detail. Use the video reference only as a motion guide for timing, camera path, parallax direction, and broad rhythm.
 ```
 
-## Template C: timed 6-second repair
+### Appearance Anchors
 
 ```text
-Use {image_ref} as the visual source of truth. Use {video_ref} only as the motion reference.
-
-Create a single continuous {duration_seconds}-second shot with no cuts.
-
-00:00-00:02: Begin very close to {image_ref}. Preserve {composition_summary}. Start the same broad drift and parallax direction seen in {video_ref}, but keep all details crisp and realistic.
-
-00:02-00:04: Continue following {video_ref}'s camera movement and depth rhythm. Reconstruct the motion as real object-stable parallax instead of a 2.5D warp. The scene layers remain physically separate: {spatial_layers_summary}. Add subtle natural movement: {natural_motion_candidates}.
-
-00:04-00:06: Complete the motion path from {video_ref} while preserving {image_ref}'s visual quality. Do not let the scene smear, stretch, collapse, or lose material detail.
-
-Do not copy the damaged look of {video_ref}. Remove {observed_artifacts}. Priority order: {image_ref} realism and scene identity first, {video_ref} timing and camera motion second, subtle natural animation third.
+Preserve [identity], [layout anchors], [materials], [lighting/color], and [protected details].
 ```
 
-## Object-stability sentence builder
-
-Generate 2-4 sentences based on scene layers:
+### Motion Transfer
 
 ```text
-The distant background should remain distant and stable.
-The main foreground objects should retain their shape and material identity during motion.
-Transparent structures should keep clean edges and stable refraction.
-Fine details should stay locked to their surfaces instead of swimming or smearing.
+Follow the guide's [duration], [camera path], [parallax direction], and [motion rhythm], while rebuilding the scene from the still image reference.
 ```
+
+### Artifact Rejection
+
+```text
+Do not copy [failure modes] from the video reference. Treat those as guide artifacts, not style.
+```
+
+### Positive Reconstruction
+
+```text
+Reconstruct the motion as [object-stable / depth-separated / physically coherent] movement where [layer targets] remain spatially distinct and details stay locked to surfaces.
+```
+
+### Secondary Motion
+
+```text
+Add only natural motion already implied by the image: [material motion], [atmosphere/light motion], [small subject/environment response].
+```
+
+### Geometry Locks
+
+```text
+Preserve the square domemaster frame, circular fisheye projection, zenith/horizon orientation, and clean pitch-black exterior outside the projection circle when present.
+```
+
+### Priority Order
+
+```text
+Priority: still-image visual fidelity first, guide-video timing and parallax second, scene-consistent secondary motion third, artifact rejection always.
+```
+
+## Variant Deltas
+
+Strict repair:
+
+- lead with "the video reference is not the desired visual result"
+- increase artifact rejection
+- keep visual changes minimal
+
+Conservative lock:
+
+- lead with "keep the scene almost unchanged"
+- reduce secondary motion
+- avoid expansive camera wording
+
+More volumetric:
+
+- emphasize separated depth layers
+- ask for stronger spatial reconstruction
+- still preserve Image1 identity and layout

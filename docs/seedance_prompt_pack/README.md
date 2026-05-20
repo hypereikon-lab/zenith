@@ -1,38 +1,41 @@
-# Seedance 2 Prompt Pack: Image-first / 2.5D motion-plate repair
+# Seedance 2 Prompt Methodology: Image Truth, Motion Plate
 
-This prompt pack is designed for an app that receives:
+This pack is not a scene prompt library. It is a compact methodology for compiling prompts when Zenith has:
 
-- an original still image, usually high-quality and visually correct
-- a derived 2.5D/depth-warp motion video made from that image
-- an instruction to generate a Seedance-style prompt that transfers the motion while recovering the image quality
+- one high-quality still image
+- one derived 2.5D/depth-warp MP4 guide
+- motion/projection settings from the app
 
-The key principle is:
+The goal is to steer Seedance by assigning clean semantic roles to the inputs, not by copying example prompt specifics.
 
-> The image is the visual source of truth. The video is only a motion plate.
+## Core Contract
 
-Do not feed a huge prompt corpus into every generation call. Use the corpus offline to distill prompting patterns, then run the app with a small prompt compiler, a task-specific recipe, and a compact scene/motion analysis.
+`Image1` is the visual truth. It owns scene identity, composition, object identity, material language, lighting, color, style, and fidelity.
 
-## Recommended runtime flow
+`Video1` is motion evidence. It owns duration, timing, camera path, parallax direction, broad rhythm, and spatial choreography.
 
-1. Sample video frames, usually first / middle / last plus 3 to 6 intermediate frames.
-2. Analyze the original image into a `SceneCard`.
-3. Analyze the video into a `MotionPlateCard`.
-4. Compile the Seedance prompt using `04_prompt_templates.md`.
-5. Optionally produce 2 or 3 variants: strict repair, conservative lock, more-volumetric.
-6. Use user feedback to revise with `05_feedback_repair_rules.md`.
+The prompt compiler must keep those contracts separate. When references conflict, the image wins for appearance and the video wins only for motion.
 
-## Why this works
+## Method
 
-The derived video often contains 2.5D artifacts: rubber-sheet stretching, texture swimming, foreground/background bleeding, transparency tearing, black gaps, and smeared detail. If the prompt says “preserve the video,” the model preserves the broken pixels. The winning strategy is to explicitly state that the video is a damaged motion plate and that its visual defects are artifacts to remove.
+1. Read Image1 into stable anchors: subject, layout, spatial layers, materials, lighting, protected details, and geometry locks.
+2. Read Video1 into motion evidence: duration, direction, camera path, parallax behavior, rhythm, and visible failure modes.
+3. Convert failure modes into steering language: name the defect, say it is not the target, and state the positive replacement.
+4. Compose the prompt as a control document: role contract, appearance anchors, motion transfer, reconstruction target, constraints, priority order.
+5. Produce variants by changing the strength of motion and repair, not by changing the scene.
 
-## Recommended files to load at runtime
+## Language Principle
 
-For this specific workflow, load these at runtime:
+Strong prompts are not long lists of adjectives. They are contracts:
 
-- `00_seedance_prompt_compiler_system.md`
-- `02_depth_warp_repair_recipe.md`
-- `03_analysis_schemas.md`
-- `04_prompt_templates.md`
-- optionally `05_feedback_repair_rules.md`
+- what each reference means
+- what must be preserved
+- what may move
+- what defects must not propagate
+- what priority resolves conflicts
 
-Use `01_reference_roles_and_patterns.md` and `06_fewshot_prompt6_style.md` as development references or few-shot material, not necessarily every request.
+Use concise, scene-grounded nouns and verbs. Avoid importing style or story from the corpus unless the image itself supports it.
+
+## Runtime Files
+
+The server loads the Markdown files in this folder as runtime context for Codex. These files should stay abstract and procedural. The raw corpus belongs offline; only distilled steering rules should appear here.

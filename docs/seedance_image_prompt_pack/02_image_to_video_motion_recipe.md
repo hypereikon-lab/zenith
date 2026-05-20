@@ -1,82 +1,55 @@
-# Recipe: still image to living scene
+# Method: Motion Affordance Extraction
 
-This workflow is not about spinning the domemaster, orbiting fast, or making a generic camera move. It is about reading the image and proposing what could actually happen inside that scene.
+Still-image prompts fail when motion is generic. They work when motion is derived from visible affordances.
 
-## Step 1: Read the scene
+## Step 1: Identify Stable Anchors
 
-Create a `SceneCard`:
+Stable anchors are the image facts that must not drift:
 
-- subject(s), environment, and implied mood
-- foreground, midground, and background
-- visible materials that can move or change
-- atmosphere, lighting, particles, fluids, plants, cloth, glass, reflections, shadows, clouds, creatures, or mechanisms
-- small story/event affordances already implied by the image
-- geometry locks for domemaster images
+- main subject identity
+- composition and camera view
+- object count and relative placement
+- material identity
+- light direction and color palette
+- important silhouettes
+- text or graphic marks, if they must remain readable
+- domemaster/fisheye/black exterior geometry
 
-## Step 2: Choose a content mode
+## Step 2: Identify Motion Affordances
 
-### ambient_scene_motion
+Affordances are visible things that can move without becoming new content:
 
-Use when the image is already strong and should remain mostly intact.
+- atmosphere: fog, haze, dust, smoke, mist
+- fluids: water, liquid, bubbles, rain, dew
+- light: glow, reflections, shadows, rays, flicker
+- organic matter: leaves, petals, flowers, hair, fabric, creatures
+- surfaces: glass, metal, plastic, paper, cloth, stone
+- environment: clouds, particles, drifting debris
 
-- no major story turn
-- local details come alive slowly
-- light, atmosphere, particles, reflections, water, foliage, or translucent materials move
-- camera motion is almost locked, with only a tiny drift if useful
+## Step 3: Choose Motion Logic
 
-### scene_event
+`ambient_scene_motion`: almost no story. The image breathes through light, atmosphere, particles, and subtle material motion.
 
-Use when the image implies that something could happen.
+`scene_event`: one visible event unfolds from image content. The event must be small enough not to redesign the scene.
 
-- one clear event unfolds over the shot
-- examples: flowers open, bubbles rise, mist parts, a light source blooms, creatures glide through the dome, glass structures pulse, water ripples outward, clouds reveal a sun, particles gather around a subject
-- the event must come from visible scene content
-- no new major unrelated objects, no cuts, no redesign
+`material_life`: surfaces and details animate locally. Best for abstract, botanical, glossy, textured, or atmospheric images.
 
-### material_life
+## Step 4: Compose Motion Permissions
 
-Use when the image is rich in surfaces and textures.
+Each prompt should include:
 
-- focus on detailed material behavior rather than camera movement
-- examples: refractive glass shimmer, dew sliding, leaves swaying, pollen drifting, reflections traveling across curved surfaces, liquid tendrils moving, cloth breathing, sparks fading, fog curling
-- motion should be slow, tactile, and local
-- camera stays restrained so details remain readable
+- one primary motion idea
+- three to five local motion details
+- one camera/depth behavior at most
+- explicit locks for composition and identity
+- negative constraints against redesign
 
-## Step 3: Build the prompt
+## Step 5: Regulate Motion Strength
 
-Write 4 to 6 compact paragraphs:
+If image fidelity matters most, use ambient motion and almost locked camera.
 
-1. Scene identity and source fidelity.
-2. The main scene event or local happening.
-3. Detailed material/subject/environment motion.
-4. Minimal camera/depth behavior.
-5. Fulldome/domemaster locks if applicable.
-6. Negative constraints and priority order.
+If the image implies an event, use scene event with slow beats.
 
-## Dome-specific locks
+If the image is material-rich but subject-poor, use material life.
 
-When the image is square with circular fisheye/domemaster composition:
-
-- preserve the square domemaster frame
-- preserve the circular fisheye projection
-- keep the zenith/horizon orientation stable
-- keep the outside of the circular projection pure black
-- do not add a rectangular border, crop, letterbox, or UI marks
-- do not turn the dome into a conventional rectangular landscape shot
-
-## Motion strength
-
-Strong still-image motion prompt:
-
-- one concrete thing happens
-- three to five visible details move
-- camera motion is restrained and supports the event
-- material identity and scene layout remain stable
-
-Weak still-image motion prompt:
-
-- "animate this cinematically"
-- only global camera orbit/spin
-- no named materials or local details
-- too many unrelated actions
-- scene redesign disguised as motion
+Do not use camera-only animation as a substitute for reading the image.

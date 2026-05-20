@@ -1,26 +1,58 @@
-# Few-shot style: strict image-first repair prompt
+# Style Rubric: Direct Production Language
 
-This is a generic few-shot example of the successful Prompt 6 style. Use it to teach the compiler tone and structure, not as a fixed scene prompt.
+Use this as a style guide, not as a scene example.
+
+## Good Prompt Language
+
+Good Seedance steering is:
+
+- explicit about reference roles
+- concrete about visible anchors
+- narrow about motion permissions
+- positive about the desired physical result
+- decisive about artifacts and conflict priority
+
+## Bad Prompt Language
+
+Avoid:
+
+- long style piles unrelated to Image1
+- generic cinematic language with no motion plan
+- asking to preserve both references equally
+- "make it immersive" without saying what moves
+- "fix artifacts" without naming the artifact and replacement
+- fast camera moves as a substitute for scene motion
+
+## Sentence Shapes That Work
+
+Role sentence:
 
 ```text
-The input video is not the desired visual result. It is only a rough motion guide.
-
-Use Image1 to rebuild the final scene. Image1 defines the real appearance: [describe the original image with concrete subject, composition, materials, lighting, and rendering quality].
-
-Use Video1 only for motion: timing, camera drift, parallax direction, and overall movement rhythm.
-
-Do not copy the visual defects from Video1. The video contains obvious 2.5D depth-warp damage: rubbery stretching, texture swimming, transparency tearing, black gaps, smeared details, warped background, flattened cutout motion, and foreground-background bleeding. These are artifacts to remove, not style to preserve.
-
-Make the final animation look like Image1 moving naturally in real space. Keep objects stable, crisp, detailed, and physically separated in depth. Transparent elements should retain their shape. Fine details should stay anchored. The background should remain a distant stable layer. Motion should be gentle, realistic, elegant, and continuous.
-
-No warped still-image look. No flat parallax plate. No smear. No morphing. No scene redesign. No loss of Image1 detail.
+Use the still image reference for appearance and the video reference only for motion.
 ```
 
-## Why the tone works
+Anchor sentence:
 
-- It is blunt about the video not being the target.
-- It gives the image total authority over appearance.
-- It gives the video authority only over motion.
-- It names the artifacts specifically.
-- It converts a negative instruction into a positive target: object-stable, physically separated depth.
-- It avoids unrelated style references that could distract the model.
+```text
+Preserve [visible subject], [layout], [materials], [lighting], and [geometry].
+```
+
+Motion sentence:
+
+```text
+Follow the guide's [camera path] and [parallax direction] over [duration].
+```
+
+Repair sentence:
+
+```text
+Do not copy [artifact]; reconstruct it as [positive physical target].
+```
+
+Priority sentence:
+
+```text
+When references conflict, still-image fidelity wins over video appearance, while video timing and parallax guide the motion.
+```
+
+The best prompts combine these sentence functions with image-specific nouns and material verbs.

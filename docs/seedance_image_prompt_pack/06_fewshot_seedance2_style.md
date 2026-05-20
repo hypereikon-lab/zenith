@@ -1,25 +1,64 @@
-# Few-shot style examples
+# Style Rubric: Grounded Motion Language
 
-## Botanical fulldome
+This file is a language rubric, not a few-shot scene example.
 
-Use Image1 as the source of truth for the final appearance: a square fulldome domemaster looking upward through a luminous botanical glass canopy, with layered flowers, leaves, translucent structures, soft sky, refractive highlights, and a clean black exterior outside the circular projection.
+## Good Image-to-Video Prompting
 
-Animate it as one seamless 6-second shot. The camera performs a very slow lateral drift with a tiny pullback, creating gentle parallax: nearby petals and glass filigree shift slightly more than the distant sky. Leaves and flowers sway almost imperceptibly, glass catches subtle moving highlights, tiny particles glint, and clouds drift slowly in the center.
+Good prompts:
 
-Preserve the circular fisheye geometry, zenith center, scale, color, lighting, and object identity from the still image. Keep textures locked and edges clean. No cuts, no new objects, no text, no rectangular border, no UI overlay, no visible mask artifact.
+- bind the source image as visual truth
+- identify stable anchors before motion
+- choose one motion logic
+- use material-specific verbs
+- limit camera permission
+- forbid redesign and invented content
+- preserve frame/dome geometry
 
-## Abstract motion-design dome
+## Weak Prompting
 
-Use Image1 as the exact visual source for a premium abstract 3D domemaster scene. Preserve the glossy materials, neon accents, spatial layout, central composition, and circular fisheye projection.
+Weak prompts:
 
-Create one continuous slow orbit. Foreground abstract forms show subtle parallax, translucent surfaces shimmer with changing reflections, small particles drift through the space, and background light gradients pulse very softly. The motion should feel designed and spatial, not chaotic.
+- rely on "cinematic" without motion content
+- use fast orbit/spin/sweep as the whole idea
+- add unrelated story or objects
+- list too many simultaneous events
+- ignore materials and atmosphere
+- forget what must remain stable
 
-Keep the square dome map stable with pure black outside the circle. Do not add logos, readable UI text, extra screens, clutter, new characters, cuts, or rectangular reframing.
+## Useful Sentence Functions
 
-## Atmospheric landscape dome
+Anchor:
 
-Use Image1 as the source of truth for an immersive square domemaster landscape. Preserve the horizon curve, zenith direction, color palette, light direction, terrain silhouettes, and distant atmosphere.
+```text
+Use the source image as the exact visual reference for [identity], [layout], [materials], [lighting], and [detail].
+```
 
-Animate a single continuous shot with a slow forward glide and tiny upward pitch. Clouds move gradually across the sky, mist or dust drifts through the foreground, light shifts softly across surfaces, and distant layers remain stable while near layers reveal mild parallax.
+Permission:
 
-Do not turn the dome into a flat rectangular landscape. Preserve the circular fisheye projection and black exterior. No cuts, no new landmarks, no text, no borders, no visible repair artifacts.
+```text
+Allow [visible element] to [specific verb] while [stable anchor] remains unchanged.
+```
+
+Continuity:
+
+```text
+Create one continuous shot with no cuts or scene redesign.
+```
+
+Camera restraint:
+
+```text
+Use only a restrained [camera behavior] to support depth; do not let camera motion dominate.
+```
+
+Geometry:
+
+```text
+Preserve [frame/projection/mask] exactly when present.
+```
+
+Priority:
+
+```text
+Priority: source image fidelity first, local scene motion second, camera motion third.
+```

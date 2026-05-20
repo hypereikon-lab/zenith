@@ -1,80 +1,77 @@
-# Seedance prompt patterns distilled from the example corpus
+# Reference Role Contracts
 
-The example prompt corpus works because the prompts are concrete, explicit, and role-separated. The most useful patterns are below.
+Prompting multi-reference video models is mostly reference governance. If roles are vague, the model blends inputs incorrectly. The compiler must state roles with narrow verbs.
 
-## 1. Reference role assignment
+## Image1 Contract
 
-Good pattern:
+Use Image1 for:
 
-```text
-Use Image1 as the source of truth for appearance, scene identity, materials, lighting, and composition.
-Use Video1 only for timing, camera movement, parallax, motion rhythm, and broad movement paths.
-```
+- scene identity
+- object identity and count
+- composition and layout
+- materials and texture fidelity
+- lighting and color palette
+- style/rendering quality
+- dome or frame geometry
+- protected details and silhouettes
 
-Avoid:
-
-```text
-Preserve the video exactly and apply the image style.
-```
-
-The avoid version preserves the broken depth-warp artifacts.
-
-## 2. Concrete scene description
-
-Do not say only “make it realistic.” Say what realism means for this image:
+Good language:
 
 ```text
-realistic translucent glass-like botanical structures, pale flowers, mossy rim, bright central sun, soft cloudy sky, crisp refraction, delicate material detail
+Use the still image reference as the source of truth for appearance, composition, materials, lighting, color, and detail.
 ```
 
-The compiler should extract material-specific phrases from the image.
-
-## 3. Explicit problem naming
-
-For 2.5D motion plates, name the defects:
+Avoid language that implies only superficial style transfer:
 
 ```text
-Do not copy rubber-sheet warping, texture swimming, smeared transparent edges, foreground-background bleeding, black tearing gaps, flattened cutout motion, or stretched details.
+Use the image style.
 ```
 
-This works better than generic “avoid artifacts.”
+## Video1 Contract
 
-## 4. Object-stable repair language
+Use Video1 for:
 
-Use this language to oppose texture swimming and depth-map smears:
+- duration and timing
+- broad camera path
+- parallax direction
+- motion rhythm
+- rough spatial choreography
+- start/end movement relationship
+
+Good language:
 
 ```text
-The objects should remain stable, crisp, detailed, and physically separated in depth.
-Textures should stay locked to their objects.
-The distant background should remain distant and stable.
+Use the video reference only as a motion guide for timing, camera drift, parallax direction, and broad movement rhythm.
 ```
 
-## 5. Shot and timing structure
-
-If the clip has a fixed duration, time-coded prompts are often strong:
+Avoid language that makes the damaged guide the visual target:
 
 ```text
-00:00-00:02: begin close to Image1, start the same slow drift as Video1.
-00:02-00:04: continue the camera motion while preserving object-stable depth.
-00:04-00:06: complete the motion path without smearing or visual collapse.
+Preserve the video exactly.
 ```
 
-Use this when the motion has clear phases.
+## Conflict Language
 
-## 6. Static versus active elements
+Use explicit conflict resolution. Video appearance loses to Image1. Image1 stillness loses only where Video1 provides motion.
 
-Call out what should remain stable and what should move:
+Canonical priority sentence:
 
 ```text
-The sky remains a distant stable background. Foreground flowers, glass structures, bubbles, and liquid highlights move subtly with depth-aware parallax.
+Priority: preserve the still image reference for visual fidelity first; follow the video reference for motion timing and parallax second; reject visual artifacts from the guide.
 ```
 
-## 7. Priority order
+## Reference Verbs
 
-When references conflict, add:
+Use precise verbs:
 
-```text
-Priority order: Image1 visual quality and scene identity first, Video1 timing and camera motion second, subtle natural animation third. Do not preserve visual defects from Video1.
-```
+- Image1: preserve, rebuild, maintain, keep, anchor, protect
+- Video1: follow, borrow, transfer, use as guide, match rhythm, approximate path
+- Artifacts: reject, remove, do not copy, replace with, reconstruct as
 
-This is one of the strongest patterns for this workflow.
+Avoid ambiguous verbs:
+
+- blend
+- remix
+- stylize from
+- preserve everything
+- make like both
