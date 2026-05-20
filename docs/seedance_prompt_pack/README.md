@@ -2,6 +2,8 @@
 
 This pack adapts the Seedance corpus language mechanics to Zenith's still-image plus 2.5D guide workflow.
 
+Runtime should start with `00_runtime_motion_plate_recipe.md`. That is the task-facing generation recipe. The other files provide supporting roles, repair language, templates, and feedback rules.
+
 The corpus suggests a practical rule: working prompts are compact direction. They bind references, name the shot, move it with concrete verbs, then add short locks.
 
 For this workflow:

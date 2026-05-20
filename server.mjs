@@ -27,6 +27,7 @@ const SEEDANCE_PROMPT_PACK_DIR =
 const SEEDANCE_IMAGE_PROMPT_PACK_DIR =
   process.env.SEEDANCE_IMAGE_PROMPT_PACK_DIR || join(process.cwd(), "docs", "seedance_image_prompt_pack");
 const SEEDANCE_PROMPT_PACK_FILES = [
+  "00_runtime_motion_plate_recipe.md",
   "00_seedance_prompt_compiler_system.md",
   "01_reference_roles_and_patterns.md",
   "02_depth_warp_repair_recipe.md",
@@ -36,8 +37,8 @@ const SEEDANCE_PROMPT_PACK_FILES = [
   "06_fewshot_prompt6_style.md",
 ];
 const SEEDANCE_IMAGE_PROMPT_PACK_FILES = [
+  "00_runtime_prompt_recipe.md",
   "00_seedance_image_prompt_compiler_system.md",
-  "01_corpus_patterns.md",
   "02_image_to_video_motion_recipe.md",
   "03_analysis_schemas.md",
   "04_prompt_templates.md",

@@ -2,6 +2,8 @@
 
 This pack distills the working prompt corpus into language mechanics for Seedance 2 image-to-video.
 
+Runtime should start with `00_runtime_prompt_recipe.md`. That is the task-facing generation recipe. The corpus analysis file is evidence and calibration, not the main instruction surface.
+
 The raw examples are evidence, not templates. Their value is in how they thread language:
 
 1. bind the source or references
