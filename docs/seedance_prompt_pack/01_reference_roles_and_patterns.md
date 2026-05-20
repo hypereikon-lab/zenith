@@ -1,77 +1,40 @@
-# Reference Role Contracts
+# Reference Role Grammar
 
-Prompting multi-reference video models is mostly reference governance. If roles are vague, the model blends inputs incorrectly. The compiler must state roles with narrow verbs.
+Use narrow reference verbs.
 
-## Image1 Contract
+## Image1 Verbs
 
-Use Image1 for:
+`use`, `preserve`, `keep`, `rebuild from`, `match`
 
-- scene identity
-- object identity and count
-- composition and layout
-- materials and texture fidelity
-- lighting and color palette
-- style/rendering quality
-- dome or frame geometry
-- protected details and silhouettes
-
-Good language:
+Example:
 
 ```text
-Use the still image reference as the source of truth for appearance, composition, materials, lighting, color, and detail.
+Use the still image reference as the visual base for scene identity, composition, materials, lighting, color, and detail.
 ```
 
-Avoid language that implies only superficial style transfer:
+## Video1 Verbs
+
+`follow`, `borrow`, `transfer`, `use only as a motion guide`
+
+Example:
 
 ```text
-Use the image style.
+Use the video reference only for timing, camera path, parallax direction, and broad motion rhythm.
 ```
 
-## Video1 Contract
-
-Use Video1 for:
-
-- duration and timing
-- broad camera path
-- parallax direction
-- motion rhythm
-- rough spatial choreography
-- start/end movement relationship
-
-Good language:
+## Conflict Sentence
 
 ```text
-Use the video reference only as a motion guide for timing, camera drift, parallax direction, and broad movement rhythm.
+If the references conflict, keep Image1's appearance and use Video1 only for motion.
 ```
 
-Avoid language that makes the damaged guide the visual target:
+## Avoid
 
 ```text
 Preserve the video exactly.
+Blend both references equally.
+Use the video style.
+Make it like both.
 ```
 
-## Conflict Language
-
-Use explicit conflict resolution. Video appearance loses to Image1. Image1 stillness loses only where Video1 provides motion.
-
-Canonical priority sentence:
-
-```text
-Priority: preserve the still image reference for visual fidelity first; follow the video reference for motion timing and parallax second; reject visual artifacts from the guide.
-```
-
-## Reference Verbs
-
-Use precise verbs:
-
-- Image1: preserve, rebuild, maintain, keep, anchor, protect
-- Video1: follow, borrow, transfer, use as guide, match rhythm, approximate path
-- Artifacts: reject, remove, do not copy, replace with, reconstruct as
-
-Avoid ambiguous verbs:
-
-- blend
-- remix
-- stylize from
-- preserve everything
-- make like both
+These phrases invite the model to copy guide artifacts.

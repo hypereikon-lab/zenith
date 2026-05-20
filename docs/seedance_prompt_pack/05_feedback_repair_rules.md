@@ -1,73 +1,49 @@
 # Feedback Repair Rules
 
-When a generated video fails, revise the prompt by changing the steering function, not by adding more decorative detail.
+Keep repairs terse.
 
-## If It Copies the Broken Guide
+## Copied The Broken Guide
 
-Problem: Seedance preserves warp, smears, gaps, or flattened 2.5D look.
+Add:
 
-Revision:
+```text
+The video reference is only a motion guide, not the desired visual result.
+```
 
-- make Video1 explicitly non-visual
-- move artifact rejection earlier
-- add positive object-stability targets
-- choose `strict_repair`
+Then name the visible artifact and replacement.
 
-## If It Redesigns the Scene
+## Too Much Redesign
 
-Problem: new objects, new layout, changed identity, changed style.
+Move Image1 lock earlier:
 
-Revision:
+```text
+Use the still image reference as the visual base and keep the scene almost unchanged.
+```
 
-- strengthen Image1 contract
-- list protected anchors
-- reduce secondary motion
-- choose `conservative_lock`
+Cut new events.
 
-## If It Is Too Static
+## Too Flat
 
-Problem: no meaningful motion.
+Add depth relation:
 
-Revision:
+```text
+Foreground, midground, and background separate with coherent parallax.
+```
 
-- describe the guide motion more specifically
-- add one clear motion path
-- add two or three material/local motions
-- avoid vague "animate naturally"
+## Geometry Breaks
 
-## If It Is Too Flat
+Add only the needed lock:
 
-Problem: weak depth or cardboard layers.
+```text
+Preserve the square domemaster frame, circular fisheye projection, and black exterior outside the projection circle.
+```
 
-Revision:
+## Too Long
 
-- choose `more_volumetric`
-- specify foreground/midground/background separation
-- ask for object-stable parallax, not flat sliding
+Cut:
 
-## If It Breaks Dome Geometry
-
-Problem: rectangular crop, border, mask loss, changed fisheye.
-
-Revision:
-
-- move geometry locks near the end and priority order
-- say black outside-circle region remains clean
-- say no rectangular reframing, letterboxing, UI marks, or border
-
-## If Prompt Gets Too Long
-
-Cut in this order:
-
-1. style adjectives not visible in Image1
-2. redundant negative terms
-3. extra secondary motion
-4. time coding
-
-Keep:
-
-1. reference roles
-2. appearance anchors
-3. motion transfer
-4. artifact inversion
-5. priority order
+1. repeated role binding
+2. generic artifact language
+3. extra negatives
+4. adjective piles
+5. second camera instruction

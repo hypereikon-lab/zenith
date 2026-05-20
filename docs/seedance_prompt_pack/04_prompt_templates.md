@@ -1,84 +1,41 @@
-# Prompt Assembly Grammar
+# Prompt Grammar
 
-Do not use fixed scene templates. Assemble prompts from functional clauses. Each clause has a job.
+Use these as grammar patterns, not rigid templates.
 
-## Clause Order
-
-1. `role_contract`: define what each reference controls.
-2. `appearance_anchors`: state what Image1 must preserve.
-3. `motion_transfer`: state what Video1 contributes.
-4. `artifact_rejection`: name and reject guide failure modes.
-5. `positive_reconstruction`: describe the desired physical state.
-6. `secondary_motion`: add only scene-consistent local motion.
-7. `geometry_locks`: preserve domemaster/frame constraints.
-8. `priority_order`: resolve conflicts.
-
-## Clause Patterns
-
-### Role Contract
+## Base Grammar
 
 ```text
-Use the still image reference as the source of truth for appearance, composition, materials, lighting, color, and detail. Use the video reference only as a motion guide for timing, camera path, parallax direction, and broad rhythm.
+Use the still image reference as the visual base for [identity/materials/light/layout]. Use the video reference only as a motion guide for [camera path/parallax/timing]. [Shot description] with [local motion]. Do not copy [guide artifacts]. Rebuild the motion as [positive repair]. Keep [geometry/identity] unchanged. [Style tail].
 ```
 
-### Appearance Anchors
+## Strict Repair
 
 ```text
-Preserve [identity], [layout anchors], [materials], [lighting/color], and [protected details].
+Use the still image reference as the visual base. The video reference is only a motion guide, not the desired visual result. Follow its timing, camera path, and parallax, but do not copy rubber-sheet warping, texture swimming, smeared edges, or black gaps. Rebuild the shot as stable depth-separated motion with crisp materials and clean layer separation. Preserve [geometry] and [style].
 ```
 
-### Motion Transfer
+## Conservative Lock
 
 ```text
-Follow the guide's [duration], [camera path], [parallax direction], and [motion rhythm], while rebuilding the scene from the still image reference.
+Use the still image reference as the visual base and keep the scene almost unchanged. Borrow only the video's slow camera path, parallax direction, and rhythm. Add subtle local motion in [visible materials]. No redesign, no new objects, no style drift. Preserve [geometry].
 ```
 
-### Artifact Rejection
+## More Volumetric
 
 ```text
-Do not copy [failure modes] from the video reference. Treat those as guide artifacts, not style.
+Use the still image reference for appearance and the video reference for motion only. Follow the guide's camera path while rebuilding the scene with stronger depth separation: [foreground] moves against [midground/background], textures stay locked, and edges remain crisp. Preserve [geometry/style].
 ```
 
-### Positive Reconstruction
+## Negative Bank
+
+Choose only relevant negatives:
 
 ```text
-Reconstruct the motion as [object-stable / depth-separated / physically coherent] movement where [layer targets] remain spatially distinct and details stay locked to surfaces.
+No rubber-sheet warping.
+No texture swimming.
+No black tearing gaps.
+No flat cutout motion.
+No scene redesign.
+No rectangular crop.
+No style drift.
 ```
-
-### Secondary Motion
-
-```text
-Add only natural motion already implied by the image: [material motion], [atmosphere/light motion], [small subject/environment response].
-```
-
-### Geometry Locks
-
-```text
-Preserve the square domemaster frame, circular fisheye projection, zenith/horizon orientation, and clean pitch-black exterior outside the projection circle when present.
-```
-
-### Priority Order
-
-```text
-Priority: still-image visual fidelity first, guide-video timing and parallax second, scene-consistent secondary motion third, artifact rejection always.
-```
-
-## Variant Deltas
-
-Strict repair:
-
-- lead with "the video reference is not the desired visual result"
-- increase artifact rejection
-- keep visual changes minimal
-
-Conservative lock:
-
-- lead with "keep the scene almost unchanged"
-- reduce secondary motion
-- avoid expansive camera wording
-
-More volumetric:
-
-- emphasize separated depth layers
-- ask for stronger spatial reconstruction
-- still preserve Image1 identity and layout

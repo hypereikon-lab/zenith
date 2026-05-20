@@ -1,64 +1,47 @@
-# Style Rubric: Grounded Motion Language
+# Style Rubric: Seedance Prompt Language
 
-This file is a language rubric, not a few-shot scene example.
+Good Seedance language is direct, visual, and moving.
 
-## Good Image-to-Video Prompting
-
-Good prompts:
-
-- bind the source image as visual truth
-- identify stable anchors before motion
-- choose one motion logic
-- use material-specific verbs
-- limit camera permission
-- forbid redesign and invented content
-- preserve frame/dome geometry
-
-## Weak Prompting
-
-Weak prompts:
-
-- rely on "cinematic" without motion content
-- use fast orbit/spin/sweep as the whole idea
-- add unrelated story or objects
-- list too many simultaneous events
-- ignore materials and atmosphere
-- forget what must remain stable
-
-## Useful Sentence Functions
-
-Anchor:
+## Strong
 
 ```text
-Use the source image as the exact visual reference for [identity], [layout], [materials], [lighting], and [detail].
+Use Image1 as the visual base. A rain-soaked alley glows under cold blue light as puddles ripple, mist curls along the brick wall, and poster edges tremble slightly in the wind. The camera slowly pushes toward the wall. Keep the character, alley layout, paper texture, and noir lighting unchanged. No cuts, no new objects, no style drift.
 ```
 
-Permission:
+Why it works:
+
+- source is bound once
+- scene is visible
+- verbs carry motion
+- camera has one job
+- locks are short
+
+## Weak
 
 ```text
-Allow [visible element] to [specific verb] while [stable anchor] remains unchanged.
+Create a cinematic realistic scene with beautiful atmosphere. Preserve all important details and make it move naturally while keeping everything consistent and avoiding artifacts.
 ```
 
-Continuity:
+Why it fails:
+
+- no motion spine
+- no material verbs
+- no camera decision
+- constraints are generic
+
+## Sentence Tools
+
+Use these as needed:
 
 ```text
-Create one continuous shot with no cuts or scene redesign.
+Open on...
+As...
+...while...
+The camera slowly...
+Keep...
+Preserve...
+No...
+Avoid...
 ```
 
-Camera restraint:
-
-```text
-Use only a restrained [camera behavior] to support depth; do not let camera motion dominate.
-```
-
-Geometry:
-
-```text
-Preserve [frame/projection/mask] exactly when present.
-```
-
-Priority:
-
-```text
-Priority: source image fidelity first, local scene motion second, camera motion third.
-```
+The final prompt should read like compact direction for a shot, not an essay about prompt strategy.

@@ -1,58 +1,31 @@
-# Style Rubric: Direct Production Language
+# Style Rubric: Compact Motion-Guide Prompting
 
-Use this as a style guide, not as a scene example.
-
-## Good Prompt Language
-
-Good Seedance steering is:
-
-- explicit about reference roles
-- concrete about visible anchors
-- narrow about motion permissions
-- positive about the desired physical result
-- decisive about artifacts and conflict priority
-
-## Bad Prompt Language
-
-Avoid:
-
-- long style piles unrelated to Image1
-- generic cinematic language with no motion plan
-- asking to preserve both references equally
-- "make it immersive" without saying what moves
-- "fix artifacts" without naming the artifact and replacement
-- fast camera moves as a substitute for scene motion
-
-## Sentence Shapes That Work
-
-Role sentence:
+## Strong
 
 ```text
-Use the still image reference for appearance and the video reference only for motion.
+Use the still image reference as the visual base for the scene identity, composition, glassy botanical materials, pale sky, and domemaster framing. Use the video reference only as a motion guide for timing, slow drift, and parallax. Rebuild the shot as stable depth-separated motion: foreground flowers and translucent structures shift gently against the distant sky while textures stay locked to their surfaces. Do not copy rubber-sheet warping, texture swimming, smeared edges, or black gaps. Preserve the circular fisheye projection and black exterior.
 ```
 
-Anchor sentence:
+## Weak
 
 ```text
-Preserve [visible subject], [layout], [materials], [lighting], and [geometry].
+Use the image and video to create a cinematic result. Preserve the image but follow the video while avoiding artifacts and improving quality.
 ```
 
-Motion sentence:
+Why weak:
+
+- no concrete scene anchor
+- no specific motion
+- no named artifact
+- no positive replacement
+
+## Sentence Tools
 
 ```text
-Follow the guide's [camera path] and [parallax direction] over [duration].
+Use the still image reference as...
+Use the video reference only as...
+Rebuild the shot as...
+Do not copy...
+Keep...
+Preserve...
 ```
-
-Repair sentence:
-
-```text
-Do not copy [artifact]; reconstruct it as [positive physical target].
-```
-
-Priority sentence:
-
-```text
-When references conflict, still-image fidelity wins over video appearance, while video timing and parallax guide the motion.
-```
-
-The best prompts combine these sentence functions with image-specific nouns and material verbs.

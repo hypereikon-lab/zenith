@@ -1,84 +1,49 @@
-# Prompt Assembly Grammar
+# Prompt Grammar
 
-Assemble image-to-video prompts from clause functions. Do not use fixed scene templates.
+Use grammar patterns, not templates to fill blindly.
 
-## Clause Order
-
-1. `source_contract`: Image1 controls appearance.
-2. `stable_anchors`: preserve identity, layout, materials, lighting, geometry.
-3. `motion_logic`: ambient, event, or material life.
-4. `local_motion`: name three to five visible things that move.
-5. `camera_permission`: one restrained camera/depth behavior.
-6. `geometry_locks`: preserve dome/frame if present.
-7. `negative_constraints`: prevent redesign and artifacts.
-8. `priority_order`: resolve conflicts.
-
-## Clause Patterns
-
-### Source Contract
+## Single-Shot Grammar
 
 ```text
-Use the source image as the exact visual reference for scene identity, composition, materials, lighting, color, and detail.
+Use Image1 as the visual base. [Scene anchor]. [Motion spine] while [local material motions]. [Camera behavior]. Keep [identity/layout/style] unchanged. No [likely failure]. [Compact style tail].
 ```
 
-### Stable Anchors
+## Ambient Grammar
 
 ```text
-Preserve [subject/layout], [material language], [lighting], [important silhouettes], and [geometry].
+Use Image1 as the visual base. Keep the scene almost unchanged as [atmosphere/light/material] gently [verb], [verb], and [verb]. Use a [camera behavior] only to reveal depth. Preserve [geometry/style]. No cuts, no redesign, no new objects.
 ```
 
-### Ambient Scene Motion
+## Event Grammar
 
 ```text
-Keep the scene almost unchanged while [atmosphere/light/material details] move gently within the existing composition.
+Use Image1 as the visual base. [Visible subject/event] begins to [action], then [second beat] while [local details] [verb]. The camera [behavior]. Keep [identity/layout] consistent. No cuts, no new major objects, no style drift.
 ```
 
-### Scene Event
+## Material Grammar
 
 ```text
-Create one continuous shot where [one event] unfolds from visible scene content: [beat 1], [beat 2], [beat 3].
+Use Image1 as the visual base. Animate the visible materials in place: [material] [verb], [material] [verb], [light/particles] [verb]. Keep the composition and subject identity fixed. [Style tail].
 ```
 
-### Material Life
+## Domemaster Lock
+
+Use only when present:
 
 ```text
-Animate the visible materials in place: [material 1 + behavior], [material 2 + behavior], [material 3 + behavior].
+Preserve the square domemaster frame, circular fisheye projection, stable zenith orientation, and black exterior outside the projection circle.
 ```
 
-### Camera Permission
+## Compact Negative Bank
+
+Choose only relevant negatives:
 
 ```text
-Use only [locked camera / slow push / slight pullback / lateral drift] to reveal depth; do not let camera motion dominate.
+No cuts.
+No redesign.
+No new major objects.
+No readable text or UI marks.
+No rectangular crop.
+No style drift.
+Avoid fast orbit or spin.
 ```
-
-### Geometry Locks
-
-```text
-Preserve the square domemaster frame, circular fisheye projection, stable zenith/horizon orientation, and clean black exterior outside the projection circle when present.
-```
-
-### Negative Constraints
-
-```text
-No cuts, no new major objects, no scene redesign, no invented text, no rectangular crop, no border, no UI marks, no fast orbit or spin.
-```
-
-## Mode Deltas
-
-Ambient scene motion:
-
-- weakest global motion
-- strongest fidelity lock
-- motion comes from atmosphere, light, particles, and materials
-
-Scene event:
-
-- one clear event
-- slow beats
-- no unrelated new objects
-
-Material life:
-
-- no big story
-- surfaces, reflections, particles, and tactile details animate locally
-- camera almost locked

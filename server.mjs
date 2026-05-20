@@ -720,6 +720,7 @@ ${promptPackContext}
 Hard constraints:
 - Return only the requested JSON object.
 - seedancePrompt must be under ${SEEDANCE_PROMPT_MAX} characters.
+- Aim for 90-160 words unless the guide has clear timed beats; write compact production direction, not an explanation.
 - Do not mention "depth map", "WebGPU", UI controls, sampled frames, or implementation details in seedancePrompt.
 - It is recommended to say "still image reference", "source frame", "video reference", or "motion guide" when describing how Seedance should use each input.
 - Do not ask Seedance to change the scene identity.
@@ -728,7 +729,7 @@ Hard constraints:
 - Treat the MP4 as the choreography/camera guide, not as the visual source of truth.
 - Never say "preserve Video1 exactly" or "preserve the original video exactly" for this workflow.
 - Use Image1 as the source of truth for appearance; use Video1 only for timing, camera motion, parallax direction, and broad motion rhythm.
-- Name likely 2.5D/depth-warp defects as artifacts to reject.
+- Name only relevant 2.5D/depth-warp defects as artifacts to reject, then state the positive replacement briefly.
 - If requestedMode is "auto", choose one of strict_repair, conservative_lock, or more_volumetric. If a concrete mode is requested, use that mode for seedancePrompt.
 
 Motion/settings context:
@@ -774,11 +775,12 @@ ${promptPackContext}
 Hard constraints:
 - Return only the requested JSON object.
 - seedancePrompt must be under ${SEEDANCE_PROMPT_MAX} characters.
+- Aim for 70-140 words unless the image clearly needs a sequence; write compact production direction, not an explanation.
 - Do not mention "attached image", "depth map", "WebGPU", UI controls, sampled frames, or implementation details in seedancePrompt.
 - Do not mention a video guide, motion plate, or video reference.
 - Use Image1 as the source of truth for appearance, scene identity, composition, color, lighting, materials, and detail.
 - Preserve the square domemaster/circular fisheye geometry when Image1 has it, including pure black outside the projection circle.
-- The prompt must create visible content motion from the still image: at minimum one concrete scene event or local happening, three scene-specific material/detail motions, and one restrained camera/depth instruction.
+- The prompt must create visible content motion from the still image: one motion spine, relevant local material/detail verbs, and at most one restrained camera/depth instruction.
 - Prioritize local scene behavior over global moves. Avoid fast orbit, spin, sweep, rollercoaster, or generic camera-only animation unless the image clearly demands it.
 - Avoid generic prompt-only motion like "make it cinematic" without naming what moves.
 - Do not ask for text, labels, rectangular borders, UI overlays, subtitles, logos, scene redesign, or new major objects.

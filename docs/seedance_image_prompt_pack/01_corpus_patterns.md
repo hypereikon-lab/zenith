@@ -1,84 +1,92 @@
-# Corpus Distillation: Language Mechanics
+# Corpus Language Analysis
 
-The corpus should not be copied for subjects, genres, or scene specifics. Its useful contribution is how strong prompts steer video models.
+Source: `references/prompts_only.md`, 391 fenced prompt examples.
 
-## Mechanics Found in Strong Prompts
+Observed shape:
 
-### Ordered Situation
+- word count: p25 64, median 96, p75 142, p90 186
+- sentence count: p25 4, median 5, p75 9
+- camera language appears in most examples
+- style/look language appears in most examples, usually after scene and motion
+- reference binding appears often, especially as `Use image 1 for...`
+- consistency language is compact: `keep`, `preserve`, `same`, `consistent`
+- negatives are surgical: `no music`, `avoid cartoon look`, `no cuts`, `no style drift`
 
-Strong prompts first establish what exists before asking for motion. They name subject, environment, material, light, and composition in an ordered way.
+## What The Language Does
 
-Function:
+Working prompts do not mainly persuade. They assign attention.
 
-```text
-Anchor the model before motion begins.
-```
+They usually thread five kinds of language:
 
-### Concrete Motion Verbs
+1. scene anchor: what is visible now
+2. action spine: what changes over time
+3. camera/coverage: how the viewer sees it
+4. locks: what cannot drift
+5. style register: what visual family the result belongs to
 
-Strong prompts use verbs tied to visible materials:
-
-- light blooms, glints, flickers, travels
-- particles drift, rise, gather, scatter
-- water ripples, reflects, beads, flows
-- cloth breathes, flutters, settles
-- glass refracts, shimmers, catches highlights
-- foliage sways, bends, rustles
-- smoke curls, thins, reveals
-
-Function:
+The examples are often declarative rather than over-instructive:
 
 ```text
-Make motion emerge from what is already visible.
+A race car powers through neon Tokyo streets at night, drifting hard on wet pavement while tires scream and smoke pours from the wheels.
 ```
 
-### Single Continuity Frame
+This works because subject, place, action, material response, and sensory tone are bound in one sentence.
 
-Strong prompts often lock continuity:
+## High-Value Clause Forms
 
-- one continuous shot
-- no cuts
-- no redesign
-- preserve layout
-- keep subject identity stable
-
-Function:
+Scene-first:
 
 ```text
-Prevent the model from solving motion by changing the scene.
+A [subject] [strong verb] through [place/material condition] while [secondary visible motion].
 ```
 
-### Camera Restraint
-
-Camera verbs are useful but dangerous. Use one restrained camera behavior only when it supports image content:
-
-- slow push
-- slight pullback
-- lateral drift
-- tiny depth breathing
-- almost locked camera
-
-Function:
+Opening reveal:
 
 ```text
-Use camera motion as depth support, not as the main event.
+Open on [obscured or still condition]. As [material/event changes], [subject or scene] is revealed.
 ```
 
-### Style Compression
-
-Style language works best after concrete scene and motion clauses. It should compress the observed image look, not import a new aesthetic.
-
-Function:
+Reference binding:
 
 ```text
-Preserve visual identity instead of decorating the prompt.
+Use Image1 for [identity/style/layout]. Keep [protected traits] consistent.
 ```
 
-## Anti-Patterns
+Continuity lock:
 
-- generic cinematic adjectives without motion permissions
-- unrelated story imported from examples
-- fast orbit/spin/sweep as the only motion idea
-- too many simultaneous events
-- adding new major objects to create action
-- style piles that contradict the image
+```text
+One continuous shot with [camera behavior]. No cuts, no redesign.
+```
+
+Style tail:
+
+```text
+[style family], [lighting], [render/film texture], [mood].
+```
+
+## What To Steal From The Corpus
+
+Steal:
+
+- active verbs
+- time connectors
+- camera nouns
+- short consistency locks
+- style compression
+- reference-role phrasing
+
+Do not steal:
+
+- scene subjects
+- long coverage lists
+- repeated style piles
+- unrelated story
+- negative clauses that do not address the current image
+
+## Seedance Biases Suggested By The Corpus
+
+Seedance appears steerable through cinematic grammar: shot size, camera path, action beat, material response, and style register.
+
+It also appears to honor concise constraint language. `Keep the same character`, `no style drift`, and `avoid cartoon look` are more useful than long explanations of why drift is bad.
+
+For Zenith, this means the compiler should produce a short, image-grounded prompt with one motion spine and a few local motion details. It should not generate a full ontology unless the user asks for one.

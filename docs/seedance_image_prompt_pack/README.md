@@ -1,35 +1,16 @@
-# Seedance 2 Image-to-Video Prompt Methodology
+# Seedance 2 Image Prompt Method
 
-This pack is for still-image-to-video prompts. It is not a prompt-example library. It distills the corpus into reusable steering methods.
+This pack distills the working prompt corpus into language mechanics for Seedance 2 image-to-video.
 
-The compiler receives one source image and must infer plausible motion from what is already visible. The prompt should not import story, genre, props, or actions from unrelated corpus examples.
+The raw examples are evidence, not templates. Their value is in how they thread language:
 
-## Core Contract
+1. bind the source or references
+2. open with a visible situation
+3. move the scene with concrete verbs
+4. add one camera behavior or coverage pattern
+5. lock consistency with short `keep`, `preserve`, `no`, or `avoid` clauses
+6. close with a compact style register
 
-`Image1` is the only visual authority. Motion must emerge from its existing subjects, materials, atmosphere, lighting, spatial layers, and geometry.
+The runtime prompt should usually be short. The corpus median is about 96 words and the strongest prompts often sit between 60 and 140 words. Longer prompts work when they are shot sequences, not when they repeat rules.
 
-There is no motion plate. Therefore the prompt must provide a motion plan, but the plan must stay subordinate to Image1.
-
-## Method
-
-1. Read the image into anchors: identity, layout, subject, materials, light, spatial layers, and geometry locks.
-2. Identify motion affordances: things visible in the image that can move without redesigning it.
-3. Choose one motion logic: ambient scene motion, scene event, or material life.
-4. Compose a continuous-shot prompt with source fidelity, motion plan, local details, camera restraint, geometry locks, and negative constraints.
-5. Keep style language derived from the image, not from the corpus.
-
-## Language Principle
-
-Strong image-to-video prompts steer through verbs and permissions:
-
-- what may animate
-- what must remain stable
-- how the camera may move
-- what kind of continuity is required
-- what the model must not invent
-
-The raw corpus is useful only as evidence of language mechanics: ordered situation, concrete action, material motion, continuity constraints, and restrained camera verbs.
-
-## Runtime Files
-
-The server loads the Markdown files in this folder as prompt compiler context. Keep them procedural and abstract. The raw prompt corpus in `references/prompts_only.md` is offline reference material, not runtime instruction style.
+For Zenith, the source image is the visual base. The compiler should infer motion from visible affordances, then write a compact production prompt that sounds like direction, not explanation.

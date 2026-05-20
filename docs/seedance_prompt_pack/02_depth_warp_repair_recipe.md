@@ -1,56 +1,34 @@
-# Method: Artifact Inversion
+# Method: Repair By Naming The Difference
 
-The 2.5D guide is useful because it contains motion. It is dangerous because it also contains visual failure. The compiler must turn observed or likely failure into explicit repair language.
+The 2.5D guide is useful motion evidence, not visual truth.
 
-## Pattern
-
-For each failure:
-
-1. Name the defect plainly.
-2. Say it is an artifact of the guide, not a desired look.
-3. State the positive replacement in spatial/material terms.
-
-Template:
+Repair language should be short:
 
 ```text
-Do not copy [defect] from the video reference. Treat it as a guide artifact. Reconstruct [positive target].
+Do not copy rubber-sheet warping, texture swimming, smeared edges, black tearing gaps, or flat cutout motion.
 ```
 
-## Failure-to-Target Map
+Then state the replacement:
 
-| Defect | Positive replacement |
-|---|---|
-| rubber-sheet warping | object-stable motion with forms retaining shape |
-| texture swimming | details locked to their surfaces |
-| foreground/background bleeding | separate foreground, midground, and background layers |
-| black tearing gaps | continuous filled scene edges with clean black outside-circle mask |
-| flat cutout sliding | physically coherent parallax and volumetric depth |
-| transparency tearing | stable transparent edges and continuous refraction |
-| smeared fine detail | crisp material fidelity from Image1 |
-| warped distant sky/background | distant layers remain stable and spatially behind foreground |
-| over-redesign | original layout, object count, and scene identity stay fixed |
-| too little motion | follow the guide's broad timing/path more strongly while preserving appearance |
+```text
+Rebuild the motion as stable depth-separated objects with textures locked to their surfaces.
+```
 
-## Positive Target Vocabulary
+## Common Failure To Replacement
 
-Use terms that describe the desired physical state:
+- rubber-sheet warp -> stable object depth
+- texture swimming -> texture locked to surfaces
+- foreground/background bleeding -> clean layer separation
+- black gaps -> complete reconstructed image
+- flat cutout slide -> coherent parallax
+- smeared transparent edges -> crisp material boundaries
 
-- object-stable
-- depth-separated
-- physically coherent
-- detail locked to surfaces
-- stable distant background
-- clean transparent edges
-- continuous material identity
-- single continuous shot
-- source-image fidelity
+## Modes
 
-## Mode Selection
+`strict_repair`: lead with guide artifacts as not the target.
 
-`strict_repair`: Use when guide artifacts are likely to contaminate the result. Emphasize that Video1 is not the visual target.
+`conservative_lock`: keep Image1 almost unchanged, small motion only.
 
-`conservative_lock`: Use when the model tends to redesign. Emphasize almost unchanged Image1 with minimal depth-aware motion.
+`more_volumetric`: emphasize depth layers and coherent parallax.
 
-`more_volumetric`: Use when the result stays too flat. Emphasize separate stable depth layers and physically coherent parallax.
-
-The modes change steering emphasis. They must not change the scene identity.
+Use mode names only in JSON, not in the final prompt.

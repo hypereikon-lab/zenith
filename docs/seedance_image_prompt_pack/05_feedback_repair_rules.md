@@ -1,53 +1,49 @@
 # Feedback Repair Rules
 
-Revise the steering function, not the decorative detail.
+Repair by changing the language thread.
 
-## If The Scene Changes Too Much
+## Too Static
 
-- strengthen source contract
-- list stable anchors
-- reduce event scale
-- choose ambient scene motion
-- add "no scene redesign, no new major objects"
+Add a clearer motion spine and three local verbs. Do not add unrelated story.
 
-## If There Is Not Enough Motion
+## Too Camera-Only
 
-- add one primary event or material behavior
-- name three visible local motions
-- use stronger verbs tied to visible elements
-- do not add unrelated story
+Reduce the camera clause. Add material or atmosphere motion.
 
-## If Motion Is Only Camera Movement
+## Scene Redesign
 
-- reduce camera permission
-- add local material/atmosphere/subject motion
-- say camera supports the event and does not dominate
+Move locks earlier:
 
-## If Geometry Breaks
+```text
+Use Image1 as the visual base. Keep [identity/layout/style] unchanged.
+```
 
-- add domemaster/fisheye/black exterior locks
-- prohibit rectangular crop, border, letterbox, UI marks
-- mention stable zenith/horizon orientation when relevant
+Cut big new events.
 
-## If It Invents Text Or Objects
+## Style Drift
 
-- say no invented text, labels, logos, subtitles
-- say no new major objects
-- preserve object count and layout
+Use a short negative:
 
-## If Prompt Gets Too Long
+```text
+No style drift. Avoid [wrong style].
+```
 
-Keep:
+Then name the correct style in a compact tail.
 
-1. source contract
-2. stable anchors
-3. one motion logic
-4. local motion details
-5. geometry/negative constraints
+## Geometry Breaks
 
-Cut:
+Add only the needed lock:
 
-1. style adjectives not observed in Image1
-2. extra events
-3. repeated negatives
-4. camera flourishes
+```text
+Preserve the square domemaster frame and circular fisheye projection.
+```
+
+## Prompt Too Long
+
+Cut in this order:
+
+1. repeated source-truth sentences
+2. extra negatives
+3. adjective piles
+4. second camera move
+5. secondary events

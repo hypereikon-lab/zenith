@@ -1,55 +1,59 @@
-# Method: Motion Affordance Extraction
+# Method: Thread Motion From The Image
 
-Still-image prompts fail when motion is generic. They work when motion is derived from visible affordances.
+Build the prompt as a motion thread, not a checklist.
 
-## Step 1: Identify Stable Anchors
+## Step 1: Name The Frame
 
-Stable anchors are the image facts that must not drift:
+Use one concrete sentence for the visible image:
 
-- main subject identity
-- composition and camera view
-- object count and relative placement
-- material identity
-- light direction and color palette
-- important silhouettes
-- text or graphic marks, if they must remain readable
-- domemaster/fisheye/black exterior geometry
+```text
+[Subject/scene] in [place/framing], with [materials/light/atmosphere].
+```
 
-## Step 2: Identify Motion Affordances
+## Step 2: Pick One Motion Spine
 
-Affordances are visible things that can move without becoming new content:
+Choose one:
 
-- atmosphere: fog, haze, dust, smoke, mist
-- fluids: water, liquid, bubbles, rain, dew
-- light: glow, reflections, shadows, rays, flicker
-- organic matter: leaves, petals, flowers, hair, fabric, creatures
-- surfaces: glass, metal, plastic, paper, cloth, stone
-- environment: clouds, particles, drifting debris
+- ambient: the scene breathes through particles, light, water, foliage, cloth, smoke, or reflections
+- event: one small visible event unfolds
+- material: surfaces and details animate in place
 
-## Step 3: Choose Motion Logic
+The spine should be easy to see in the image.
 
-`ambient_scene_motion`: almost no story. The image breathes through light, atmosphere, particles, and subtle material motion.
+## Step 3: Add Local Verbs
 
-`scene_event`: one visible event unfolds from image content. The event must be small enough not to redesign the scene.
+Use three to five material verbs. Examples:
 
-`material_life`: surfaces and details animate locally. Best for abstract, botanical, glossy, textured, or atmospheric images.
+- light: glows, flickers, blooms, travels
+- particles: drift, rise, scatter, gather
+- water: ripples, beads, reflects, flows
+- foliage: sways, bends, rustles
+- cloth/hair: lifts, flutters, settles
+- glass/metal: shimmers, refracts, catches highlights
+- smoke/fog: curls, thins, reveals
 
-## Step 4: Compose Motion Permissions
+## Step 4: Add Camera Only If Useful
 
-Each prompt should include:
+Use one camera behavior:
 
-- one primary motion idea
-- three to five local motion details
-- one camera/depth behavior at most
-- explicit locks for composition and identity
-- negative constraints against redesign
+- locked-off
+- slow push-in
+- slight pullback
+- lateral drift
+- gentle handheld
 
-## Step 5: Regulate Motion Strength
+Avoid camera-only animation unless the image has no good local motion affordances.
 
-If image fidelity matters most, use ambient motion and almost locked camera.
+## Step 5: Lock The Image
 
-If the image implies an event, use scene event with slow beats.
+Use short locks:
 
-If the image is material-rich but subject-poor, use material life.
+```text
+Keep [identity/layout] unchanged.
+Preserve [style/materials/lighting].
+No cuts, no new major objects, no text, no redesign.
+```
 
-Do not use camera-only animation as a substitute for reading the image.
+## Length Discipline
+
+Target 70-140 words. If a phrase repeats the same control, cut it. If a negative does not address a likely failure, cut it.
