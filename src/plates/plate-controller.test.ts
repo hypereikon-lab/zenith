@@ -107,18 +107,41 @@ describe("plate controller edit gate", () => {
     expect(calls.lastRenderOptions?.customCurve).toBe("1.6");
   });
 
-  test("preview controls rebuild generated plate maps with the current custom curve", () => {
-    vi.useFakeTimers();
+  test("projection preview controls rebuild generated plate maps immediately", () => {
     const { controller, controls, calls } = buildPlateControllerHarness();
     controls.projectionMode.value = "custom";
     controls.customCurve.value = "2.2";
 
-    controller.handlePlatePreviewControlInput();
-    vi.advanceTimersByTime(141);
+    controller.handlePlatePreviewControlInput(controlEvent("customCurve"));
 
     expect(calls.renderPlateComposite).toBe(1);
     expect(calls.lastRenderOptions?.projectionMode).toBe("custom");
     expect(calls.lastRenderOptions?.customCurve).toBe("2.2");
+  });
+
+  test("non-projection plate preview controls still debounce generated plate maps", () => {
+    vi.useFakeTimers();
+    const { controller, calls } = buildPlateControllerHarness();
+
+    controller.handlePlatePreviewControlInput(controlEvent("plateFeather"));
+    expect(calls.renderPlateComposite).toBe(0);
+    vi.advanceTimersByTime(141);
+
+    expect(calls.renderPlateComposite).toBe(1);
+  });
+
+  test("projection controls do not overwrite a non-plate source with a plate preview", () => {
+    vi.useFakeTimers();
+    const { controller, state, controls, calls } = buildPlateControllerHarness();
+    state.sourceName = "fulldome-inpaint-result.png";
+    controls.projectionMode.value = "custom";
+    controls.customCurve.value = "1.8";
+
+    controller.handlePlatePreviewControlInput(controlEvent("customCurve"));
+    vi.advanceTimersByTime(200);
+
+    expect(calls.renderPlateComposite).toBe(0);
+    expect(calls.lastRenderOptions).toBeNull();
   });
 });
 
@@ -144,6 +167,7 @@ function buildPlateControllerHarness() {
     activePlateIndex: 0,
     plateCompositeCanvas: null as HTMLCanvasElement | null,
     sourceUrl: null as string | null,
+    sourceName: "Plate sketch (1 images)",
   };
   const controls = {
     plateCount: control("auto"),
@@ -249,4 +273,8 @@ function videoStub() {
     removeAttribute() {},
     load() {},
   };
+}
+
+function controlEvent(id: string): Event {
+  return { target: { id } } as unknown as Event;
 }

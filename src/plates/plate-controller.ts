@@ -23,6 +23,7 @@ type PlateControllerOptions = {
     plateCompositeDirty?: boolean;
     plateCompositeTexture?: GPUTexture | null;
     sourceUrl: string | null;
+    sourceName?: string | null;
   };
   controls: {
     plateCount: {
@@ -192,8 +193,13 @@ export function createPlateController({
     if (hasEnoughPlatesForLayout()) schedulePlatePreview(0);
   }
 
-  function handlePlatePreviewControlInput() {
-    if (hasEnoughPlatesForLayout()) schedulePlatePreview(140);
+  function handlePlatePreviewControlInput(event?: Event) {
+    if (!hasEnoughPlatesForLayout() || !shouldAutoRenderPlatePreview()) return;
+    if (isProjectionPreviewControl(event)) {
+      renderPlatePreviewImmediately();
+      return;
+    }
+    schedulePlatePreview(140);
   }
 
   async function loadPlateFiles(files: File[]): Promise<void> {
@@ -422,6 +428,20 @@ export function createPlateController({
     scheduleGpuPlatePreview(delay);
   }
 
+  function renderPlatePreviewImmediately(): void {
+    if (platePreviewTimer) {
+      clearTimeout(platePreviewTimer);
+      platePreviewTimer = null;
+    }
+    markPlateCompositeDirty();
+    try {
+      renderPlateSketchGpu();
+    } catch (error) {
+      console.error("Plate GPU preview failed.", error);
+      actions.setGpuState("Plate GPU preview failed", true);
+    }
+  }
+
   function markPlateCompositeDirty() {
     if (state.plateCompositeDirty) return;
     state.plateCompositeDirty = true;
@@ -548,6 +568,16 @@ export function createPlateController({
     return hasEnoughPlatesForLayout() && controls.editPlacement.checked;
   }
 
+  function shouldAutoRenderPlatePreview(): boolean {
+    return controls.editPlacement.checked || isPlateSketchSourceName(state.sourceName);
+  }
+
+  function isProjectionPreviewControl(event?: Event): boolean {
+    const target = event?.target;
+    const id = target && typeof target === "object" && "id" in target ? String(target.id || "") : "";
+    return id === "projectionMode" || id === "customCurve";
+  }
+
   return {
     loadPlateFiles,
     exportPlateMapImage,
@@ -571,4 +601,8 @@ export function createPlateController({
     resolvedPlateCount,
     hasEnoughPlatesForLayout,
   };
+}
+
+function isPlateSketchSourceName(name: string | null | undefined): boolean {
+  return /^Plate sketch\b/.test(name || "") || /^Restored plate sketch GPU preview\b/.test(name || "");
 }
