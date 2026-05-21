@@ -39,7 +39,11 @@ type WorkspaceSnapshot = Awaited<ReturnType<typeof buildWorkspaceSnapshot>>;
 type PortableWorkspaceSnapshot = Record<string, unknown> & {
   media: Record<string, unknown> & { sourceCanvas?: Blob | string | null };
   canvases: Record<string, unknown> & { plateComposite?: Blob | string | null };
-  depthMotion: Record<string, unknown> & { depthMap?: Blob | string | null };
+  depthMotion: Record<string, unknown> & {
+    depthMap?: Blob | string | null;
+    finalState?: Blob | string | null;
+    reconstructedFinalState?: Blob | string | null;
+  };
   plates: Array<Record<string, unknown> & { image?: Blob | string | null }>;
 };
 
@@ -78,6 +82,10 @@ const {
   exportSeedanceOutput,
   copyDepthMotionConfig,
   exportDepthMotionConfig,
+  captureDepthFinalState,
+  reconstructDepthFinalState,
+  codexStateSeedancePrompt,
+  runwayStateSeedance,
   codexImageSeedancePrompt,
   runwayImageSeedance,
   seedanceResults,
@@ -86,6 +94,10 @@ const {
   seedanceStillReference,
   seedanceMotionReference,
   depthMotionPresetDescription,
+  stateSeedancePromptPreview,
+  stateSeedancePromptState,
+  stateSeedanceFirstReference,
+  stateSeedanceLastReference,
   imageSeedancePromptPreview,
   imageSeedancePromptState,
   imageSeedanceReference,
@@ -129,6 +141,7 @@ applyDefaultControlValues(controls);
 controls.runwayPrompt.value = DEFAULT_INPAINT_PROMPT;
 controls.depthPrompt.value = DEFAULT_DEPTH_PROMPT;
 controls.seedancePrompt.value = "";
+controls.stateSeedancePrompt.value = "";
 controls.imageSeedancePrompt.value = "";
 
 const state = createInitialState();
@@ -233,12 +246,18 @@ const depthMotionController = createDepthMotionController({
     exportSeedanceOutput,
     copyDepthMotionConfig,
     exportDepthMotionConfig,
+    captureDepthFinalState,
+    reconstructDepthFinalState,
+    codexStateSeedancePrompt,
+    runwayStateSeedance,
     codexImageSeedancePrompt,
     runwayImageSeedance,
     seedanceResults,
     seedancePromptPreview,
     seedancePromptState,
     depthMotionPresetDescription,
+    stateSeedancePromptPreview,
+    stateSeedancePromptState,
     imageSeedancePromptPreview,
     imageSeedancePromptState,
     depthMotionReadout,
@@ -247,6 +266,7 @@ const depthMotionController = createDepthMotionController({
     getRenderDevice: renderer.getDevice,
     loadMediaFile: mediaController.loadMediaFileSafely,
     displayDepthPreviewTexture: mediaController.displayDepthPreviewTexture,
+    displayDepthPreviewCanvas: mediaController.displayDepthPreviewCanvas,
     restoreMediaTexture: mediaController.restoreMediaTexture,
     scheduleWorkspaceAutosave,
     saveWorkspaceSnapshot: saveWorkspaceSnapshotNow,
@@ -467,6 +487,10 @@ function eventActions() {
     exportActiveSeedanceOutput: depthMotionController.exportActiveSeedanceOutput,
     copyDepthMotionConfig: depthMotionController.copyDepthMotionConfig,
     exportDepthMotionConfig: depthMotionController.exportDepthMotionConfig,
+    captureDepthFinalState: depthMotionController.captureDepthFinalState,
+    reconstructDepthFinalState: depthMotionController.reconstructDepthFinalState,
+    planStateSeedancePrompt: depthMotionController.planStateSeedancePrompt,
+    sendStateToSeedance: depthMotionController.sendStateToSeedance,
     planImageSeedancePrompt: depthMotionController.planImageSeedancePrompt,
     sendImageToSeedance: depthMotionController.sendImageToSeedance,
     applyDepthMotionPreset: depthMotionController.applyDepthMotionPreset,
@@ -773,6 +797,14 @@ function updateWorkflowStatus(): void {
 
   seedanceStillReference.textContent = hasSource ? `${state.sourceName || "Current source"} still` : "Needs source";
   seedanceMotionReference.textContent = hasDepthMap ? "2.5D MP4 guide" : "Needs depth map";
+  stateSeedanceFirstReference.textContent = hasSource ? `${state.sourceName || "Current source"} still` : "Needs source";
+  stateSeedanceLastReference.textContent = state.depthFinalReconstructedCanvas
+    ? `${state.depthFinalReconstructedName || "Reconstructed final"}`
+    : state.depthFinalStateCanvas
+      ? `${state.depthFinalStateName || "Raw final state"}`
+      : hasDepthMap
+        ? "Needs capture"
+        : "Needs depth map";
   imageSeedanceReference.textContent = hasSource ? `${state.sourceName || "Current source"} still` : "Needs source";
 }
 
@@ -812,6 +844,10 @@ async function makePortableWorkspaceSnapshot(snapshot: WorkspaceSnapshot): Promi
   portable.media.sourceCanvas = await blobToDataUrlOrValue(snapshot.media?.sourceCanvas);
   portable.canvases.plateComposite = await blobToDataUrlOrValue(snapshot.canvases?.plateComposite);
   portable.depthMotion.depthMap = await blobToDataUrlOrValue(snapshot.depthMotion?.depthMap);
+  portable.depthMotion.finalState = await blobToDataUrlOrValue(snapshot.depthMotion?.finalState);
+  portable.depthMotion.reconstructedFinalState = await blobToDataUrlOrValue(
+    snapshot.depthMotion?.reconstructedFinalState,
+  );
   portable.plates = await Promise.all(
     (snapshot.plates || []).map(async (plate) => ({
       ...plate,

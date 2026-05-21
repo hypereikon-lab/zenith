@@ -519,6 +519,7 @@ async function createRunwaySeedanceImageVideo(payload, onProgress = () => {}, op
   }
 
   const { buffer, mime } = parseImageDataUrl(payload.imageDataUrl);
+  const finalImage = payload.finalImageDataUrl ? parseImageDataUrl(payload.finalImageDataUrl) : null;
   const promptText = clampPrompt(String(payload.prompt || DEFAULT_SEEDANCE_IMAGE_PROMPT), SEEDANCE_PROMPT_MAX);
   const filename = safeMediaFilename(payload.filename, "fulldome-seedance-source.png");
   const promptImage = await uploadEphemeralFile({
@@ -529,10 +530,25 @@ async function createRunwaySeedanceImageVideo(payload, onProgress = () => {}, op
     onProgress,
     signal: options.signal,
   });
+  const finalPromptImage = finalImage
+    ? await uploadEphemeralFile({
+        apiKey,
+        filename: safeMediaFilename(payload.finalFilename, "fulldome-seedance-final.png"),
+        buffer: finalImage.buffer,
+        mime: finalImage.mime,
+        onProgress,
+        signal: options.signal,
+      })
+    : null;
 
   const body = {
     model: SEEDANCE_MODEL,
-    promptImage: [{ uri: promptImage, position: "first" }],
+    promptImage: finalPromptImage
+      ? [
+          { uri: promptImage, position: "first" },
+          { uri: finalPromptImage, position: "last" },
+        ]
+      : [{ uri: promptImage, position: "first" }],
     promptText,
     ratio: sanitizeSeedanceRatio(payload.ratio),
     duration: clampSeedanceDuration(payload.duration),
@@ -563,7 +579,8 @@ async function createRunwaySeedanceImageVideo(payload, onProgress = () => {}, op
     promptText,
     ratio: body.ratio,
     duration: body.duration,
-    inputBytes: buffer.length,
+    inputBytes: buffer.length + (finalImage?.buffer.length || 0),
+    referenceMode: finalPromptImage ? "first-and-last-image" : "first-image-only",
     outputs,
   };
 }
@@ -628,6 +645,9 @@ async function createCodexSeedanceImagePrompt(payload, onProgress = () => {}, op
   const tempDir = await createCodexPromptTempDir();
   try {
     const sourceImage = await writePromptImage(tempDir, "source-image.jpg", payload.sourceImageDataUrl);
+    const finalImage = payload.finalImageDataUrl
+      ? await writePromptImage(tempDir, "final-state.jpg", payload.finalImageDataUrl)
+      : null;
     const prompt = buildSeedanceImagePromptPlannerInstruction(payload);
     const codex = new Codex();
     const thread = codex.startThread({
@@ -646,6 +666,7 @@ async function createCodexSeedanceImagePrompt(payload, onProgress = () => {}, op
       [
         { type: "text", text: prompt },
         { type: "local_image", path: sourceImage },
+        ...(finalImage ? [{ type: "local_image", path: finalImage }] : []),
       ],
       {
         outputSchema: CODEX_SEEDANCE_IMAGE_SCHEMA,
@@ -756,14 +777,62 @@ JSON fields:
 
 function buildSeedanceImagePromptPlannerInstruction(payload) {
   const promptPackContext = loadSeedanceImagePromptPackContext();
+  const hasFinalState = typeof payload.finalImageDataUrl === "string" && payload.finalImageDataUrl.length > 0;
   const settings = {
     source: payload.source || {},
+    finalState: payload.finalState || null,
     projection: payload.projection || {},
     requestedMode: payload.promptMode || "auto",
     durationSeconds: payload.durationSeconds || 5,
     ratio: payload.ratio || "960:960",
     currentPrompt: String(payload.currentPrompt || DEFAULT_SEEDANCE_IMAGE_PROMPT),
   };
+
+  if (hasFinalState) {
+    return `You are a local Codex prompt planner inside Zenith, a WebGPU fulldome domemaster tool.
+
+Goal:
+Create a Runway Seedance 2.0 first/last image-to-video prompt. The planning attachments are in this order:
+1. Image1: the clean first/source domemaster frame and source of truth for scene identity, materials, lighting, color, layout, and projection.
+2. Image2: a reconstructed final-state still made from a 2.5D endpoint. It defines the desired end pose/composition/parallax endpoint, not a new scene.
+
+The Seedance request will include Image1 as promptImage position "first" and Image2 as promptImage position "last". The prompt must make that relationship explicit without exposing implementation details: start from Image1, move continuously toward Image2, preserve the same scene identity, and let visible materials perform natural in-between motion instead of treating the two images as unrelated frames.
+
+Use currentPrompt only when it is still useful for this paired-frame task.
+
+Seedance image prompt-pack context:
+${promptPackContext}
+
+Hard constraints:
+- Return only the requested JSON object.
+- seedancePrompt must be under ${SEEDANCE_PROMPT_MAX} characters.
+- Aim for 80-150 words; write compact production direction, not an explanation.
+- Do not mention "depth map", "WebGPU", "2.5D", UI controls, reconstruction, masks, sampled frames, or implementation details in seedancePrompt.
+- It is recommended to say "first image", "last image", "source frame", or "final frame" to establish reference roles.
+- Use Image1 as the visual source of truth for identity, style, materials, lighting, and domemaster geometry.
+- Use Image2 only as the final endpoint for pose, parallax, composition, and where motion should arrive.
+- Preserve the square domemaster/circular fisheye geometry when present, including pure black outside the projection circle.
+- Write a continuous one-shot transition: no cut, no scene change, no teleport, no fade-to-black, no new unrelated subject.
+- Let visible materials bridge the states: background/sky, particles, glass/interface marks, plants/branches/flowers/grass, water, entities, or lighting move independently when visible. Name only materials visible in the images.
+- If Image2 contains endpoint defects, ask Seedance to arrive at its composition while rebuilding clean natural detail from Image1; reject tearing, holes, splat speckles, broken reprojection edges, banding, and rectangular seams.
+- Avoid slow pushes into sparse center sky unless Image2 creates visible center activity; prefer locked or rim-anchored motion that keeps useful rim content alive.
+- If requestedMode is "auto", choose one of ambient_scene_motion, scene_event, or material_life. If a concrete mode is requested, use that mode for seedancePrompt.
+
+First/last image-to-video context:
+${JSON.stringify(settings, null, 2)}
+
+JSON fields:
+- diagnosis: 2-5 concise sentences about Image1, Image2, likely endpoint artifacts, and how motion should bridge them.
+- sceneCardSummary: compact SceneCard-style summary of Image1 and the final-state endpoint.
+- selectedMode: ambient_scene_motion, scene_event, or material_life.
+- seedancePrompt: final prompt to send to Runway Seedance first/last image-to-video using selectedMode.
+- promptStrategy: one sentence explaining how the prompt uses Image1 and Image2.
+- variants.ambientSceneMotion: paste-ready restrained state-transition variant.
+- variants.sceneEvent: paste-ready event-based state-transition variant.
+- variants.materialLife: paste-ready material-motion state-transition variant.
+- negativeTerms: compact list of artifact/negative terms useful for this pair.
+- warnings: short array of practical risks, empty if none.`;
+  }
 
   return `You are a local Codex prompt planner inside Zenith, a WebGPU fulldome domemaster tool.
 

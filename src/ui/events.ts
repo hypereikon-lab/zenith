@@ -18,10 +18,14 @@ type ZenithEventActions = {
   exportActiveSeedanceOutput: () => Promise<void>;
   copyDepthMotionConfig: () => Promise<void> | void;
   exportDepthMotionConfig: () => void;
+  captureDepthFinalState: () => Promise<void>;
+  reconstructDepthFinalState: () => Promise<void>;
+  planStateSeedancePrompt: () => Promise<void>;
+  sendStateToSeedance: () => Promise<void>;
   planImageSeedancePrompt: () => Promise<void>;
   sendImageToSeedance: () => Promise<void>;
   applyDepthMotionPreset: () => void;
-  handleDepthMotionControlInput: () => void;
+  handleDepthMotionControlInput: (event?: Event) => void;
   setWorkspace: (workspace?: string) => void;
   saveWorkspaceSnapshot: (reason?: string) => Promise<unknown>;
   exportWorkspaceState: () => Promise<void>;
@@ -108,6 +112,10 @@ export function bindZenithEvents(dom: ZenithDom, actions: ZenithEventActions): v
   dom.exportSeedanceOutput.addEventListener("click", actions.exportActiveSeedanceOutput);
   dom.copyDepthMotionConfig.addEventListener("click", actions.copyDepthMotionConfig);
   dom.exportDepthMotionConfig.addEventListener("click", actions.exportDepthMotionConfig);
+  dom.captureDepthFinalState.addEventListener("click", actions.captureDepthFinalState);
+  dom.reconstructDepthFinalState.addEventListener("click", actions.reconstructDepthFinalState);
+  dom.codexStateSeedancePrompt.addEventListener("click", actions.planStateSeedancePrompt);
+  dom.runwayStateSeedance.addEventListener("click", actions.sendStateToSeedance);
   dom.codexImageSeedancePrompt.addEventListener("click", actions.planImageSeedancePrompt);
   dom.runwayImageSeedance.addEventListener("click", actions.sendImageToSeedance);
   controls.depthMotionPreset.addEventListener("change", actions.applyDepthMotionPreset);
@@ -115,6 +123,8 @@ export function bindZenithEvents(dom: ZenithDom, actions: ZenithEventActions): v
     controls.depthPolarity,
     controls.depthGuideMode,
     controls.seedancePromptMode,
+    controls.stateSeedancePromptMode,
+    controls.stateSeedanceRatio,
     controls.imageSeedancePromptMode,
     controls.imageSeedanceRatio,
     controls.depthSketchSize,

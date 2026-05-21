@@ -1,6 +1,7 @@
 node_modules/
 dist/
 vite.*.log
+.codex/*.log
 .codex/tmp/
 .tmp-chrome-capture-profile/
 .env

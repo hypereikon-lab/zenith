@@ -6,7 +6,11 @@ type DefaultConfig = {
   plateSketch?: { activePlateIndex?: unknown; controls?: ConfigRecord; placements?: ConfigRecord[]; plates?: Array<{ name?: unknown }> };
   inpaint?: { controls?: ConfigRecord };
   depthMotion?: { controls?: ConfigRecord };
-  seedance?: { promptMode?: unknown; imageToVideo?: { promptMode?: unknown; ratio?: unknown } };
+  seedance?: {
+    promptMode?: unknown;
+    imageToVideo?: { promptMode?: unknown; ratio?: unknown };
+    stateToState?: { promptMode?: unknown; ratio?: unknown };
+  };
 };
 type ValueControl = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 
@@ -82,6 +86,8 @@ export const DEFAULT_CONTROL_VALUES = {
   runwayOutputCount: numberOr(inpaintControls.runwayOutputCount, 1),
   seedancePromptMode: stringOr(seedance.promptMode, "auto"),
   depthMotionPreset: stringOr(depthMotionControls.depthMotionPreset, "custom"),
+  stateSeedancePromptMode: stringOr(seedance.stateToState?.promptMode, "auto"),
+  stateSeedanceRatio: stringOr(seedance.stateToState?.ratio, "640:640"),
   imageSeedancePromptMode: stringOr(seedance.imageToVideo?.promptMode, "auto"),
   imageSeedanceRatio: stringOr(seedance.imageToVideo?.ratio, "640:640"),
   depthPolarity: stringOr(depthMotionControls.depthPolarity, "brightFar"),

@@ -6,6 +6,7 @@ import { clamp } from "../projection.js";
 import {
   requestCodexSeedanceImagePrompt,
   requestCodexSeedancePrompt,
+  requestRunwayInpaint,
   requestRunwayDepthMap,
   requestRunwaySeedanceImageVideo,
   requestRunwaySeedanceVideo,
@@ -30,6 +31,7 @@ import type { DepthMotionPresetControlKey } from "./depth-motion-presets.js";
 
 const DEPTH_MAP_MODEL = "gemini_image3_pro";
 const DEPTH_MAP_RATIO = "2048:2048";
+const FINAL_STATE_RECONSTRUCTION_RATIO = "1920:1920";
 type DepthWebGpuPreviewRenderer = ReturnType<typeof createDepthWebGpuPreviewRenderer>;
 type Mp4SupportState = "checking" | "available" | "unavailable";
 type ProgressHandler = (stage: string, progress: number) => void;
@@ -72,12 +74,18 @@ type DepthMotionControllerOptions = {
     exportSeedanceOutput: HTMLButtonElement;
     copyDepthMotionConfig: HTMLButtonElement;
     exportDepthMotionConfig: HTMLButtonElement;
+    captureDepthFinalState: HTMLButtonElement;
+    reconstructDepthFinalState: HTMLButtonElement;
+    codexStateSeedancePrompt: HTMLButtonElement;
+    runwayStateSeedance: HTMLButtonElement;
     codexImageSeedancePrompt: HTMLButtonElement;
     runwayImageSeedance: HTMLButtonElement;
     seedanceResults: HTMLElement;
     seedancePromptPreview: HTMLElement;
     seedancePromptState: HTMLElement;
     depthMotionPresetDescription: HTMLElement;
+    stateSeedancePromptPreview: HTMLElement;
+    stateSeedancePromptState: HTMLElement;
     imageSeedancePromptPreview: HTMLElement;
     imageSeedancePromptState: HTMLElement;
     depthMotionReadout: HTMLElement;
@@ -91,6 +99,7 @@ type DepthMotionControllerOptions = {
     getRenderDevice?: () => GPUDevice | null;
     loadMediaFile?: (file: File) => Promise<void>;
     displayDepthPreviewTexture?: (texture: GPUTexture, width: number, height: number, name?: string) => void;
+    displayDepthPreviewCanvas?: (canvas: HTMLCanvasElement, name?: string) => void;
     restoreMediaTexture?: () => void;
     scheduleWorkspaceAutosave: ScheduleWorkspaceAutosave;
     saveWorkspaceSnapshot?: (reason: string) => Promise<unknown> | unknown;
@@ -115,22 +124,32 @@ export function createDepthMotionController({
     exportSeedanceOutput,
     copyDepthMotionConfig: copyDepthMotionConfigButton,
     exportDepthMotionConfig: exportDepthMotionConfigButton,
+    captureDepthFinalState: captureDepthFinalStateButton,
+    reconstructDepthFinalState: reconstructDepthFinalStateButton,
+    codexStateSeedancePrompt,
+    runwayStateSeedance,
     codexImageSeedancePrompt,
     runwayImageSeedance,
     seedanceResults,
     seedancePromptPreview,
     seedancePromptState,
     depthMotionPresetDescription,
+    stateSeedancePromptPreview,
+    stateSeedancePromptState,
     imageSeedancePromptPreview,
     imageSeedancePromptState,
     depthMotionReadout,
   } = elements;
   let exporting = false;
+  let capturingFinalState = false;
+  let reconstructingFinalState = false;
   let sendingSeedance = false;
   let planningSeedancePrompt = false;
+  let planningStateSeedancePrompt = false;
   let planningImageSeedancePrompt = false;
   let generatingDepth = false;
   let generatedSeedancePromptFingerprint = "";
+  let generatedStateSeedancePromptFingerprint = "";
   let generatedImageSeedancePromptFingerprint = "";
   let gpuPreviewRenderer: DepthWebGpuPreviewRenderer | null = null;
   let gpuPreviewActive = false;
@@ -150,6 +169,7 @@ export function createDepthMotionController({
     state.depthMapCanvas = canvas ? cloneCanvas(canvas) : null;
     state.depthMapName = state.depthMapCanvas ? name || "Restored depth map" : "";
     state.depthMotionPreviewCanvas = null;
+    clearDepthFinalState();
     stopDepthGpuPreview();
     gpuPreviewActive = false;
     actions.restoreMediaTexture?.();
@@ -157,17 +177,36 @@ export function createDepthMotionController({
   }
 
   function clearDepthMapState(message = "") {
-    if (!state.depthMapCanvas && !state.depthMotionPreviewCanvas && !state.depthPreviewActive) {
+    if (
+      !state.depthMapCanvas &&
+      !state.depthMotionPreviewCanvas &&
+      !state.depthPreviewActive &&
+      !state.depthFinalStateCanvas &&
+      !state.depthFinalReconstructedCanvas
+    ) {
       updateDepthMotionUiState();
       return;
     }
     state.depthMapCanvas = null;
     state.depthMapName = "";
     state.depthMotionPreviewCanvas = null;
+    clearDepthFinalState();
     stopDepthGpuPreview();
     gpuPreviewActive = false;
     actions.restoreMediaTexture?.();
     updateDepthMotionUiState(message || "Depth map cleared");
+  }
+
+  function clearDepthFinalState(): void {
+    state.depthFinalStateCanvas = null;
+    state.depthFinalStateName = "";
+    state.depthFinalStateFingerprint = "";
+    state.depthFinalReconstructedCanvas = null;
+    state.depthFinalReconstructedName = "";
+    state.depthFinalReconstructedFingerprint = "";
+    generatedStateSeedancePromptFingerprint = "";
+    controls.stateSeedancePrompt.value = "";
+    syncStateSeedancePromptPreview();
   }
 
   async function previewDepthMotionFrame() {
@@ -275,6 +314,70 @@ export function createDepthMotionController({
     } finally {
       clearProgressButton(exportDepthMotion, previousText);
       exporting = false;
+      updateDepthMotionUiState({ preserveText: true });
+    }
+  }
+
+  async function captureDepthFinalState() {
+    if (capturingFinalState) return;
+
+    const operation = runwayOperations.start("depth-final-capture", depthFinalStateOperationFingerprint());
+    const previousText = captureDepthFinalStateButton.textContent;
+    capturingFinalState = true;
+    stopDepthGpuPreview();
+    updateDepthMotionUiState();
+
+    try {
+      const canvas = await ensureDepthFinalStateFrame({
+        operation,
+        button: captureDepthFinalStateButton,
+        progressStart: 0,
+        progressEnd: 1,
+      });
+      depthMotionReadout.textContent = `${canvas.width} x ${canvas.height} final 2.5D state captured`;
+      await actions.saveWorkspaceSnapshot?.("depth-final-state-captured");
+      actions.scheduleWorkspaceAutosave("depth-final-state", 300);
+    } catch (error) {
+      if (!isStaleOperationError(error)) {
+        console.error(error);
+        depthMotionReadout.textContent = errorMessage(error) || "Could not capture final state";
+      }
+    } finally {
+      runwayOperations.finish(operation);
+      clearProgressButton(captureDepthFinalStateButton, previousText);
+      capturingFinalState = false;
+      updateDepthMotionUiState({ preserveText: true });
+    }
+  }
+
+  async function reconstructDepthFinalState() {
+    if (reconstructingFinalState) return;
+
+    const operation = runwayOperations.start("depth-final-reconstruct", depthFinalStateOperationFingerprint());
+    const previousText = reconstructDepthFinalStateButton.textContent;
+    reconstructingFinalState = true;
+    stopDepthGpuPreview();
+    updateDepthMotionUiState();
+
+    try {
+      const canvas = await ensureReconstructedDepthFinalState({
+        operation,
+        button: reconstructDepthFinalStateButton,
+        progressStart: 0,
+        progressEnd: 1,
+      });
+      depthMotionReadout.textContent = `${canvas.width} x ${canvas.height} reconstructed final state ready`;
+      await actions.saveWorkspaceSnapshot?.("depth-final-state-reconstructed");
+      actions.scheduleWorkspaceAutosave("depth-final-reconstruct", 300);
+    } catch (error) {
+      if (!isStaleOperationError(error)) {
+        console.error(error);
+        depthMotionReadout.textContent = errorMessage(error) || "Could not reconstruct final state";
+      }
+    } finally {
+      runwayOperations.finish(operation);
+      clearProgressButton(reconstructDepthFinalStateButton, previousText);
+      reconstructingFinalState = false;
       updateDepthMotionUiState({ preserveText: true });
     }
   }
@@ -403,6 +506,136 @@ export function createDepthMotionController({
     } finally {
       runwayOperations.finish(operation);
       clearProgressButton(runwaySeedance, previousText);
+      sendingSeedance = false;
+      updateDepthMotionUiState({ preserveText: true });
+    }
+  }
+
+  async function planStateSeedancePrompt() {
+    if (planningStateSeedancePrompt) return;
+
+    const operation = runwayOperations.start("codex-seedance-state-prompt", stateSeedanceOperationFingerprint());
+    const previousText = codexStateSeedancePrompt.textContent;
+    planningStateSeedancePrompt = true;
+    stopDepthGpuPreview();
+    updateDepthMotionUiState();
+
+    try {
+      await ensureDepthFinalStateFrame({
+        operation,
+        button: codexStateSeedancePrompt,
+        progressStart: 0,
+        progressEnd: 0.25,
+      });
+      const { result } = await generateStateSeedancePrompt({
+        operation,
+        button: codexStateSeedancePrompt,
+        progressStart: 0.25,
+        progressEnd: 1,
+      });
+      depthMotionReadout.textContent =
+        result.diagnosis || `${statePromptModeLabel(result.selectedMode)} state prompt planned`;
+      actions.scheduleWorkspaceAutosave("codex-seedance-state-prompt", 250);
+    } catch (error) {
+      if (!isStaleOperationError(error)) {
+        console.error(error);
+        depthMotionReadout.textContent = errorMessage(error) || "Codex state prompt planning failed";
+      }
+    } finally {
+      runwayOperations.finish(operation);
+      clearProgressButton(codexStateSeedancePrompt, previousText);
+      planningStateSeedancePrompt = false;
+      updateDepthMotionUiState({ preserveText: true });
+    }
+  }
+
+  async function sendStateToSeedance() {
+    if (sendingSeedance) return;
+
+    const sourceCanvas = sourceFrameCanvas();
+    if (!sourceCanvas) {
+      depthMotionReadout.textContent = "Load a still image or pause on a video frame first.";
+      return;
+    }
+
+    const operation = runwayOperations.start("seedance-state", stateSeedanceOperationFingerprint());
+    const previousText = runwayStateSeedance.textContent;
+    sendingSeedance = true;
+    stopDepthGpuPreview();
+    updateDepthMotionUiState();
+
+    try {
+      const finalCanvas = await ensureReconstructedDepthFinalState({
+        operation,
+        button: runwayStateSeedance,
+        progressStart: 0,
+        progressEnd: 0.36,
+      });
+      const prompt = await ensureStateSeedancePrompt({
+        operation,
+        button: runwayStateSeedance,
+        progressStart: 0.36,
+        progressEnd: 0.58,
+      });
+      runwayOperations.assertCurrent(operation, stateSeedanceOperationFingerprint());
+
+      const duration = stateSeedanceDurationSeconds();
+      const result = await requestRunwaySeedanceImageVideo(
+        {
+          imageDataUrl: canvasPromptDataUrl(sourceCanvas, { size: 1536, type: "image/png" }),
+          finalImageDataUrl: canvasPromptDataUrl(finalCanvas, { size: 1536, type: "image/png" }),
+          filename: `fulldome-seedance-first-${Date.now()}.png`,
+          finalFilename: `fulldome-seedance-final-${Date.now()}.png`,
+          prompt,
+          ratio: seedanceStateRatio(sourceCanvas),
+          duration,
+        },
+        {
+          signal: operation.signal,
+          onProgress: (stage: string, progress: number) =>
+            setProgressButton(runwayStateSeedance, depthMotionReadout, stage, 0.58 + progress * 0.42),
+        },
+      );
+      runwayOperations.assertCurrent(operation, stateSeedanceOperationFingerprint());
+
+      const output = result.outputs?.[0];
+      if (!output?.dataUri && !output?.url) {
+        throw new Error("Runway returned no Seedance state-to-state video.");
+      }
+      const outputs = (result.outputs || [])
+        .filter((item) => item.dataUri || item.url)
+        .map((item, index) => ({
+          ...item,
+          name: `Seedance state ${index + 1}`,
+          workflow: "state-to-state",
+          prompt,
+          model: result.model || "seedance2",
+          duration: result.duration || duration,
+        }));
+      const activeOutputIndex = appendSeedanceOutputs(outputs);
+      renderSeedanceResults();
+      if (state.seedanceOutputs.length > 0) {
+        const readyMessage = `${result.model || "Seedance"} first/last image video ready`;
+        depthMotionReadout.textContent = readyMessage;
+        await actions.saveWorkspaceSnapshot?.("seedance-state-complete");
+        actions.scheduleWorkspaceAutosave("seedance-state", 500);
+        const shown = await showSeedanceOutput(state.activeSeedanceOutputIndex);
+        if (shown && activeOutputIndex === state.activeSeedanceOutputIndex) {
+          depthMotionReadout.textContent = readyMessage;
+        } else if (!shown) {
+          depthMotionReadout.textContent = `${readyMessage}; saved in results, but viewer load failed`;
+        }
+      } else {
+        depthMotionReadout.textContent = "Runway returned no Seedance state-to-state video";
+      }
+    } catch (error) {
+      if (!isStaleOperationError(error)) {
+        console.error(error);
+        depthMotionReadout.textContent = errorMessage(error) || "Seedance state-to-state handoff failed";
+      }
+    } finally {
+      runwayOperations.finish(operation);
+      clearProgressButton(runwayStateSeedance, previousText);
       sendingSeedance = false;
       updateDepthMotionUiState({ preserveText: true });
     }
@@ -713,6 +946,27 @@ export function createDepthMotionController({
         outputCount: state.seedanceOutputs?.length || 0,
         activeOutputIndex: state.activeSeedanceOutputIndex || 0,
         outputs: serializeSeedanceOutputs(),
+        stateToState: {
+          promptMode: controls.stateSeedancePromptMode.value,
+          ratio: controls.stateSeedanceRatio?.value || "auto",
+          finalStateName: state.depthFinalStateName,
+          finalStateReady: Boolean(state.depthFinalStateCanvas),
+          finalStateFresh: Boolean(
+            state.depthFinalStateCanvas &&
+              state.depthFinalStateFingerprint === depthFinalStateOperationFingerprint(),
+          ),
+          reconstructedFinalStateName: state.depthFinalReconstructedName,
+          reconstructedFinalStateReady: Boolean(state.depthFinalReconstructedCanvas),
+          reconstructedFinalStateFresh: Boolean(
+            state.depthFinalReconstructedCanvas &&
+              state.depthFinalReconstructedFingerprint === depthFinalStateOperationFingerprint(),
+          ),
+          generatedPrompt: controls.stateSeedancePrompt.value.trim(),
+          generatedPromptFresh: Boolean(
+            controls.stateSeedancePrompt.value.trim() &&
+              generatedStateSeedancePromptFingerprint === stateSeedancePromptOperationFingerprint(),
+          ),
+        },
         imageToVideo: {
           promptMode: controls.imageSeedancePromptMode.value,
           ratio: controls.imageSeedanceRatio?.value || "auto",
@@ -760,12 +1014,21 @@ export function createDepthMotionController({
     updateDepthMotionUiState({ preserveText: true });
   }
 
-  function handleDepthMotionControlInput() {
-    if (controls.depthMotionPreset.value !== CUSTOM_DEPTH_MOTION_PRESET_ID) {
+  function handleDepthMotionControlInput(event?: Event) {
+    const targetId = event?.target instanceof HTMLElement ? event.target.id : "";
+    const affectsDepthMotion = !targetId || isDepthMotionControlId(targetId);
+    if (affectsDepthMotion && controls.depthMotionPreset.value !== CUSTOM_DEPTH_MOTION_PRESET_ID) {
       controls.depthMotionPreset.value = CUSTOM_DEPTH_MOTION_PRESET_ID;
       syncDepthMotionPresetDescription();
     }
-    scheduleDepthGpuPreviewRefresh();
+    if (affectsDepthMotion) {
+      scheduleDepthGpuPreviewRefresh();
+    } else {
+      syncSeedancePromptPreview();
+      syncStateSeedancePromptPreview();
+      syncImageSeedancePromptPreview();
+      updateDepthMotionUiState({ preserveText: true });
+    }
   }
 
   function serializeSeedanceOutputs() {
@@ -824,6 +1087,86 @@ export function createDepthMotionController({
     updateDepthMotionUiState({ preserveText: true });
   }
 
+  async function ensureDepthFinalStateFrame({
+    operation,
+    button,
+    progressStart,
+    progressEnd,
+  }: ProgressButtonOptions): Promise<HTMLCanvasElement> {
+    const fingerprint = depthFinalStateOperationFingerprint();
+    if (state.depthFinalStateCanvas && state.depthFinalStateFingerprint === fingerprint) {
+      return state.depthFinalStateCanvas;
+    }
+    const span = Math.max(0.01, progressEnd - progressStart);
+    setProgressButton(button, depthMotionReadout, "Capturing final", progressStart + span * 0.15);
+    const { renderFrame, settings } = await buildDepthGpuExportRenderer();
+    const frame = await renderFrame(1);
+    assertCurrentStateWorkflow(operation);
+    const canvas = cloneCanvas(frame);
+    state.depthFinalStateCanvas = canvas;
+    state.depthFinalStateName = `${settings.size} raw final state`;
+    state.depthFinalStateFingerprint = fingerprint;
+    state.depthFinalReconstructedCanvas = null;
+    state.depthFinalReconstructedName = "";
+    state.depthFinalReconstructedFingerprint = "";
+    generatedStateSeedancePromptFingerprint = "";
+    controls.stateSeedancePrompt.value = "";
+    actions.displayDepthPreviewCanvas?.(canvas, "2.5D final state");
+    syncStateSeedancePromptPreview();
+    setProgressButton(button, depthMotionReadout, "Final captured", progressStart + span * 0.92);
+    return canvas;
+  }
+
+  async function ensureReconstructedDepthFinalState({
+    operation,
+    button,
+    progressStart,
+    progressEnd,
+  }: ProgressButtonOptions): Promise<HTMLCanvasElement> {
+    const fingerprint = depthFinalStateOperationFingerprint();
+    if (state.depthFinalReconstructedCanvas && state.depthFinalReconstructedFingerprint === fingerprint) {
+      return state.depthFinalReconstructedCanvas;
+    }
+    const span = Math.max(0.01, progressEnd - progressStart);
+    const rawFinal = await ensureDepthFinalStateFrame({
+      operation,
+      button,
+      progressStart,
+      progressEnd: progressStart + span * 0.24,
+    });
+    setProgressButton(button, depthMotionReadout, "Reconstructing final", progressStart + span * 0.28);
+    const result = await requestRunwayInpaint(
+      {
+        imageDataUrl: canvasPromptDataUrl(rawFinal, { size: 1536, type: "image/png" }),
+        model: "gpt_image_2",
+        ratio: FINAL_STATE_RECONSTRUCTION_RATIO,
+        prompt: depthFinalReconstructionPrompt(),
+        quality: "high",
+        outputCount: 1,
+      },
+      {
+        signal: operation.signal,
+        onProgress: (stage: string, progress: number) =>
+          setProgressButton(button, depthMotionReadout, stage, progressStart + span * (0.3 + progress * 0.64)),
+      },
+    );
+    assertCurrentStateWorkflow(operation);
+    const output = result.outputs?.[0];
+    if (!output?.dataUri && !output?.url) {
+      throw new Error("Runway returned no reconstructed final state.");
+    }
+    const reconstructed = await loadCanvasFromImageSource(output.dataUri || output.url);
+    const canvas = cloneCanvas(reconstructed);
+    state.depthFinalReconstructedCanvas = canvas;
+    state.depthFinalReconstructedName = `Reconstructed final state (${result.model || "Runway"})`;
+    state.depthFinalReconstructedFingerprint = fingerprint;
+    generatedStateSeedancePromptFingerprint = "";
+    controls.stateSeedancePrompt.value = "";
+    actions.displayDepthPreviewCanvas?.(canvas, "Reconstructed final state");
+    syncStateSeedancePromptPreview();
+    return canvas;
+  }
+
   async function ensureSeedancePrompt({
     operation,
     button,
@@ -863,6 +1206,48 @@ export function createDepthMotionController({
     controls.seedancePrompt.value = prompt;
     generatedSeedancePromptFingerprint = fingerprint;
     syncSeedancePromptPreview();
+    return { prompt, result };
+  }
+
+  async function ensureStateSeedancePrompt({
+    operation,
+    button,
+    progressStart,
+    progressEnd,
+  }: ProgressButtonOptions): Promise<string> {
+    const prompt = controls.stateSeedancePrompt.value.trim();
+    if (prompt && generatedStateSeedancePromptFingerprint === stateSeedancePromptOperationFingerprint()) {
+      syncStateSeedancePromptPreview();
+      return prompt;
+    }
+    const generated = await generateStateSeedancePrompt({ operation, button, progressStart, progressEnd });
+    return generated.prompt;
+  }
+
+  async function generateStateSeedancePrompt({
+    operation,
+    button,
+    progressStart,
+    progressEnd,
+  }: ProgressButtonOptions): Promise<{ prompt: string; result: CodexPromptResult }> {
+    const fingerprint = stateSeedancePromptOperationFingerprint();
+    const span = Math.max(0.01, progressEnd - progressStart);
+    setProgressButton(button, depthMotionReadout, "Reading state pair", progressStart + span * 0.06);
+    syncStateSeedancePromptPreview("Planning");
+    const payload = buildCodexStateSeedancePromptPayload();
+    const result = await requestCodexSeedanceImagePrompt(payload, {
+      signal: operation.signal,
+      onProgress: (stage: string, progress: number) =>
+        setProgressButton(button, depthMotionReadout, stage, progressStart + progress * span),
+    });
+    assertCurrentSeedanceWorkflow(operation);
+    const prompt = selectedStateCodexPrompt(result);
+    if (!prompt) {
+      throw new Error("Codex returned no state-to-state prompt.");
+    }
+    controls.stateSeedancePrompt.value = prompt;
+    generatedStateSeedancePromptFingerprint = fingerprint;
+    syncStateSeedancePromptPreview();
     return { prompt, result };
   }
 
@@ -1036,6 +1421,7 @@ export function createDepthMotionController({
 
   function scheduleDepthGpuPreviewRefresh() {
     syncSeedancePromptPreview();
+    syncStateSeedancePromptPreview();
     syncImageSeedancePromptPreview();
     if (
       !gpuPreviewActive ||
@@ -1157,6 +1543,54 @@ export function createDepthMotionController({
     };
   }
 
+  function buildCodexStateSeedancePromptPayload(): Record<string, unknown> {
+    const sourceCanvas = sourceFrameCanvas();
+    if (!sourceCanvas) {
+      throw new Error("Load a still image or pause on a video frame first.");
+    }
+    const finalCanvas = stateFinalReferenceCanvas();
+    if (!finalCanvas) {
+      throw new Error("Capture or reconstruct a final 2.5D state first.");
+    }
+    const fingerprint = stateSeedancePromptOperationFingerprint();
+    const durationSeconds = stateSeedanceDurationSeconds();
+    const ratio = seedanceStateRatio(sourceCanvas);
+    return {
+      sourceImageDataUrl: canvasPromptDataUrl(sourceCanvas, { size: 768, type: "image/jpeg", quality: 0.9 }),
+      finalImageDataUrl: canvasPromptDataUrl(finalCanvas, { size: 768, type: "image/jpeg", quality: 0.9 }),
+      currentPrompt:
+        generatedStateSeedancePromptFingerprint === fingerprint ? controls.stateSeedancePrompt.value.trim() : "",
+      promptMode: controls.stateSeedancePromptMode.value,
+      durationSeconds,
+      ratio,
+      source: {
+        name: state.sourceName,
+        kind: state.mediaKind,
+        width: state.sourceWidth,
+        height: state.sourceHeight,
+      },
+      finalState: {
+        name: state.depthFinalReconstructedCanvas
+          ? state.depthFinalReconstructedName
+          : state.depthFinalStateName || "Raw 2.5D final state",
+        width: finalCanvas.width,
+        height: finalCanvas.height,
+        reconstructed: Boolean(state.depthFinalReconstructedCanvas),
+        fingerprint: state.depthFinalReconstructedFingerprint || state.depthFinalStateFingerprint,
+      },
+      projection: {
+        radiusScale: Number(controls.radiusScale.value),
+        lens: "equidistant 180 domemaster",
+        outsideMask: "preserve pitch black outside the circular domemaster projection when present",
+      },
+      motion: {
+        durationSeconds,
+        endpointProgress: 1,
+        ...readDepthMotionSettings(),
+      },
+    };
+  }
+
   async function sampleDepthMotionGuideFrames(): Promise<
     Array<{ label: string; progress: number; imageDataUrl: string }>
   > {
@@ -1194,6 +1628,10 @@ export function createDepthMotionController({
     return seedanceDurationSeconds(controls.depthSketchDuration.value);
   }
 
+  function stateSeedanceDurationSeconds(): number {
+    return seedanceDurationSeconds(controls.depthSketchDuration.value);
+  }
+
   function seedanceDurationSeconds(value: number | string): number {
     return clamp(Math.round(Number(value) || 5), 5, 15);
   }
@@ -1208,6 +1646,18 @@ export function createDepthMotionController({
     const aspect = sourceCanvas.width / Math.max(1, sourceCanvas.height);
     if (Math.abs(aspect - 1) < 0.08) return "960:960";
     return aspect > 1 ? "1280:720" : "720:1280";
+  }
+
+  function seedanceStateRatio(sourceCanvas: HTMLCanvasElement): string {
+    const selected = controls.stateSeedanceRatio?.value || "auto";
+    if (selected !== "auto") return selected;
+    const aspect = sourceCanvas.width / Math.max(1, sourceCanvas.height);
+    if (Math.abs(aspect - 1) < 0.08) return "960:960";
+    return aspect > 1 ? "1280:720" : "720:1280";
+  }
+
+  function stateFinalReferenceCanvas(): HTMLCanvasElement | null {
+    return state.depthFinalReconstructedCanvas || state.depthFinalStateCanvas;
   }
 
   function depthMapOperationFingerprint(): string {
@@ -1266,6 +1716,30 @@ export function createDepthMotionController({
     ].join("|");
   }
 
+  function depthFinalStateOperationFingerprint(): string {
+    return [
+      codexPromptOperationFingerprint(),
+      controls.radiusScale.value,
+    ].join("|");
+  }
+
+  function stateSeedanceOperationFingerprint(): string {
+    return [
+      depthFinalStateOperationFingerprint(),
+      controls.stateSeedancePromptMode.value,
+      controls.stateSeedanceRatio?.value || "auto",
+      controls.depthSketchDuration.value,
+    ].join("|");
+  }
+
+  function stateSeedancePromptOperationFingerprint(): string {
+    return [
+      stateSeedanceOperationFingerprint(),
+      state.depthFinalStateFingerprint,
+      state.depthFinalReconstructedFingerprint,
+    ].join("|");
+  }
+
   function imageSeedanceOperationFingerprint(): string {
     return codexImagePromptOperationFingerprint();
   }
@@ -1285,18 +1759,30 @@ export function createDepthMotionController({
 
   function updateDepthMotionUiState(options: { preserveText?: boolean } | string = {}) {
     syncSeedancePromptPreview();
+    syncStateSeedancePromptPreview();
     syncImageSeedancePromptPreview();
     syncDepthMotionPresetDescription();
     const hasSource = hasSourceFrame();
     const ready = Boolean(state.depthMapCanvas && hasSource);
     const hasSeedanceOutput = (state.seedanceOutputs?.length || 0) > 0;
     const busy =
-      exporting || sendingSeedance || planningSeedancePrompt || planningImageSeedancePrompt || generatingDepth;
+      exporting ||
+      capturingFinalState ||
+      reconstructingFinalState ||
+      sendingSeedance ||
+      planningSeedancePrompt ||
+      planningStateSeedancePrompt ||
+      planningImageSeedancePrompt ||
+      generatingDepth;
     runwayDepthMap.disabled = busy || !hasSource || state.runwayConfigured === false;
     previewDepthMotion.disabled = busy || !ready;
     exportDepthMotion.disabled = busy || !ready || mp4ExportSupport !== "available";
     codexSeedancePrompt.disabled = busy || !ready;
     runwaySeedance.disabled = busy || !ready || state.runwayConfigured === false || mp4ExportSupport !== "available";
+    captureDepthFinalStateButton.disabled = busy || !ready;
+    reconstructDepthFinalStateButton.disabled = busy || !ready || state.runwayConfigured === false;
+    codexStateSeedancePrompt.disabled = busy || !ready;
+    runwayStateSeedance.disabled = busy || !ready || state.runwayConfigured === false;
     if (codexImageSeedancePrompt) {
       codexImageSeedancePrompt.disabled = busy || !hasSource;
     }
@@ -1370,11 +1856,24 @@ export function createDepthMotionController({
     let fingerprint = codexPromptOperationFingerprint();
     if (operation.scope === "seedance") {
       fingerprint = seedanceOperationFingerprint();
+    } else if (operation.scope === "seedance-state") {
+      fingerprint = stateSeedanceOperationFingerprint();
     } else if (operation.scope === "seedance-image") {
       fingerprint = imageSeedanceOperationFingerprint();
+    } else if (operation.scope === "codex-seedance-state-prompt") {
+      fingerprint = stateSeedanceOperationFingerprint();
     } else if (operation.scope === "codex-seedance-image-prompt") {
       fingerprint = codexImagePromptOperationFingerprint();
     }
+    runwayOperations.assertCurrent(operation, fingerprint);
+  }
+
+  function assertCurrentStateWorkflow(operation: OperationToken | null | undefined): void {
+    if (!operation) return;
+    const fingerprint =
+      operation.scope === "depth-final-capture" || operation.scope === "depth-final-reconstruct"
+        ? depthFinalStateOperationFingerprint()
+        : stateSeedanceOperationFingerprint();
     runwayOperations.assertCurrent(operation, fingerprint);
   }
 
@@ -1386,6 +1885,16 @@ export function createDepthMotionController({
     seedancePromptPreview.classList.toggle("empty", !prompt);
     seedancePromptPreview.classList.toggle("stale", Boolean(prompt && !fresh));
     seedancePromptState.textContent = forcedState || (!prompt ? "Not planned" : fresh ? "Ready" : "Stale");
+  }
+
+  function syncStateSeedancePromptPreview(forcedState = "") {
+    if (!stateSeedancePromptPreview || !stateSeedancePromptState) return;
+    const prompt = controls.stateSeedancePrompt.value.trim();
+    const fresh = Boolean(prompt && generatedStateSeedancePromptFingerprint === stateSeedancePromptOperationFingerprint());
+    stateSeedancePromptPreview.textContent = prompt || "Generated on send";
+    stateSeedancePromptPreview.classList.toggle("empty", !prompt);
+    stateSeedancePromptPreview.classList.toggle("stale", Boolean(prompt && !fresh));
+    stateSeedancePromptState.textContent = forcedState || (!prompt ? "Not planned" : fresh ? "Ready" : "Stale");
   }
 
   function syncImageSeedancePromptPreview(forcedState = "") {
@@ -1409,6 +1918,38 @@ export function createDepthMotionController({
     }
   }
 
+  function depthFinalReconstructionPrompt(): string {
+    return [
+      "Use @PlateSketch as an exact square final-frame domemaster guide.",
+      "It is a 180-degree equidistant fulldome frame with a circular fisheye projection and black exterior outside the dome circle.",
+      "Reconstruct it as a clean opaque last-frame still for image-to-video interpolation.",
+      "Preserve the endpoint composition, orientation, scale, fisheye geometry, lighting, materials, and scene identity.",
+      "Repair only depth-warp damage: missing disoccluded gaps, holes, splat speckles, jagged tears, stretched duplicate edges, banding, and broken reprojection seams.",
+      "Fill damaged interior pixels as coherent continuation of nearby scene content while keeping the black outside-circle mask pure black.",
+      "No visible masks, checkerboards, radial debug lines, UI overlays, labels, borders, text, rectangular crops, or redesigned subjects.",
+    ].join(" ");
+  }
+
+  function isDepthMotionControlId(id: string): boolean {
+    return [
+      "depthPolarity",
+      "depthGuideMode",
+      "depthSketchSize",
+      "depthNear",
+      "depthFar",
+      "depthMotionGain",
+      "depthContrast",
+      "depthGuideNoise",
+      "depthSketchYaw",
+      "depthSketchPitch",
+      "depthSketchRoll",
+      "depthSketchTruck",
+      "depthSketchLift",
+      "depthSketchPush",
+      "depthSketchGapFill",
+    ].includes(id);
+  }
+
   function selectedCodexPrompt(result: CodexPromptResult | null | undefined): string {
     if (!result) return "";
     switch (controls.seedancePromptMode.value) {
@@ -1426,6 +1967,20 @@ export function createDepthMotionController({
   function selectedImageCodexPrompt(result: CodexPromptResult | null | undefined): string {
     if (!result) return "";
     switch (controls.imageSeedancePromptMode.value) {
+      case "ambient_scene_motion":
+        return result.variants?.ambientSceneMotion || result.seedancePrompt || "";
+      case "scene_event":
+        return result.variants?.sceneEvent || result.seedancePrompt || "";
+      case "material_life":
+        return result.variants?.materialLife || result.seedancePrompt || "";
+      default:
+        return result.seedancePrompt || "";
+    }
+  }
+
+  function selectedStateCodexPrompt(result: CodexPromptResult | null | undefined): string {
+    if (!result) return "";
+    switch (controls.stateSeedancePromptMode.value) {
       case "ambient_scene_motion":
         return result.variants?.ambientSceneMotion || result.seedancePrompt || "";
       case "scene_event":
@@ -1459,6 +2014,17 @@ export function createDepthMotionController({
     }
   }
 
+  function statePromptModeLabel(mode?: string): string {
+    switch (mode || controls.stateSeedancePromptMode.value) {
+      case "scene_event":
+        return "Scene event";
+      case "material_life":
+        return "Material life";
+      default:
+        return "Ambient scene";
+    }
+  }
+
   return {
     setDepthMapCanvas,
     clearDepthMapState,
@@ -1467,6 +2033,10 @@ export function createDepthMotionController({
     exportDepthMotionVideo,
     planSeedancePrompt,
     sendDepthMotionToSeedance,
+    captureDepthFinalState,
+    reconstructDepthFinalState,
+    planStateSeedancePrompt,
+    sendStateToSeedance,
     planImageSeedancePrompt,
     sendImageToSeedance,
     showActiveSeedanceOutput,

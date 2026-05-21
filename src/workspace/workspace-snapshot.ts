@@ -78,7 +78,16 @@ type WorkspaceSnapshotData = {
   canvases?: { plateComposite?: Blob | string | null };
   runway?: { outputs?: RunwayOutput[]; activeIndex?: number };
   seedance?: { outputs?: SeedanceOutput[]; activeIndex?: number };
-  depthMotion?: { depthMap?: Blob | string | null; depthMapName?: string };
+  depthMotion?: {
+    depthMap?: Blob | string | null;
+    depthMapName?: string;
+    finalState?: Blob | string | null;
+    finalStateName?: string;
+    finalStateFingerprint?: string;
+    reconstructedFinalState?: Blob | string | null;
+    reconstructedFinalStateName?: string;
+    reconstructedFinalStateFingerprint?: string;
+  };
   versions?: VersionSnapshot[];
 };
 type WorkspacePlate = {
@@ -94,10 +103,12 @@ export async function createWorkspaceSnapshot(reason: string, context: Workspace
   actions.ensurePlatePlacements();
 
   const savedAt = new Date().toISOString();
-  const [sourceCanvas, plateComposite, depthMap, plates] = await Promise.all([
+  const [sourceCanvas, plateComposite, depthMap, depthFinalState, depthFinalReconstructed, plates] = await Promise.all([
     canvasBlobOrNull(state.sourceCanvas),
     canvasBlobOrNull(state.plateCompositeCanvas),
     canvasBlobOrNull(state.depthMapCanvas),
+    canvasBlobOrNull(state.depthFinalStateCanvas),
+    canvasBlobOrNull(state.depthFinalReconstructedCanvas),
     Promise.all(state.plates.map(serializeWorkspacePlate)),
   ]);
 
@@ -158,6 +169,12 @@ export async function createWorkspaceSnapshot(reason: string, context: Workspace
     depthMotion: {
       depthMap,
       depthMapName: state.depthMapName || "",
+      finalState: depthFinalState,
+      finalStateName: state.depthFinalStateName || "",
+      finalStateFingerprint: state.depthFinalStateFingerprint || "",
+      reconstructedFinalState: depthFinalReconstructed,
+      reconstructedFinalStateName: state.depthFinalReconstructedName || "",
+      reconstructedFinalStateFingerprint: state.depthFinalReconstructedFingerprint || "",
     },
     versions: cloneJson(state.versions),
     thumbnails: {
@@ -241,6 +258,20 @@ export async function applyWorkspaceSnapshot(snapshot: WorkspaceSnapshotData, co
 
   state.depthMapCanvas = await canvasFromBlobOrNull(snapshot.depthMotion?.depthMap);
   state.depthMapName = state.depthMapCanvas ? snapshot.depthMotion?.depthMapName || "Restored depth map" : "";
+  state.depthFinalStateCanvas = await canvasFromBlobOrNull(snapshot.depthMotion?.finalState);
+  state.depthFinalStateName = state.depthFinalStateCanvas
+    ? snapshot.depthMotion?.finalStateName || "Restored final state"
+    : "";
+  state.depthFinalStateFingerprint = state.depthFinalStateCanvas
+    ? snapshot.depthMotion?.finalStateFingerprint || ""
+    : "";
+  state.depthFinalReconstructedCanvas = await canvasFromBlobOrNull(snapshot.depthMotion?.reconstructedFinalState);
+  state.depthFinalReconstructedName = state.depthFinalReconstructedCanvas
+    ? snapshot.depthMotion?.reconstructedFinalStateName || "Restored reconstructed final state"
+    : "";
+  state.depthFinalReconstructedFingerprint = state.depthFinalReconstructedCanvas
+    ? snapshot.depthMotion?.reconstructedFinalStateFingerprint || ""
+    : "";
   state.depthMotionPreviewCanvas = null;
   state.depthPreviewActive = false;
   state.depthPreviewWidth = 0;

@@ -335,6 +335,53 @@
         </div>
 
         <div class="section workspace-section" data-workspace="ship">
+          <div class="section-title">State-to-state 2.5D</div>
+          <div class="reference-strip" aria-label="Seedance state-to-state inputs">
+            <div>
+              <span>First frame</span>
+              <strong id="stateSeedanceFirstReference">Current source image</strong>
+            </div>
+            <div>
+              <span>Last frame</span>
+              <strong id="stateSeedanceLastReference">Needs final state</strong>
+            </div>
+          </div>
+          <div class="generated-prompt-row">
+            <div class="generated-prompt-header">
+              <span>State prompt</span>
+              <span id="stateSeedancePromptState">Not planned</span>
+            </div>
+            <p id="stateSeedancePromptPreview">Generated on send</p>
+            <textarea id="stateSeedancePrompt" hidden aria-hidden="true"></textarea>
+          </div>
+          <label class="select-row">
+            <span>Motion mode</span>
+            <select id="stateSeedancePromptMode">
+              <option value="auto">Auto event</option>
+              <option value="ambient_scene_motion">Ambient scene</option>
+              <option value="scene_event">Scene event</option>
+              <option value="material_life">Material life</option>
+            </select>
+          </label>
+          <label class="select-row">
+            <span>Size</span>
+            <select id="stateSeedanceRatio">
+              <option value="auto">Auto</option>
+              <option value="960:960">960 square</option>
+              <option value="640:640" selected>640 square</option>
+              <option value="1280:720">1280 x 720</option>
+              <option value="720:1280">720 x 1280</option>
+            </select>
+          </label>
+          <div class="button-row three">
+            <button id="captureDepthFinalState" type="button" disabled>Capture final</button>
+            <button id="reconstructDepthFinalState" type="button" disabled>Reconstruct final</button>
+            <button id="codexStateSeedancePrompt" type="button" disabled hidden>Plan state prompt</button>
+            <button id="runwayStateSeedance" class="primary-action" type="button" disabled>Generate state motion</button>
+          </div>
+        </div>
+
+        <div class="section workspace-section" data-workspace="ship">
           <div class="section-title">Image to fulldome video</div>
           <div class="reference-strip" aria-label="Seedance image inputs">
             <div>

@@ -165,6 +165,12 @@
     "generatedPromptFresh": false,
     "outputCount": 0,
     "activeOutputIndex": 0,
+    "stateToState": {
+      "promptMode": "auto",
+      "ratio": "640:640",
+      "generatedPrompt": "",
+      "generatedPromptFresh": false
+    },
     "imageToVideo": {
       "promptMode": "auto",
       "generatedPrompt": "",

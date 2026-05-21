@@ -150,6 +150,12 @@ export type ZenithState = {
   depthMapCanvas: HTMLCanvasElement | null;
   depthMapName: string;
   depthMotionPreviewCanvas: HTMLCanvasElement | null;
+  depthFinalStateCanvas: HTMLCanvasElement | null;
+  depthFinalStateName: string;
+  depthFinalStateFingerprint: string;
+  depthFinalReconstructedCanvas: HTMLCanvasElement | null;
+  depthFinalReconstructedName: string;
+  depthFinalReconstructedFingerprint: string;
   depthPreviewActive: boolean;
   depthPreviewWidth: number;
   depthPreviewHeight: number;
