@@ -18,13 +18,11 @@ struct Uniforms {
   showZenith: f32,
   showSourceCircle: f32,
   shellShade: f32,
-  fastMap: f32,
 };
 
 struct VertexOut {
   @builtin(position) position: vec4<f32>,
   @location(0) world: vec3<f32>,
-  @location(1) domeMap: vec3<f32>,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -48,9 +46,6 @@ fn vertexMain(@location(0) position: vec3<f32>) -> VertexOut {
   var out: VertexOut;
   out.position = uniforms.mvp * vec4<f32>(position, 1.0);
   out.world = position;
-  let theta = acos(clamp(position.y, 0.0, 1.0));
-  let radial = theta / HALF_PI;
-  out.domeMap = vec3<f32>(position.x * radial, -position.z * radial, theta);
   return out;
 }
 
@@ -90,34 +85,16 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
     discard;
   }
 
-  let useFastMap = uniforms.fastMap > 0.5;
-  var theta: f32;
-  var azimuth: f32;
-  var uv: vec2<f32>;
-
-  if (useFastMap) {
-    theta = in.domeMap.z;
-    let base = vec2<f32>(
-      select(in.domeMap.x, -in.domeMap.x, uniforms.mirror > 0.5),
-      in.domeMap.y
-    );
-    let c = cos(uniforms.rotation);
-    let s = sin(uniforms.rotation);
-    let rotated = vec2<f32>(base.x * c - base.y * s, base.x * s + base.y * c);
-    uv = vec2<f32>(0.5, 0.5) + rotated * uniforms.fisheyeScale;
-    azimuth = atan2(rotated.x, -rotated.y);
-  } else {
-    let dir = normalize(rotateX(physicalDir, uniforms.domeTilt));
-    theta = acos(clamp(dir.y, 0.0, 1.0));
-    azimuth = atan2(dir.x, dir.z);
-    if (uniforms.mirror > 0.5) {
-      azimuth = -azimuth;
-    }
-    azimuth = azimuth + uniforms.rotation;
-    let radial = clamp(projectionRadius(theta), 0.0, 1.0);
-    uv = vec2<f32>(0.5, 0.5) +
-      vec2<f32>(sin(azimuth) * uniforms.fisheyeScale.x, -cos(azimuth) * uniforms.fisheyeScale.y) * radial;
+  let dir = normalize(rotateX(physicalDir, uniforms.domeTilt));
+  let theta = acos(clamp(dir.y, 0.0, 1.0));
+  var azimuth = atan2(dir.x, dir.z);
+  if (uniforms.mirror > 0.5) {
+    azimuth = -azimuth;
   }
+  azimuth = azimuth + uniforms.rotation;
+  let radial = clamp(projectionRadius(theta), 0.0, 1.0);
+  let uv = vec2<f32>(0.5, 0.5) +
+    vec2<f32>(sin(azimuth) * uniforms.fisheyeScale.x, -cos(azimuth) * uniforms.fisheyeScale.y) * radial;
 
   var color = textureSample(domeTexture, domeSampler, uv).rgb * uniforms.exposure;
   let shell = mix(1.0, 0.66 + 0.34 * smoothstep(0.0, 1.0, physicalDir.y), uniforms.shellShade);

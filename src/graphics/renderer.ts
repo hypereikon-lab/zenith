@@ -236,7 +236,6 @@ export function createDomeRenderer({
         format: "depth24plus",
       },
     });
-
   }
 
   function createDomeGeometry() {
@@ -418,7 +417,11 @@ export function createDomeRenderer({
       }
     }
 
-    if (!state.depthPreviewActive && state.mediaKind === "video" && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+    if (
+      !state.depthPreviewActive &&
+      state.mediaKind === "video" &&
+      video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+    ) {
       const needsFallbackUpload = !("requestVideoFrameCallback" in video);
       const pausedFrameChanged = video.paused && lastVideoUploadTime !== video.currentTime;
       if (state.pendingVideoUpload || needsFallbackUpload || pausedFrameChanged) {
@@ -441,10 +444,9 @@ export function createDomeRenderer({
     state.fps = (state.fpsFrameCount * 1000) / elapsed;
     state.fpsFrameCount = 0;
     state.fpsSampleTime = now;
-    const mapping = shouldUseFastDomeMap(state.viewMode === "cutaway") ? "fast map" : "full map";
     const scale = Math.round(Number(controls.renderScale.value) * 100);
     const mesh = ["low", "medium", "high"][Number(controls.meshQuality.value)] ?? "medium";
-    perfReadout.textContent = `${Math.round(state.fps)} fps, ${mapping}, ${scale}% scale, ${mesh} mesh`;
+    perfReadout.textContent = `${Math.round(state.fps)} fps, full map, ${scale}% scale, ${mesh} mesh`;
   }
 
   function uploadCurrentVideoFrame(): void {
@@ -628,14 +630,7 @@ export function createDomeRenderer({
     data[29] = controls.showZenith.checked ? 1 : 0;
     data[30] = controls.showSourceCircle.checked ? 1 : 0;
     data[31] = Number(controls.shellShade.value);
-    data[32] = shouldUseFastDomeMap(cutaway) ? 1 : 0;
     device.queue.writeBuffer(uniformBuffer, 0, data);
-  }
-
-  function shouldUseFastDomeMap(cutaway: boolean): boolean {
-    if (cutaway) return false;
-    if (controls.projectionMode.value !== "equidistant") return false;
-    return Math.abs(Number(controls.domeTilt.value)) < 0.001;
   }
 
   function writeRoomUniforms(viewport: Rect): void {

@@ -1,5 +1,16 @@
 import { describe, expect, test } from "vitest";
-import { flatShaderCode } from "./shaders.js";
+import { domeShaderCode, flatShaderCode } from "./shaders.js";
+
+describe("dome shader", () => {
+  test("uses one full projection path instead of an equidistant fast-map bypass", () => {
+    expect(domeShaderCode).not.toContain("fastMap");
+    expect(domeShaderCode).not.toContain("domeMap");
+    expect(domeShaderCode).toContain("let dir = normalize(rotateX(physicalDir, uniforms.domeTilt))");
+    expect(domeShaderCode).toContain("let radial = clamp(projectionRadius(theta), 0.0, 1.0)");
+    expect(domeShaderCode).toContain("sin(azimuth) * uniforms.fisheyeScale.x");
+    expect(domeShaderCode).toContain("uniforms.customCurve");
+  });
+});
 
 describe("flat shader", () => {
   test("masks outside the domemaster circle to opaque black", () => {
