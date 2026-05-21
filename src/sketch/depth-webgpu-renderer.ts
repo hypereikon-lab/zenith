@@ -610,8 +610,8 @@ export function buildDepthPreviewUniformArray({
   ]);
 }
 
-function buildUniforms({ profile, settings, pose, size }: UniformInput): Float32Array {
-  return buildDepthPreviewUniformArray({ profile, settings, pose, size });
+function buildUniforms({ profile, settings, pose, size, splatPixels }: UniformInput): Float32Array {
+  return buildDepthPreviewUniformArray({ profile, settings, pose, size, splatPixels });
 }
 
 function buildUvSamples(profile: ProjectionProfile): Float32Array {

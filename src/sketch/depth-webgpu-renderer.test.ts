@@ -60,4 +60,32 @@ describe("depth WebGPU reprojection preview", () => {
     expect(gapFillSplatPixels(3)).toBeCloseTo(2.65);
     expect(gapFillSplatPixels(12)).toBe(4.5);
   });
+
+  test("honors explicit splat size overrides for the fill pass", () => {
+    const uniforms = buildDepthPreviewUniformArray({
+      profile: {
+        fisheyeScaleX: 0.5,
+        fisheyeScaleY: 0.5,
+      },
+      settings: {
+        nearMeters: 1,
+        farMeters: 12,
+        polarity: "brightFar",
+        depthContrast: 1,
+        guideMode: "source",
+        guideNoise: 0,
+        gapFillPasses: 4,
+      },
+      pose: {
+        yaw: 0,
+        pitch: 0,
+        roll: 0,
+        offset: [0, 0, 0],
+      },
+      size: 720,
+      splatPixels: gapFillSplatPixels(4),
+    });
+
+    expect(uniforms[11]).toBeCloseTo(3.2);
+  });
 });
