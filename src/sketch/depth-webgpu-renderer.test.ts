@@ -1,5 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { buildDepthPreviewUniformArray, depthReprojectionShaderCode } from "./depth-webgpu-renderer.js";
+import {
+  buildDepthPreviewUniformArray,
+  depthReprojectionShaderCode,
+  gapFillSplatPixels,
+} from "./depth-webgpu-renderer.js";
 
 describe("depth WebGPU reprojection preview", () => {
   test("uses vertex texture sampling and depth-buffered splat quads", () => {
@@ -12,9 +16,11 @@ describe("depth WebGPU reprojection preview", () => {
     expect(depthReprojectionShaderCode).toContain("applyGuideNoise");
     expect(depthReprojectionShaderCode).toContain("discard;");
     expect(depthReprojectionShaderCode).toContain("corners[vertexIndex % 6u]");
+    expect(depthReprojectionShaderCode).toContain("splatLocal");
+    expect(depthReprojectionShaderCode).toContain("dot(in.splatLocal, in.splatLocal)");
   });
 
-  test("packs uniforms in vec4-aligned order", () => {
+  test("packs tight base-pass uniforms in vec4-aligned order", () => {
     const uniforms = buildDepthPreviewUniformArray({
       profile: {
         fisheyeScaleX: 0.5,
@@ -42,10 +48,16 @@ describe("depth WebGPU reprojection preview", () => {
     expect(uniforms[0]).toBeCloseTo(0.5);
     expect(uniforms[3]).toBeCloseTo(720);
     expect(uniforms[6]).toBe(0);
-    expect(uniforms[11]).toBeGreaterThan(1);
+    expect(uniforms[11]).toBeCloseTo(0.58);
     expect(uniforms[15]).toBe(0);
     expect(uniforms[16]).toBe(0);
     expect(uniforms[17]).toBe(2);
     expect(uniforms[18]).toBeCloseTo(0.05);
+  });
+
+  test("computes gap-fill splats separately from base reprojection", () => {
+    expect(gapFillSplatPixels(0)).toBe(1);
+    expect(gapFillSplatPixels(3)).toBeCloseTo(2.65);
+    expect(gapFillSplatPixels(12)).toBe(4.5);
   });
 });

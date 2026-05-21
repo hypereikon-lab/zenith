@@ -17,6 +17,7 @@ struct VertexOut {
   @builtin(position) position: vec4<f32>,
   @location(0) sourceUv: vec2<f32>,
   @location(1) targetUv: vec2<f32>,
+  @location(2) splatLocal: vec2<f32>,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -168,6 +169,7 @@ fn vertexMain(@builtin(vertex_index) vertexIndex: u32, @location(0) sourceUv: ve
   var out: VertexOut;
   out.sourceUv = sourceUv;
   out.targetUv = vec2<f32>(0.5, 0.5);
+  out.splatLocal = corners[vertexIndex % 6u];
 
   let sourceDirection = mapUvToDomeDirection(sourceUv);
   if (sourceDirection.w < 0.0) {
@@ -206,6 +208,9 @@ fn vertexMain(@builtin(vertex_index) vertexIndex: u32, @location(0) sourceUv: ve
 
 @fragment
 fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
+  if (dot(in.splatLocal, in.splatLocal) > 1.32) {
+    discard;
+  }
   let normalized = (in.targetUv - vec2<f32>(0.5, 0.5)) / max(uniforms.fisheyeScaleOutputSize.xy, vec2<f32>(0.0001, 0.0001));
   if (length(normalized) > 1.0) {
     discard;
@@ -231,6 +236,9 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
 }
 `;
 
+const DEPTH_STENCIL_FORMAT = "depth24plus-stencil8";
+const BASE_SPLAT_PIXELS = 0.58;
+
 type DepthWebGpuPreviewRendererOptions = {
   canvas?: HTMLCanvasElement | null;
   device?: GPUDevice | null;
@@ -255,6 +263,7 @@ type UniformInput = {
   settings: DepthPreviewUniformSettings;
   pose: MotionPose;
   size: number;
+  splatPixels?: number;
 };
 
 export function createDepthWebGpuPreviewRenderer({
@@ -265,10 +274,12 @@ export function createDepthWebGpuPreviewRenderer({
   let device: GPUDevice;
   let context: GPUCanvasContext;
   let presentationFormat: GPUTextureFormat;
-  let pipeline: GPURenderPipeline;
+  let basePipeline: GPURenderPipeline;
+  let gapFillPipeline: GPURenderPipeline;
   let bindGroupLayout: GPUBindGroupLayout;
   let sampler: GPUSampler;
-  let uniformBuffer: GPUBuffer;
+  let baseUniformBuffer: GPUBuffer;
+  let gapFillUniformBuffer: GPUBuffer;
   let sourceTexture: GPUTexture | null = null;
   let depthTexture: GPUTexture | null = null;
   let depthBuffer: GPUTexture | null = null;
@@ -325,7 +336,28 @@ export function createDepthWebGpuPreviewRenderer({
       ],
     });
     const module = device.createShaderModule({ code: depthReprojectionShaderCode });
-    pipeline = device.createRenderPipeline({
+    basePipeline = createReprojectionPipeline(module, "base");
+    gapFillPipeline = createReprojectionPipeline(module, "gapFill");
+    baseUniformBuffer = createUniformBuffer();
+    gapFillUniformBuffer = createUniformBuffer();
+  }
+
+  function createReprojectionPipeline(module: GPUShaderModule, passKind: "base" | "gapFill"): GPURenderPipeline {
+    const stencilState =
+      passKind === "base"
+        ? {
+            compare: "always" as GPUCompareFunction,
+            failOp: "keep" as GPUStencilOperation,
+            depthFailOp: "keep" as GPUStencilOperation,
+            passOp: "replace" as GPUStencilOperation,
+          }
+        : {
+            compare: "equal" as GPUCompareFunction,
+            failOp: "keep" as GPUStencilOperation,
+            depthFailOp: "keep" as GPUStencilOperation,
+            passOp: "keep" as GPUStencilOperation,
+          };
+    return device.createRenderPipeline({
       layout: device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] }),
       vertex: {
         module,
@@ -347,10 +379,17 @@ export function createDepthWebGpuPreviewRenderer({
       depthStencil: {
         depthWriteEnabled: true,
         depthCompare: "less",
-        format: "depth24plus",
+        format: DEPTH_STENCIL_FORMAT,
+        stencilFront: stencilState,
+        stencilBack: stencilState,
+        stencilReadMask: 0xff,
+        stencilWriteMask: passKind === "base" ? 0xff : 0x00,
       },
     });
-    uniformBuffer = device.createBuffer({
+  }
+
+  function createUniformBuffer(): GPUBuffer {
+    return device.createBuffer({
       size: 80,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
@@ -372,18 +411,30 @@ export function createDepthWebGpuPreviewRenderer({
     depthTexture = uploadCanvasTexture(depthTexture, depthCanvas);
     const normalizedSettings = normalizeDepthMotionSettings(settings);
     const pose = motionPoseAt(progress, normalizedSettings);
-    const uniforms = buildUniforms({ profile, settings: normalizedSettings, pose, size });
-    device.queue.writeBuffer(uniformBuffer, 0, uniforms);
-
-    const bindGroup = device.createBindGroup({
-      layout: bindGroupLayout,
-      entries: [
-        { binding: 0, resource: { buffer: uniformBuffer } },
-        { binding: 1, resource: sampler },
-        { binding: 2, resource: sourceTexture.createView() },
-        { binding: 3, resource: depthTexture.createView() },
-      ],
+    const baseUniforms = buildUniforms({
+      profile,
+      settings: normalizedSettings,
+      pose,
+      size,
+      splatPixels: BASE_SPLAT_PIXELS,
     });
+    device.queue.writeBuffer(baseUniformBuffer, 0, baseUniforms);
+    const baseBindGroup = bindGroupForUniformBuffer(baseUniformBuffer);
+
+    // Enlarged splats run as a second pass and are stencil-gated to pixels the base pass left empty.
+    const useGapFill = normalizedSettings.gapFillPasses > 0;
+    let gapFillBindGroup: GPUBindGroup | null = null;
+    if (useGapFill) {
+      const gapFillUniforms = buildUniforms({
+        profile,
+        settings: normalizedSettings,
+        pose,
+        size,
+        splatPixels: gapFillSplatPixels(normalizedSettings.gapFillPasses),
+      });
+      device.queue.writeBuffer(gapFillUniformBuffer, 0, gapFillUniforms);
+      gapFillBindGroup = bindGroupForUniformBuffer(gapFillUniformBuffer);
+    }
 
     const encoder = device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
@@ -400,14 +451,24 @@ export function createDepthWebGpuPreviewRenderer({
         depthClearValue: 1,
         depthLoadOp: "clear",
         depthStoreOp: "discard",
+        stencilClearValue: 0,
+        stencilLoadOp: "clear",
+        stencilStoreOp: "discard",
       },
     });
     pass.setViewport(0, 0, size, size, 0, 1);
     pass.setScissorRect(0, 0, size, size);
-    pass.setPipeline(pipeline);
-    pass.setBindGroup(0, bindGroup);
+    pass.setPipeline(basePipeline);
+    pass.setStencilReference(1);
+    pass.setBindGroup(0, baseBindGroup);
     pass.setVertexBuffer(0, uvBuffer);
     pass.draw(6, uvCount);
+    if (gapFillBindGroup) {
+      pass.setPipeline(gapFillPipeline);
+      pass.setStencilReference(0);
+      pass.setBindGroup(0, gapFillBindGroup);
+      pass.draw(6, uvCount);
+    }
     pass.end();
     device.queue.submit([encoder.finish()]);
     if (waitForCompletion) {
@@ -443,8 +504,20 @@ export function createDepthWebGpuPreviewRenderer({
     if (depthBuffer) depthBuffer.destroy();
     depthBuffer = device.createTexture({
       size: { width: size, height: size },
-      format: "depth24plus",
+      format: DEPTH_STENCIL_FORMAT,
       usage: GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+  }
+
+  function bindGroupForUniformBuffer(uniformBuffer: GPUBuffer): GPUBindGroup {
+    return device.createBindGroup({
+      layout: bindGroupLayout,
+      entries: [
+        { binding: 0, resource: { buffer: uniformBuffer } },
+        { binding: 1, resource: sampler },
+        { binding: 2, resource: sourceTexture.createView() },
+        { binding: 3, resource: depthTexture.createView() },
+      ],
     });
   }
 
@@ -482,7 +555,13 @@ export function createDepthWebGpuPreviewRenderer({
   };
 }
 
-export function buildDepthPreviewUniformArray({ profile, settings, pose, size }: UniformInput): Float32Array {
+export function buildDepthPreviewUniformArray({
+  profile,
+  settings,
+  pose,
+  size,
+  splatPixels = BASE_SPLAT_PIXELS,
+}: UniformInput): Float32Array {
   return new Float32Array([
     profile.fisheyeScaleX,
     profile.fisheyeScaleY,
@@ -495,7 +574,7 @@ export function buildDepthPreviewUniformArray({ profile, settings, pose, size }:
     pose.yaw,
     pose.pitch,
     pose.roll,
-    splatPixelsForSettings(settings),
+    splatPixels,
     pose.offset[0],
     pose.offset[1],
     pose.offset[2],
@@ -528,6 +607,6 @@ function buildUvSamples(profile: ProjectionProfile): Float32Array {
   return new Float32Array(values);
 }
 
-function splatPixelsForSettings(settings: DepthPreviewUniformSettings): number {
-  return clamp(1 + settings.gapFillPasses * 0.55, 1, 4.5);
+export function gapFillSplatPixels(gapFillPasses: number): number {
+  return clamp(1 + Math.max(0, Math.round(Number(gapFillPasses) || 0)) * 0.55, 1, 4.5);
 }
