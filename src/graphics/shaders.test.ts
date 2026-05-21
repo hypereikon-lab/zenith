@@ -24,4 +24,13 @@ describe("flat shader", () => {
     expect(flatShaderCode).toContain("let sampleUv = rotate2d(in.uv - vec2<f32>(0.5, 0.5), uniforms.rotation)");
     expect(flatShaderCode).toContain("textureSample(domeTexture, domeSampler, sampleUv)");
   });
+
+  test("draws flat latitude rings through the active projection curve", () => {
+    expect(flatShaderCode).toContain("const HALF_PI: f32 = 1.5707963267948966;");
+    expect(flatShaderCode).toContain("fn inverseProjectionRadius");
+    expect(flatShaderCode).toContain("let theta = inverseProjectionRadius(radius)");
+    expect(flatShaderCode).toContain("lineAt(theta, HALF_PI / 6.0");
+    expect(flatShaderCode).toContain("uniforms.projectionMode");
+    expect(flatShaderCode).toContain("uniforms.customCurve");
+  });
 });

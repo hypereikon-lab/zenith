@@ -32,6 +32,7 @@ struct VertexOut {
 @group(0) @binding(2) var domeTexture: texture_2d<f32>;
 
 const PI: f32 = 3.141592653589793;
+const HALF_PI: f32 = 1.5707963267948966;
 
 fn rotate2d(value: vec2<f32>, angle: f32) -> vec2<f32> {
   let s = sin(angle);
@@ -41,7 +42,6 @@ fn rotate2d(value: vec2<f32>, angle: f32) -> vec2<f32> {
     value.x * s + value.y * c
   );
 }
-const HALF_PI: f32 = 1.5707963267948966;
 
 @vertex
 fn vertexMain(@location(0) position: vec3<f32>) -> VertexOut {
@@ -165,6 +165,7 @@ struct VertexOut {
 @group(0) @binding(2) var domeTexture: texture_2d<f32>;
 
 const PI: f32 = 3.141592653589793;
+const HALF_PI: f32 = 1.5707963267948966;
 
 fn rotate2d(value: vec2<f32>, angle: f32) -> vec2<f32> {
   let s = sin(angle);
@@ -198,6 +199,23 @@ fn lineAt(value: f32, interval: f32, widthFactor: f32) -> f32 {
   return 1.0 - smoothstep(0.0, width, dist);
 }
 
+fn inverseProjectionRadius(radial: f32) -> f32 {
+  let r = clamp(radial, 0.0, 1.0);
+  if (uniforms.projectionMode < 0.5) {
+    return r * HALF_PI;
+  }
+  if (uniforms.projectionMode < 1.5) {
+    return 2.0 * asin(clamp(r * sin(HALF_PI * 0.5), 0.0, 1.0));
+  }
+  if (uniforms.projectionMode < 2.5) {
+    return asin(clamp(r, 0.0, 1.0));
+  }
+  if (uniforms.projectionMode < 3.5) {
+    return 2.0 * atan(r);
+  }
+  return pow(r, 1.0 / max(uniforms.customCurve, 0.05)) * HALF_PI;
+}
+
 @fragment
 fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
   let normalized = vec2<f32>(
@@ -209,9 +227,10 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
   let sampleUv = rotate2d(in.uv - vec2<f32>(0.5, 0.5), uniforms.rotation) + vec2<f32>(0.5, 0.5);
   let sampledColor = textureSample(domeTexture, domeSampler, sampleUv).rgb * uniforms.exposure;
   var color = select(sampledColor, vec3<f32>(0.0, 0.0, 0.0), radius > 1.0);
+  let theta = inverseProjectionRadius(radius);
   let angle = atan2(normalized.x, -normalized.y) + uniforms.rotation;
 
-  let ring = lineAt(radius, 1.0 / 6.0, 1.4) * insideMask * uniforms.showRings;
+  let ring = lineAt(theta, HALF_PI / 6.0, 1.4) * insideMask * uniforms.showRings;
   let spoke = lineAt(angle, PI / 12.0, 1.4) * insideMask * uniforms.showSpokes;
   let sourceCircle = (1.0 - smoothstep(0.002, 0.012 + fwidth(radius) * 2.0, abs(radius - 1.0))) * insideMask * uniforms.showSourceCircle;
   let overlay = clamp(max(max(ring * 0.4, spoke * 0.38), sourceCircle) * uniforms.overlayOpacity, 0.0, 0.82);

@@ -11,7 +11,7 @@ import type { PlateSource, ViewMode, WorkspaceId } from "../app/types.js";
 import type { CssLayout, Rect } from "../graphics/render-layout.js";
 import type { PlatePlacementInput, PreparedPlatePlacement } from "../plates/plate-placement.js";
 import { directionFromPlateUv, preparePlatePlacement } from "../plates/plate-placement.js";
-import { TAU, lerp, multiplyMat4, multiplyMat4Vec4, perspectiveLH } from "../projection.js";
+import { TAU, lerp, multiplyMat4Vec4 } from "../projection.js";
 import type { Mat4, Point2D, Vec3 } from "../projection.js";
 
 export type HudOptions = {
@@ -111,10 +111,10 @@ function drawFlatHud(ctx: CanvasRenderingContext2D, rect: Rect, options: HudOpti
   if (options.showLabels) {
     ctx.fillStyle = "rgba(230, 244, 248, 0.86)";
     ctx.textAlign = "center";
-    drawTextAt(ctx, "N", cx, cy - radius - 13);
-    drawTextAt(ctx, "E", cx + radius + 13, cy);
-    drawTextAt(ctx, "S", cx, cy + radius + 13);
-    drawTextAt(ctx, "W", cx - radius - 13, cy);
+    drawFlatDirectionLabel(ctx, "N", [0, 0, 1], cx, cy, radius, options);
+    drawFlatDirectionLabel(ctx, "E", [1, 0, 0], cx, cy, radius, options);
+    drawFlatDirectionLabel(ctx, "S", [0, 0, -1], cx, cy, radius, options);
+    drawFlatDirectionLabel(ctx, "W", [-1, 0, 0], cx, cy, radius, options);
   }
   if (showPatchHud) {
     drawPlatePlacementHud(ctx, rect, radius, Number(options.flatRotationRadians) || 0, options);
@@ -295,10 +295,27 @@ function flatProjectionOptions(options: HudOptions): { projectionMode: string; c
   };
 }
 
+function drawFlatDirectionLabel(
+  ctx: CanvasRenderingContext2D,
+  label: string,
+  direction: Vec3,
+  cx: number,
+  cy: number,
+  radius: number,
+  options: HudOptions,
+): void {
+  const sourcePoint = domeDirectionToFlatPoint(direction, cx, cy, radius, flatProjectionOptions(options));
+  const displayPoint = sourceFlatToDisplayFlatPoint(sourcePoint, cx, cy, options.flatRotationRadians);
+  if (!displayPoint) return;
+  const dx = displayPoint.x - cx;
+  const dy = displayPoint.y - cy;
+  const length = Math.hypot(dx, dy);
+  if (length <= 0.000001) return;
+  drawTextAt(ctx, label, displayPoint.x + (dx / length) * 13, displayPoint.y + (dy / length) * 13);
+}
+
 function drawDomeHud(ctx: CanvasRenderingContext2D, rect: Rect, options: HudOptions): void {
   if (!options.domeViewMatrix) return;
-  const projection = perspectiveLH((options.fovDegrees * Math.PI) / 180, rect.width / rect.height, 0.01, 20);
-  const mvp = multiplyMat4(projection, options.domeViewMatrix);
   const domeProjection: DomeViewProjection = {
     rect,
     viewMatrix: options.domeViewMatrix,
@@ -328,7 +345,7 @@ function drawDomeHud(ctx: CanvasRenderingContext2D, rect: Rect, options: HudOpti
     ctx.fillStyle = "rgba(230, 244, 248, 0.82)";
     ctx.textAlign = "center";
     for (const [label, point] of points) {
-      const projected = projectPoint(mvp, point, rect);
+      const projected = sourceDomeDirectionToScreenPoint(point, domeProjection);
       if (projected) {
         drawTextAt(ctx, label, projected.x, projected.y);
       }
