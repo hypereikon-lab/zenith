@@ -1,9 +1,13 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { normalizePlatePlacement } from "./plate-placement.js";
 import { createPlateController } from "./plate-controller.js";
 import type { PlateRenderOptions } from "./plate-gpu-compositor.js";
 
 describe("plate controller edit gate", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   test("disables placement controls until edit placement is checked", () => {
     const { controller, controls, elements } = buildPlateControllerHarness();
 
@@ -101,6 +105,20 @@ describe("plate controller edit gate", () => {
 
     expect(calls.lastRenderOptions?.projectionMode).toBe("orthographic");
     expect(calls.lastRenderOptions?.customCurve).toBe("1.6");
+  });
+
+  test("preview controls rebuild generated plate maps with the current custom curve", () => {
+    vi.useFakeTimers();
+    const { controller, controls, calls } = buildPlateControllerHarness();
+    controls.projectionMode.value = "custom";
+    controls.customCurve.value = "2.2";
+
+    controller.handlePlatePreviewControlInput();
+    vi.advanceTimersByTime(141);
+
+    expect(calls.renderPlateComposite).toBe(1);
+    expect(calls.lastRenderOptions?.projectionMode).toBe("custom");
+    expect(calls.lastRenderOptions?.customCurve).toBe("2.2");
   });
 });
 
