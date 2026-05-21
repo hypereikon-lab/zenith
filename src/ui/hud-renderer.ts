@@ -28,6 +28,8 @@ export type HudOptions = {
   showZenith: boolean;
   radiusScale: number;
   flatRotationRadians: number;
+  projectionMode: string;
+  customCurve: number;
   domeTiltRadians: number;
   mirror: boolean;
   plateCount: number;
@@ -141,8 +143,13 @@ function drawPlatePlacementHud(
     ctx.strokeStyle = active ? "rgba(180, 255, 225, 0.92)" : "rgba(210, 247, 255, 0.42)";
     ctx.fillStyle = active ? "rgba(180, 255, 225, 0.96)" : "rgba(230, 244, 248, 0.72)";
     const bounds = visiblePlateUvBounds(placement, options.plateFit);
-    drawPlacementOutline(ctx, placement, bounds, cx, cy, radius, flatRotation);
-    const center = sourceFlatToDisplayFlatPoint(domeDirectionToFlatPoint(placement.center, cx, cy, radius), cx, cy, flatRotation);
+    drawPlacementOutline(ctx, placement, bounds, cx, cy, radius, flatRotation, options);
+    const center = sourceFlatToDisplayFlatPoint(
+      domeDirectionToFlatPoint(placement.center, cx, cy, radius, flatProjectionOptions(options)),
+      cx,
+      cy,
+      flatRotation,
+    );
     if (center) {
       ctx.beginPath();
       ctx.arc(center.x, center.y, active ? 4.5 : 3, 0, TAU);
@@ -150,7 +157,7 @@ function drawPlatePlacementHud(
       drawTextAt(ctx, String(index + 1), center.x, center.y - 13);
     }
     if (active && options.editPlacement) {
-      drawPlacementHandles(ctx, placement, bounds, cx, cy, radius, flatRotation);
+      drawPlacementHandles(ctx, placement, bounds, cx, cy, radius, flatRotation, options);
     }
   }
   ctx.restore();
@@ -164,6 +171,7 @@ function drawPlacementOutline(
   cy: number,
   radius: number,
   flatRotation: number,
+  options: HudOptions,
 ): void {
   const segments = 12;
   ctx.beginPath();
@@ -179,7 +187,16 @@ function drawPlacementOutline(
       const t = step / segments;
       const u = lerp(edge[0], edge[2], t);
       const v = lerp(edge[1], edge[3], t);
-      const point = plateUvToDisplayFlatPoint(placement, u, v, cx, cy, radius, flatRotation);
+      const point = plateUvToDisplayFlatPoint(
+        placement,
+        u,
+        v,
+        cx,
+        cy,
+        radius,
+        flatRotation,
+        flatProjectionOptions(options),
+      );
       if (!point) {
         started = false;
         continue;
@@ -203,6 +220,7 @@ function drawPlacementHandles(
   cy: number,
   radius: number,
   flatRotation: number,
+  options: HudOptions,
 ): void {
   const handleUvs = [
     [bounds.minU, bounds.minV],
@@ -211,11 +229,32 @@ function drawPlacementHandles(
     [bounds.minU, bounds.maxV],
   ];
   const points = handleUvs
-    .map(([u, v]) => plateUvToDisplayFlatPoint(placement, u, v, cx, cy, radius, flatRotation))
+    .map(([u, v]) =>
+      plateUvToDisplayFlatPoint(placement, u, v, cx, cy, radius, flatRotation, flatProjectionOptions(options)),
+    )
     .filter((point): point is Point2D => Boolean(point));
   const centerU = (bounds.minU + bounds.maxU) * 0.5;
-  const top = plateUvToDisplayFlatPoint(placement, centerU, bounds.minV, cx, cy, radius, flatRotation);
-  const rotate = plateUvToDisplayFlatPoint(placement, centerU, bounds.minV - 0.18, cx, cy, radius, flatRotation);
+  const projectionOptions = flatProjectionOptions(options);
+  const top = plateUvToDisplayFlatPoint(
+    placement,
+    centerU,
+    bounds.minV,
+    cx,
+    cy,
+    radius,
+    flatRotation,
+    projectionOptions,
+  );
+  const rotate = plateUvToDisplayFlatPoint(
+    placement,
+    centerU,
+    bounds.minV - 0.18,
+    cx,
+    cy,
+    radius,
+    flatRotation,
+    projectionOptions,
+  );
 
   ctx.save();
   ctx.lineWidth = 1.5;
@@ -247,6 +286,13 @@ function drawRoundHandle(ctx: CanvasRenderingContext2D, x: number, y: number, ra
   ctx.arc(x, y, radius, 0, TAU);
   ctx.fill();
   ctx.stroke();
+}
+
+function flatProjectionOptions(options: HudOptions): { projectionMode: string; customCurve: number } {
+  return {
+    projectionMode: options.projectionMode || "equidistant",
+    customCurve: Number(options.customCurve) || 1,
+  };
 }
 
 function drawDomeHud(ctx: CanvasRenderingContext2D, rect: Rect, options: HudOptions): void {

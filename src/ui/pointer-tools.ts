@@ -68,6 +68,8 @@ type PointerToolControls = {
   radiusScale?: ValueControl;
   rotation?: ValueControl;
   domeTilt?: ValueControl;
+  projectionMode?: ValueControl;
+  customCurve?: ValueControl;
   mirror?: CheckboxControl;
   plateFit?: ValueControl;
   plateCornerMode?: ValueControl;
@@ -231,7 +233,8 @@ export function createPointerToolController({
     if (handle.action === "scale") {
       const direction = metrics.sourceDirectionAt(point);
       const prepared = preparePlatePlacement(placement, activePlate());
-      const useWarpCorner = (event.altKey || event.shiftKey || controls.plateCornerMode?.value === "warp") && handle.corner;
+      const useWarpCorner =
+        (event.altKey || event.shiftKey || controls.plateCornerMode?.value === "warp") && handle.corner;
       if (useWarpCorner && handle.corner) {
         return {
           action: "warp",
@@ -428,10 +431,12 @@ export function createPointerToolController({
     const bounds = visiblePlateUvBounds(prepared, controls.plateFit?.value);
     const uv = plateLocalToWarpedUv(local, prepared);
     if (!uv) return false;
-    return uv.x >= bounds.minU - PLATE_HIT_LOCAL_PAD &&
+    return (
+      uv.x >= bounds.minU - PLATE_HIT_LOCAL_PAD &&
       uv.x <= bounds.maxU + PLATE_HIT_LOCAL_PAD &&
       uv.y >= bounds.minV - PLATE_HIT_LOCAL_PAD &&
-      uv.y <= bounds.maxV + PLATE_HIT_LOCAL_PAD;
+      uv.y <= bounds.maxV + PLATE_HIT_LOCAL_PAD
+    );
   }
 
   function hitHandle(point: Point2D, geometry: PlateGeometry | null): PlateGeometryHandle | null {
@@ -485,6 +490,7 @@ export function createPointerToolController({
     return flatDisplayPointToDomePoint(point, metrics, {
       radiusScale: controls.radiusScale?.value ?? 1,
       rotationRadians: flatRotationRadians(),
+      ...flatProjectionOptions(),
     });
   }
 
@@ -492,6 +498,7 @@ export function createPointerToolController({
     return flatDisplayPointToDomeDirection(point, metrics, {
       radiusScale: controls.radiusScale?.value ?? 1,
       rotationRadians: flatRotationRadians(),
+      ...flatProjectionOptions(),
     });
   }
 
@@ -502,7 +509,7 @@ export function createPointerToolController({
       projectSourceDirection: (direction) => {
         const radius = flatMapRadius(metrics, controls.radiusScale?.value ?? 1);
         return sourceFlatToDisplayFlatPoint(
-          domeDirectionToFlatPoint(direction, metrics.cx, metrics.cy, radius),
+          domeDirectionToFlatPoint(direction, metrics.cx, metrics.cy, radius, flatProjectionOptions()),
           metrics.cx,
           metrics.cy,
           flatRotationRadians(),
@@ -544,6 +551,13 @@ export function createPointerToolController({
 
   function flatRotationRadians(): number {
     return ((Number(controls.rotation?.value) || 0) * Math.PI) / 180;
+  }
+
+  function flatProjectionOptions(): { projectionMode: string; customCurve: number } {
+    return {
+      projectionMode: controls.projectionMode?.value || "equidistant",
+      customCurve: Number(controls.customCurve?.value) || 1,
+    };
   }
 
   function activePlate(): PointerToolState["plates"][number] | null {

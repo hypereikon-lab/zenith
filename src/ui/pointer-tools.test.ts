@@ -1,6 +1,10 @@
 import { describe, expect, test } from "vitest";
 import { sourceDomeDirectionToScreenPoint } from "../geometry/dome-view.js";
-import { plateUvToFlatPoint, sourceFlatToDisplayFlatPoint } from "../geometry/flat-domemaster.js";
+import {
+  plateUvToDisplayFlatPoint,
+  plateUvToFlatPoint,
+  sourceFlatToDisplayFlatPoint,
+} from "../geometry/flat-domemaster.js";
 import { preparePlatePlacement } from "../plates/plate-placement.js";
 import type { PlatePlacementInput } from "../plates/plate-placement.js";
 import { lookAtLH } from "../projection.js";
@@ -390,7 +394,14 @@ describe("pointer placement edit gate", () => {
         },
       },
     });
-    const secondCenter = plateUvToFlatPoint(preparePlatePlacement(placements[1], state.plates[1]), 0.5, 0.5, 50, 50, 50);
+    const secondCenter = plateUvToFlatPoint(
+      preparePlatePlacement(placements[1], state.plates[1]),
+      0.5,
+      0.5,
+      50,
+      50,
+      50,
+    );
 
     controller.handlePointerDown({ clientX: secondCenter.x, clientY: secondCenter.y, pointerId: 1 });
     controller.handlePointerMove({ clientX: secondCenter.x, clientY: secondCenter.y - 10, pointerId: 1 });
@@ -470,7 +481,14 @@ describe("pointer placement edit gate", () => {
         },
       },
     });
-    const secondCenter = plateUvToFlatPoint(preparePlatePlacement(placements[1], state.plates[1]), 0.5, 0.5, 50, 50, 50);
+    const secondCenter = plateUvToFlatPoint(
+      preparePlatePlacement(placements[1], state.plates[1]),
+      0.5,
+      0.5,
+      50,
+      50,
+      50,
+    );
 
     controller.handlePointerDown({ clientX: secondCenter.x, clientY: secondCenter.y, pointerId: 1 });
     controller.handlePointerUp({ clientX: secondCenter.x, clientY: secondCenter.y, pointerId: 1 });
@@ -549,7 +567,14 @@ describe("pointer placement edit gate", () => {
         },
       },
     });
-    const sourceCenter = plateUvToFlatPoint(preparePlatePlacement(placements[0], state.plates[0]), 0.5, 0.5, 50, 50, 50);
+    const sourceCenter = plateUvToFlatPoint(
+      preparePlatePlacement(placements[0], state.plates[0]),
+      0.5,
+      0.5,
+      50,
+      50,
+      50,
+    );
     const displayedCenter = sourceFlatToDisplayFlatPoint(sourceCenter, 50, 50, Math.PI);
 
     controller.handlePointerDown({ clientX: displayedCenter.x, clientY: displayedCenter.y, pointerId: 1 });
@@ -632,7 +657,14 @@ describe("pointer placement edit gate", () => {
         },
       },
     });
-    const sourceCenter = plateUvToFlatPoint(preparePlatePlacement(placements[0], state.plates[0]), 0.5, 0.5, 50, 50, 50);
+    const sourceCenter = plateUvToFlatPoint(
+      preparePlatePlacement(placements[0], state.plates[0]),
+      0.5,
+      0.5,
+      50,
+      50,
+      50,
+    );
     const displayedCenter = sourceFlatToDisplayFlatPoint(sourceCenter, 50, 50, Math.PI);
 
     controller.handlePointerDown({
@@ -701,11 +733,22 @@ describe("pointer placement edit gate", () => {
         },
       },
     });
-    const startSourceCenter = plateUvToFlatPoint(preparePlatePlacement(placement, state.plates[0]), 0.5, 0.5, 50, 50, 50);
+    const startSourceCenter = plateUvToFlatPoint(
+      preparePlatePlacement(placement, state.plates[0]),
+      0.5,
+      0.5,
+      50,
+      50,
+      50,
+    );
     const startDisplayedCenter = sourceFlatToDisplayFlatPoint(startSourceCenter, 50, 50, Math.PI);
 
     controller.handlePointerDown({ clientX: startDisplayedCenter.x, clientY: startDisplayedCenter.y, pointerId: 1 });
-    controller.handlePointerMove({ clientX: startDisplayedCenter.x + 10, clientY: startDisplayedCenter.y, pointerId: 1 });
+    controller.handlePointerMove({
+      clientX: startDisplayedCenter.x + 10,
+      clientY: startDisplayedCenter.y,
+      pointerId: 1,
+    });
 
     const endSourceCenter = plateUvToFlatPoint(
       preparePlatePlacement(state.platePlacements[0], state.plates[0]),
@@ -836,6 +879,84 @@ describe("pointer placement edit gate", () => {
     expect(state.platePlacements[0]).not.toHaveProperty("width");
     expect(state.platePlacements[0]).not.toHaveProperty("height");
     expect(state.platePlacements[0]).not.toHaveProperty("cornerOffsets");
+  });
+
+  test("corner scaling follows the active flat projection curve", () => {
+    const placement: PlatePlacementInput = {
+      azimuth: 90,
+      radius: 0.62,
+      scale: 0.28,
+      spin: 0,
+      opacity: 1,
+    };
+    const state = {
+      viewMode: "flat",
+      plates: [{ name: "plate.png", aspect: 1 }],
+      activePlateIndex: 0,
+      platePlacements: [placement],
+      pointer: { active: false, mode: null as null, x: 0, y: 0 },
+      camera: {},
+    };
+    const controls = {
+      editPlacement: { checked: true },
+      activePlate: { value: "0" },
+      fov: { value: "92" },
+      radiusScale: { value: "1" },
+      projectionMode: { value: "orthographic" },
+      customCurve: { value: "1" },
+      theaterPitch: { value: "28" },
+    };
+    const controller = createPointerToolController({
+      canvas: {
+        clientWidth: 100,
+        clientHeight: 100,
+        setPointerCapture() {},
+        releasePointerCapture() {},
+        classList: {
+          add() {},
+          remove() {},
+        },
+      },
+      state,
+      controls,
+      getCssLayout: () => ({ flatRect: { x: 0, y: 0, width: 100, height: 100 } }),
+      activeDomeCamera: () => "orbit",
+      actions: {
+        ensurePlatePlacements() {},
+        updatePatchControlsFromActive() {},
+        schedulePlatePreview() {},
+        scheduleWorkspaceAutosave() {},
+      },
+    });
+    const corner = plateUvToDisplayFlatPoint(preparePlatePlacement(placement, state.plates[0]), 1, 0, 50, 50, 50, 0, {
+      projectionMode: "orthographic",
+    });
+    const center = plateUvToDisplayFlatPoint(
+      preparePlatePlacement(placement, state.plates[0]),
+      0.5,
+      0.5,
+      50,
+      50,
+      50,
+      0,
+      { projectionMode: "orthographic" },
+    );
+
+    expect(corner).toBeTruthy();
+    expect(center).toBeTruthy();
+    const inward = {
+      x: center!.x - corner!.x,
+      y: center!.y - corner!.y,
+    };
+    const inwardLength = Math.hypot(inward.x, inward.y);
+    controller.handlePointerDown({ clientX: corner!.x, clientY: corner!.y, pointerId: 1 });
+    controller.handlePointerMove({
+      clientX: corner!.x + (inward.x / inwardLength) * 8,
+      clientY: corner!.y + (inward.y / inwardLength) * 8,
+      pointerId: 1,
+    });
+
+    expect(state.platePlacements[0].scale).toBeLessThan(0.28);
   });
 
   test("modifier dragging a corner warps that corner without resizing the plate", () => {

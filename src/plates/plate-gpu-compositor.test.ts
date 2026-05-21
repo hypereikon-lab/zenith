@@ -21,4 +21,14 @@ describe("plate GPU compositor shader", () => {
     expect(plateCompositeShader).toContain("let rawUv = warpedLocalToUv(local)");
     expect(plateCompositeShader).toContain("distance(warpedUvToLocal(rawUv), local)");
   });
+
+  test("bakes plate maps with the active source projection curve", () => {
+    expect(plateCompositeShader).toContain("projection: vec4<f32>");
+    expect(plateCompositeShader).toContain("fn inverseProjectionRadius");
+    expect(plateCompositeShader).toContain("return 2.0 * asin");
+    expect(plateCompositeShader).toContain("return asin(clamp(r, 0.0, 1.0))");
+    expect(plateCompositeShader).toContain("return 2.0 * atan(r)");
+    expect(plateCompositeShader).toContain("pow(r, 1.0 / max(plate.projection.y, 0.05)) * HALF_PI");
+    expect(plateCompositeShader).toContain("let theta = inverseProjectionRadius(radius)");
+  });
 });

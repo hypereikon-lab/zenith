@@ -3,7 +3,12 @@ import { downloadBlob } from "../media/canvas-utils.js";
 import { clamp } from "../projection.js";
 import { PLATE_CORNERS, normalizePlatePlacement } from "./plate-placement.js";
 import type { PlateSource, ScheduleWorkspaceAutosave, SetGpuState } from "../app/types.js";
-import type { PlateCornerOffsets, PlatePlacementInput, PlateLike, NormalizedPlatePlacement } from "./plate-placement.js";
+import type {
+  PlateCornerOffsets,
+  PlatePlacementInput,
+  PlateLike,
+  NormalizedPlatePlacement,
+} from "./plate-placement.js";
 import type { PlateRenderOptions } from "./plate-gpu-compositor.js";
 
 const PLATE_COMPOSITE_SIZE = 2048;
@@ -20,16 +25,28 @@ type PlateControllerOptions = {
     sourceUrl: string | null;
   };
   controls: {
-    plateCount: { value: string; disabled: boolean; replaceChildren: () => void; append: (option: HTMLOptionElement) => void };
+    plateCount: {
+      value: string;
+      disabled: boolean;
+      replaceChildren: () => void;
+      append: (option: HTMLOptionElement) => void;
+    };
     plateFit: { value: string; disabled: boolean };
     editPlacement: { checked: boolean; disabled: boolean };
-    activePlate: { value: string; disabled: boolean; replaceChildren: () => void; append: (option: HTMLOptionElement) => void };
+    activePlate: {
+      value: string;
+      disabled: boolean;
+      replaceChildren: () => void;
+      append: (option: HTMLOptionElement) => void;
+    };
     plateCornerMode: { value: string; disabled: boolean };
     patchAzimuth: { value: string; disabled: boolean };
     patchRadius: { value: string; disabled: boolean };
     patchSpin: { value: string; disabled: boolean };
     patchOpacity: { value: string; disabled: boolean };
     plateFeather: { value: string; disabled: boolean };
+    projectionMode?: { value: string };
+    customCurve?: { value: string };
   };
   elements: {
     commitPlateMap: { disabled: boolean };
@@ -380,12 +397,7 @@ export function createPlateController({
     controls.plateCornerMode.disabled = !editing;
     if (flipPatchX) flipPatchX.disabled = !editing;
     if (flipPatchY) flipPatchY.disabled = !editing;
-    [
-      controls.patchAzimuth,
-      controls.patchRadius,
-      controls.patchSpin,
-      controls.patchOpacity,
-    ].forEach((control) => {
+    [controls.patchAzimuth, controls.patchRadius, controls.patchSpin, controls.patchOpacity].forEach((control) => {
       control.disabled = !editing;
     });
     commitPlateMap.disabled = !editable;
@@ -443,13 +455,20 @@ export function createPlateController({
       plateCount,
       plateFit: controls.plateFit.value,
       plateFeather: Number(controls.plateFeather.value),
+      projectionMode: controls.projectionMode?.value,
+      customCurve: controls.customCurve?.value,
       platePlacements: state.platePlacements,
       size: PLATE_COMPOSITE_SIZE,
     });
 
     state.plateCompositeTexture = texture;
     state.plateCompositeDirty = true;
-    actions.displayTextureAsSource(texture, PLATE_COMPOSITE_SIZE, PLATE_COMPOSITE_SIZE, `Plate sketch GPU preview (${plateCount} images)`);
+    actions.displayTextureAsSource(
+      texture,
+      PLATE_COMPOSITE_SIZE,
+      PLATE_COMPOSITE_SIZE,
+      `Plate sketch GPU preview (${plateCount} images)`,
+    );
     platesReadout.textContent = `${plateCount} plates, GPU preview`;
     exportPlateMap.disabled = false;
     actions.updateVersionUi();
@@ -473,6 +492,8 @@ export function createPlateController({
       plateCount,
       plateFit: controls.plateFit.value,
       plateFeather: Number(controls.plateFeather.value),
+      projectionMode: controls.projectionMode?.value,
+      customCurve: controls.customCurve?.value,
       platePlacements: state.platePlacements,
       size: PLATE_COMPOSITE_SIZE,
     });
@@ -481,9 +502,15 @@ export function createPlateController({
     state.plateCompositeCanvas = canvas;
     state.plateCompositeDirty = false;
     actions.clearInpaintState();
-    actions.displayTextureAsSource(texture, PLATE_COMPOSITE_SIZE, PLATE_COMPOSITE_SIZE, `Plate sketch (${plateCount} images)`, {
-      sourceCanvas: canvas,
-    });
+    actions.displayTextureAsSource(
+      texture,
+      PLATE_COMPOSITE_SIZE,
+      PLATE_COMPOSITE_SIZE,
+      `Plate sketch (${plateCount} images)`,
+      {
+        sourceCanvas: canvas,
+      },
+    );
     platesReadout.textContent = `${plateCount} plates, GPU committed, ${PLATE_COMPOSITE_SIZE} x ${PLATE_COMPOSITE_SIZE}`;
     exportPlateMap.disabled = false;
     actions.updateVersionUi();

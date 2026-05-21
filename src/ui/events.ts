@@ -148,12 +148,7 @@ export function bindZenithEvents(dom: ZenithDom, actions: ZenithEventActions): v
 
   controls.editPlacement.addEventListener("change", actions.handlePlacementEditChange);
   controls.activePlate.addEventListener("change", actions.handleActivePlateChange);
-  [
-    controls.patchAzimuth,
-    controls.patchRadius,
-    controls.patchSpin,
-    controls.patchOpacity,
-  ].forEach((control) => {
+  [controls.patchAzimuth, controls.patchRadius, controls.patchSpin, controls.patchOpacity].forEach((control) => {
     control.addEventListener("input", actions.handlePatchTransformInput);
   });
   dom.autoArrangePatches.addEventListener("click", actions.handleAutoArrangePatches);
@@ -164,7 +159,8 @@ export function bindZenithEvents(dom: ZenithDom, actions: ZenithEventActions): v
   [controls.plateCount, controls.plateFit].forEach((control) => {
     control.addEventListener("change", actions.handlePlateCountFitChange);
   });
-  [controls.plateFeather].forEach((control) => {
+  controls.projectionMode.addEventListener("change", actions.handlePlatePreviewControlInput);
+  [controls.plateFeather, controls.customCurve].forEach((control) => {
     control.addEventListener("input", actions.handlePlatePreviewControlInput);
   });
 

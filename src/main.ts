@@ -733,7 +733,9 @@ function updateWorkspaceUi({ preserveText = false }: { preserveText?: boolean } 
 type WorkflowState = "waiting" | "ready" | "active" | "done" | "warning";
 
 function updateWorkflowStatus(): void {
-  const hasSource = Boolean(state.sourceCanvas || state.mediaKind === "video" || (state.sourceWidth && state.sourceHeight));
+  const hasSource = Boolean(
+    state.sourceCanvas || state.mediaKind === "video" || (state.sourceWidth && state.sourceHeight),
+  );
   const hasPlates = state.plates.length > 0;
   const hasPlatePreview = Boolean(state.plateCompositeTexture);
   const hasCommittedPlateMap = Boolean(state.plateCompositeCanvas && !state.plateCompositeDirty);
@@ -798,9 +800,10 @@ function workspaceSaveSummary(snapshot: WorkspaceSnapshot | null): string {
   const embeddedInpaints = inpaintOutputs.filter((output: RunwayOutput) => output.dataUri).length;
   const embeddedVideos = seedanceOutputs.filter((output: SeedanceOutput) => output.dataUri).length;
   const linkedVideos = seedanceOutputs.length - embeddedVideos;
-  const videoText = linkedVideos > 0
-    ? `${embeddedVideos}/${seedanceOutputs.length} videos embedded`
-    : `${embeddedVideos} videos embedded`;
+  const videoText =
+    linkedVideos > 0
+      ? `${embeddedVideos}/${seedanceOutputs.length} videos embedded`
+      : `${embeddedVideos} videos embedded`;
   return `${embeddedInpaints} inpaint images, ${videoText}`;
 }
 
@@ -851,6 +854,8 @@ function buildHudOptions(width: number, height: number, dpr: number, layout: Css
     showZenith: controls.showZenith.checked,
     radiusScale: Number(controls.radiusScale.value),
     flatRotationRadians: (Number(controls.rotation.value) * Math.PI) / 180,
+    projectionMode: controls.projectionMode.value,
+    customCurve: Number(controls.customCurve.value),
     domeTiltRadians: (Number(controls.domeTilt.value) * Math.PI) / 180,
     mirror: controls.mirror.checked,
     fovDegrees: Number(controls.fov.value),

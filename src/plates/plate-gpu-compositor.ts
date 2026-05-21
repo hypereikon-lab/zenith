@@ -2,7 +2,7 @@ import { preparePlatePlacement } from "./plate-placement.js";
 import type { PlatePlacementInput } from "./plate-placement.js";
 
 const OUTPUT_FORMAT = "rgba8unorm";
-const UNIFORM_FLOATS = 32;
+const UNIFORM_FLOATS = 36;
 const UNIFORM_BYTES = UNIFORM_FLOATS * 4;
 type PlateImage = {
   canvas: HTMLCanvasElement | OffscreenCanvas;
@@ -24,6 +24,8 @@ export type PlateRenderOptions = {
   plateCount: number;
   plateFit: string;
   plateFeather: number | string;
+  projectionMode?: string | null;
+  customCurve?: number | string | null;
   platePlacements: PlatePlacementInput[];
   size: number;
 };
@@ -32,6 +34,8 @@ type PlacementUniformOptions = {
   plate: PlateImage;
   plateFit: string;
   plateFeather: number | string;
+  projectionMode?: string | null;
+  customCurve?: number | string | null;
   outputSize: number;
 };
 
@@ -43,6 +47,7 @@ struct PlateUniforms {
   scale: vec4<f32>,
   options: vec4<f32>,
   flags: vec4<f32>,
+  projection: vec4<f32>,
   warpX: vec4<f32>,
   warpY: vec4<f32>,
 };
@@ -175,6 +180,23 @@ fn warpResidualLimit() -> f32 {
   return max(max(plate.scale.x, plate.scale.y) * 0.003, 0.0005);
 }
 
+fn inverseProjectionRadius(radial: f32) -> f32 {
+  let r = clamp(radial, 0.0, 1.0);
+  if (plate.projection.x < 0.5) {
+    return r * HALF_PI;
+  }
+  if (plate.projection.x < 1.5) {
+    return 2.0 * asin(clamp(r * sin(HALF_PI * 0.5), 0.0, 1.0));
+  }
+  if (plate.projection.x < 2.5) {
+    return asin(clamp(r, 0.0, 1.0));
+  }
+  if (plate.projection.x < 3.5) {
+    return 2.0 * atan(r);
+  }
+  return pow(r, 1.0 / max(plate.projection.y, 0.05)) * HALF_PI;
+}
+
 @fragment
 fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
   let domeRadiusUv = max(plate.flags.z, 0.000001);
@@ -184,7 +206,7 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
     return vec4<f32>(0.0, 0.0, 0.0, 1.0);
   }
 
-  let theta = radius * HALF_PI;
+  let theta = inverseProjectionRadius(radius);
   let azimuth = atan2(domePoint.x, -domePoint.y);
   let sinTheta = sin(theta);
   let direction = vec3<f32>(sinTheta * sin(azimuth), cos(theta), sinTheta * cos(azimuth));
@@ -282,7 +304,16 @@ export class PlateGpuCompositor {
     });
   }
 
-  render({ plates, plateCount, plateFit, plateFeather, platePlacements, size }: PlateRenderOptions): GPUTexture {
+  render({
+    plates,
+    plateCount,
+    plateFit,
+    plateFeather,
+    projectionMode,
+    customCurve,
+    platePlacements,
+    size,
+  }: PlateRenderOptions): GPUTexture {
     const outputSize = Math.max(1, Math.round(size || 2048));
     this.ensureOutputTexture(outputSize);
 
@@ -316,6 +347,8 @@ export class PlateGpuCompositor {
           plate,
           plateFit,
           plateFeather,
+          projectionMode,
+          customCurve,
           outputSize,
         }),
       );
@@ -332,7 +365,9 @@ export class PlateGpuCompositor {
     if (this.outputTexture && this.outputSize === size) return;
     if (this.outputTexture) this.outputTexture.destroy();
     if (size > this.device.limits.maxTextureDimension2D) {
-      throw new Error(`Plate sketch is ${size} x ${size}; this GPU accepts up to ${this.device.limits.maxTextureDimension2D}.`);
+      throw new Error(
+        `Plate sketch is ${size} x ${size}; this GPU accepts up to ${this.device.limits.maxTextureDimension2D}.`,
+      );
     }
     this.outputTexture = this.device.createTexture({
       size: { width: size, height: size },
@@ -388,7 +423,15 @@ export class PlateGpuCompositor {
   }
 }
 
-function placementUniformData({ placement, plate, plateFit, plateFeather, outputSize }: PlacementUniformOptions): Float32Array {
+function placementUniformData({
+  placement,
+  plate,
+  plateFit,
+  plateFeather,
+  projectionMode,
+  customCurve,
+  outputSize,
+}: PlacementUniformOptions): Float32Array {
   const prepared = preparePlatePlacement(placement, plate);
   const data = new Float32Array(UNIFORM_FLOATS);
   data.set(prepared.center, 0);
@@ -405,19 +448,29 @@ function placementUniformData({ placement, plate, plateFit, plateFeather, output
   data[20] = prepared.flipX ? 1 : 0;
   data[21] = prepared.flipY ? 1 : 0;
   data[22] = Math.max(0.001, (outputSize * 0.5 - 2) / outputSize);
-  data[24] = prepared.cornerOffsets.nw.x;
-  data[25] = prepared.cornerOffsets.ne.x;
-  data[26] = prepared.cornerOffsets.se.x;
-  data[27] = prepared.cornerOffsets.sw.x;
-  data[28] = prepared.cornerOffsets.nw.y;
-  data[29] = prepared.cornerOffsets.ne.y;
-  data[30] = prepared.cornerOffsets.se.y;
-  data[31] = prepared.cornerOffsets.sw.y;
+  data[24] = projectionModeIndex(projectionMode);
+  data[25] = Number(customCurve) || 1;
+  data[28] = prepared.cornerOffsets.nw.x;
+  data[29] = prepared.cornerOffsets.ne.x;
+  data[30] = prepared.cornerOffsets.se.x;
+  data[31] = prepared.cornerOffsets.sw.x;
+  data[32] = prepared.cornerOffsets.nw.y;
+  data[33] = prepared.cornerOffsets.ne.y;
+  data[34] = prepared.cornerOffsets.se.y;
+  data[35] = prepared.cornerOffsets.sw.y;
   return data;
 }
 
 function plateFitMode(value: string): number {
   if (value === "cover") return 1;
   if (value === "stretch") return 2;
+  return 0;
+}
+
+function projectionModeIndex(value: string | null | undefined): number {
+  if (value === "equisolid") return 1;
+  if (value === "orthographic") return 2;
+  if (value === "stereographic") return 3;
+  if (value === "custom") return 4;
   return 0;
 }

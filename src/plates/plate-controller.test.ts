@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { normalizePlatePlacement } from "./plate-placement.js";
 import { createPlateController } from "./plate-controller.js";
+import type { PlateRenderOptions } from "./plate-gpu-compositor.js";
 
 describe("plate controller edit gate", () => {
   test("disables placement controls until edit placement is checked", () => {
@@ -89,12 +90,25 @@ describe("plate controller edit gate", () => {
     expect(calls.renderPlateComposite).toBe(1);
     expect(calls.readTextureToCanvas).toBe(1);
   });
+
+  test("passes the active projection profile into plate map rendering", async () => {
+    const { controller, controls, calls } = buildPlateControllerHarness();
+    controls.editPlacement.checked = false;
+    controls.projectionMode.value = "orthographic";
+    controls.customCurve.value = "1.6";
+
+    await controller.handlePlacementEditChange();
+
+    expect(calls.lastRenderOptions?.projectionMode).toBe("orthographic");
+    expect(calls.lastRenderOptions?.customCurve).toBe("1.6");
+  });
 });
 
 function buildPlateControllerHarness() {
   const calls = {
     renderPlateComposite: 0,
     readTextureToCanvas: 0,
+    lastRenderOptions: null as null | PlateRenderOptions,
   };
   const state = {
     plates: [{ name: "plate.png", width: 100, height: 100, aspect: 1, canvas: {} as HTMLCanvasElement }],
@@ -124,6 +138,8 @@ function buildPlateControllerHarness() {
     patchSpin: control("0"),
     patchOpacity: control("1"),
     plateFeather: control("0.025"),
+    projectionMode: control("equidistant"),
+    customCurve: control("1"),
   };
   const elements = {
     commitPlateMap: button(),
@@ -147,8 +163,9 @@ function buildPlateControllerHarness() {
       setControlsEnabled() {},
     },
     renderer: {
-      renderPlateComposite() {
+      renderPlateComposite(options) {
         calls.renderPlateComposite += 1;
+        calls.lastRenderOptions = options;
         return {} as GPUTexture;
       },
       async readTextureToCanvas() {

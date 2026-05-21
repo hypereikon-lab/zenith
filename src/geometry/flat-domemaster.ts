@@ -1,7 +1,7 @@
 import { directionFromPlateUv } from "../plates/plate-placement.js";
-import { HALF_PI, clamp } from "../projection.js";
+import { HALF_PI, clamp, inverseMotionProjectionRadius, projectionRadiusForTheta } from "../projection.js";
 import type { PreparedPlatePlacement } from "../plates/plate-placement.js";
-import type { Point2D, Vec3 } from "../projection.js";
+import type { Point2D, ProjectionProfile, Vec3 } from "../projection.js";
 
 /**
  * Coordinate-space contract for the flat domemaster:
@@ -13,7 +13,14 @@ import type { Point2D, Vec3 } from "../projection.js";
 export type Size2D = { width: number; height: number };
 export type ClientRectLike = { left: number; top: number; width: number; height: number };
 export type FlatMapMetrics = { cx: number; cy: number; radius: number };
-export type FlatTransformOptions = { radiusScale?: number | string | null; rotationRadians?: number | string | null };
+export type FlatProjectionOptions = {
+  projectionMode?: string | null;
+  customCurve?: number | string | null;
+};
+export type FlatTransformOptions = FlatProjectionOptions & {
+  radiusScale?: number | string | null;
+  rotationRadians?: number | string | null;
+};
 export type DomePoint = { radius: number; azimuth: number };
 export type SourceOffset = { dx: number; dy: number };
 export type UvBounds = { minU: number; maxU: number; minV: number; maxV: number };
@@ -22,11 +29,10 @@ export function clientEventToCanvasPoint(
   event: { clientX: number; clientY: number },
   canvas: { clientWidth: number; clientHeight: number; getBoundingClientRect?: () => ClientRectLike },
 ): Point2D {
-  return clientPointToCanvasPoint(
-    { x: event.clientX, y: event.clientY },
-    canvas.getBoundingClientRect?.(),
-    { width: canvas.clientWidth, height: canvas.clientHeight },
-  );
+  return clientPointToCanvasPoint({ x: event.clientX, y: event.clientY }, canvas.getBoundingClientRect?.(), {
+    width: canvas.clientWidth,
+    height: canvas.clientHeight,
+  });
 }
 
 export function clientPointToCanvasPoint(
@@ -53,7 +59,7 @@ export function flatDisplayPointToDomePoint(
   options: FlatTransformOptions = {},
 ): DomePoint | null {
   const offset = flatDisplayPointToSourceOffset(point, metrics, options);
-  return flatSourceOffsetToDomePoint(offset.dx, offset.dy);
+  return flatSourceOffsetToDomePoint(offset.dx, offset.dy, options);
 }
 
 export function flatDisplayPointToDomeDirection(
@@ -62,7 +68,7 @@ export function flatDisplayPointToDomeDirection(
   options: FlatTransformOptions = {},
 ): Vec3 | null {
   const offset = flatDisplayPointToSourceOffset(point, metrics, options);
-  return flatSourceOffsetToDomeDirection(offset.dx, offset.dy);
+  return flatSourceOffsetToDomeDirection(offset.dx, offset.dy, options);
 }
 
 export function flatDisplayPointToSourceOffset(
@@ -78,19 +84,28 @@ export function flatDisplayPointToSourceOffset(
   };
 }
 
-export function flatSourceOffsetToDomePoint(dx: number, dy: number): DomePoint | null {
+export function flatSourceOffsetToDomePoint(
+  dx: number,
+  dy: number,
+  options: FlatProjectionOptions = {},
+): DomePoint | null {
   const r = Math.hypot(dx, dy);
   if (r > 1.02) return null;
+  const theta = thetaFromFlatRadial(r, options);
   return {
-    radius: clamp(r, 0, 1),
+    radius: clamp(theta / HALF_PI, 0, 1),
     azimuth: normalizeDegrees((Math.atan2(dx, -dy) * 180) / Math.PI),
   };
 }
 
-export function flatSourceOffsetToDomeDirection(dx: number, dy: number): Vec3 | null {
+export function flatSourceOffsetToDomeDirection(
+  dx: number,
+  dy: number,
+  options: FlatProjectionOptions = {},
+): Vec3 | null {
   const r = Math.hypot(dx, dy);
   if (r > 1.02) return null;
-  const theta = clamp(r, 0, 1) * HALF_PI;
+  const theta = thetaFromFlatRadial(r, options);
   const azimuth = Math.atan2(dx, -dy);
   const sinTheta = Math.sin(theta);
   return [sinTheta * Math.sin(azimuth), Math.cos(theta), sinTheta * Math.cos(azimuth)];
@@ -103,10 +118,11 @@ export function plateUvToFlatPoint(
   cx: number,
   cy: number,
   radius: number,
+  projectionOptions: FlatProjectionOptions = {},
 ): Point2D | null {
   const direction = directionFromPlateUv(placement, u, v);
   if (!direction) return null;
-  return domeDirectionToFlatPoint(direction, cx, cy, radius);
+  return domeDirectionToFlatPoint(direction, cx, cy, radius, projectionOptions);
 }
 
 export function plateUvToDisplayFlatPoint(
@@ -117,14 +133,26 @@ export function plateUvToDisplayFlatPoint(
   cy: number,
   radius: number,
   rotationRadians: number | string | null = 0,
+  projectionOptions: FlatProjectionOptions = {},
 ): Point2D | null {
-  return sourceFlatToDisplayFlatPoint(plateUvToFlatPoint(placement, u, v, cx, cy, radius), cx, cy, rotationRadians);
+  return sourceFlatToDisplayFlatPoint(
+    plateUvToFlatPoint(placement, u, v, cx, cy, radius, projectionOptions),
+    cx,
+    cy,
+    rotationRadians,
+  );
 }
 
-export function domeDirectionToFlatPoint(direction: Vec3, cx: number, cy: number, radius: number): Point2D | null {
+export function domeDirectionToFlatPoint(
+  direction: Vec3,
+  cx: number,
+  cy: number,
+  radius: number,
+  options: FlatProjectionOptions = {},
+): Point2D | null {
   if (direction[1] < -0.0001) return null;
   const theta = Math.acos(clamp(direction[1], 0, 1));
-  const r = theta / HALF_PI;
+  const r = projectionRadiusForTheta(theta, projectionProfileForFlatOptions(options));
   if (r > 1.02) return null;
   const azimuth = Math.atan2(direction[0], direction[2]);
   return {
@@ -167,7 +195,12 @@ export function visiblePlateUvBounds(placement: PreparedPlatePlacement, fitMode 
   return { minU: inset, maxU: 1 - inset, minV: 0, maxV: 1 };
 }
 
-function rotateFlatPoint(point: Point2D | null, cx: number, cy: number, angle: number | string | null = 0): Point2D | null {
+function rotateFlatPoint(
+  point: Point2D | null,
+  cx: number,
+  cy: number,
+  angle: number | string | null = 0,
+): Point2D | null {
   if (!point || !angle) return point;
   const radians = Number(angle) || 0;
   const dx = point.x - cx;
@@ -177,6 +210,22 @@ function rotateFlatPoint(point: Point2D | null, cx: number, cy: number, angle: n
   return {
     x: cx + dx * c - dy * s,
     y: cy + dx * s + dy * c,
+  };
+}
+
+function thetaFromFlatRadial(radial: number, options: FlatProjectionOptions): number {
+  return inverseMotionProjectionRadius(radial, projectionProfileForFlatOptions(options));
+}
+
+function projectionProfileForFlatOptions(options: FlatProjectionOptions = {}): ProjectionProfile {
+  return {
+    width: 1,
+    height: 1,
+    fisheyeScaleX: 0.5,
+    fisheyeScaleY: 0.5,
+    radiusPixels: 0.5,
+    projectionMode: options.projectionMode || "equidistant",
+    customCurve: Number(options.customCurve) || 1,
   };
 }
 
