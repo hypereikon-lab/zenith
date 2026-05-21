@@ -1099,7 +1099,10 @@ export function createDepthMotionController({
     }
     const span = Math.max(0.01, progressEnd - progressStart);
     setProgressButton(button, depthMotionReadout, "Capturing final", progressStart + span * 0.15);
-    const { renderFrame, settings } = await buildDepthGpuExportRenderer();
+    const { renderFrame, settings } = await buildDepthGpuExportRenderer({
+      guideMode: "source",
+      guideNoise: 0,
+    });
     const frame = await renderFrame(1);
     assertCurrentStateWorkflow(operation);
     const canvas = cloneCanvas(frame);
@@ -1309,8 +1312,15 @@ export function createDepthMotionController({
     return { blob, settings, duration, fps, frameCount };
   }
 
-  async function buildDepthGpuExportRenderer(): Promise<DepthGpuExportRenderer> {
+  async function buildDepthGpuExportRenderer(
+    settingsOverride: Partial<DepthMotionSettings> = {},
+  ): Promise<DepthGpuExportRenderer> {
     const { sourceCanvas, profile, settings, size } = depthRenderInputs();
+    const renderSettings: DepthMotionSettings & { size: number } = {
+      ...settings,
+      ...settingsOverride,
+      size,
+    };
     const device = actions.getRenderDevice?.();
     if (!device) {
       throw new Error("Main WebGPU renderer is not ready for MP4 export.");
@@ -1318,13 +1328,13 @@ export function createDepthMotionController({
     const outputCanvas = document.createElement("canvas");
     const renderer = createDepthWebGpuPreviewRenderer({ canvas: outputCanvas, device });
     return {
-      settings,
+      settings: renderSettings,
       renderFrame: async (progress: number) => {
         await renderer.render({
           sourceCanvas,
           depthCanvas: state.depthMapCanvas,
           profile,
-          settings,
+          settings: renderSettings,
           progress,
           waitForCompletion: true,
         });
@@ -1718,8 +1728,23 @@ export function createDepthMotionController({
 
   function depthFinalStateOperationFingerprint(): string {
     return [
-      codexPromptOperationFingerprint(),
+      "color-state-endpoint-v1",
+      depthMapOperationFingerprint(),
+      state.depthMapName,
       controls.radiusScale.value,
+      controls.depthPolarity.value,
+      controls.depthNear.value,
+      controls.depthFar.value,
+      controls.depthSketchSize.value,
+      controls.depthMotionGain.value,
+      controls.depthContrast.value,
+      controls.depthSketchYaw.value,
+      controls.depthSketchPitch.value,
+      controls.depthSketchRoll.value,
+      controls.depthSketchTruck.value,
+      controls.depthSketchLift.value,
+      controls.depthSketchPush.value,
+      controls.depthSketchGapFill.value,
     ].join("|");
   }
 
