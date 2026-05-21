@@ -86,6 +86,7 @@ type DepthMotionControllerOptions = {
     depthMotionPresetDescription: HTMLElement;
     stateSeedancePromptPreview: HTMLElement;
     stateSeedancePromptState: HTMLElement;
+    stateEndpointResults: HTMLElement;
     imageSeedancePromptPreview: HTMLElement;
     imageSeedancePromptState: HTMLElement;
     depthMotionReadout: HTMLElement;
@@ -136,6 +137,7 @@ export function createDepthMotionController({
     depthMotionPresetDescription,
     stateSeedancePromptPreview,
     stateSeedancePromptState,
+    stateEndpointResults,
     imageSeedancePromptPreview,
     imageSeedancePromptState,
     depthMotionReadout,
@@ -157,6 +159,8 @@ export function createDepthMotionController({
   let gpuPreviewFrameId = 0;
   let gpuPreviewStartTime = 0;
   let gpuPreviewProgress = 0.55;
+  let stateEndpointRenderSignature = "";
+  let stateEndpointRenderRevision = 0;
   let mp4ExportSupport: Mp4SupportState = hasWebCodecsMp4Support() ? "checking" : "unavailable";
   let mp4ExportSupportMessage = hasWebCodecsMp4Support()
     ? "Checking WebCodecs MP4 encoder"
@@ -206,7 +210,9 @@ export function createDepthMotionController({
     state.depthFinalReconstructedFingerprint = "";
     generatedStateSeedancePromptFingerprint = "";
     controls.stateSeedancePrompt.value = "";
+    stateEndpointRenderRevision += 1;
     syncStateSeedancePromptPreview();
+    renderStateEndpointResults(true);
   }
 
   async function previewDepthMotionFrame() {
@@ -365,8 +371,10 @@ export function createDepthMotionController({
         button: reconstructDepthFinalStateButton,
         progressStart: 0,
         progressEnd: 1,
+        force: true,
       });
-      depthMotionReadout.textContent = `${canvas.width} x ${canvas.height} reconstructed final state ready`;
+      showStateEndpoint("reconstructed");
+      depthMotionReadout.textContent = `${canvas.width} x ${canvas.height} reconstructed final state ready; inspect it before generating`;
       await actions.saveWorkspaceSnapshot?.("depth-final-state-reconstructed");
       actions.scheduleWorkspaceAutosave("depth-final-reconstruct", 300);
     } catch (error) {
@@ -1087,6 +1095,97 @@ export function createDepthMotionController({
     updateDepthMotionUiState({ preserveText: true });
   }
 
+  function renderStateEndpointResults(force = false): void {
+    if (!stateEndpointResults) return;
+    const signature = [
+      stateEndpointRenderRevision,
+      state.depthFinalStateFingerprint,
+      state.depthFinalStateName,
+      state.depthFinalReconstructedFingerprint,
+      state.depthFinalReconstructedName,
+      state.depthPreviewName,
+    ].join("|");
+    if (!force && signature === stateEndpointRenderSignature) return;
+    stateEndpointRenderSignature = signature;
+    stateEndpointResults.replaceChildren();
+
+    const endpoints: Array<{
+      kind: "raw" | "reconstructed";
+      label: string;
+      status: string;
+      canvas: HTMLCanvasElement | null;
+      name: string;
+    }> = [
+      {
+        kind: "raw",
+        label: "Raw final",
+        status:
+          state.depthFinalStateCanvas && state.depthFinalStateFingerprint === depthFinalStateOperationFingerprint()
+            ? "Captured"
+            : "Stale capture",
+        canvas: state.depthFinalStateCanvas,
+        name: state.depthFinalStateName || "2.5D endpoint",
+      },
+      {
+        kind: "reconstructed",
+        label: "Restored final",
+        status:
+          state.depthFinalReconstructedCanvas &&
+          state.depthFinalReconstructedFingerprint === depthFinalStateOperationFingerprint()
+            ? "Ready"
+            : "Stale restore",
+        canvas: state.depthFinalReconstructedCanvas,
+        name: state.depthFinalReconstructedName || "Runway reconstruction",
+      },
+    ];
+
+    for (const endpoint of endpoints) {
+      if (!endpoint.canvas) continue;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "state-endpoint-card";
+      button.classList.toggle(
+        "active",
+        endpoint.kind === "reconstructed"
+          ? state.depthPreviewName === "Reconstructed final state"
+          : state.depthPreviewName === "2.5D final state",
+      );
+      button.title = `Show ${endpoint.label.toLowerCase()}`;
+
+      const image = document.createElement("img");
+      image.alt = `${endpoint.label} preview`;
+      image.src = canvasPromptDataUrl(endpoint.canvas, { size: 360, type: "image/jpeg", quality: 0.82 });
+      button.append(image);
+
+      const label = document.createElement("span");
+      label.className = "state-endpoint-label";
+      const status = document.createElement("span");
+      status.textContent = endpoint.status;
+      const name = document.createElement("strong");
+      name.textContent = endpoint.name;
+      label.append(status, name);
+      button.append(label);
+
+      button.addEventListener("click", () => showStateEndpoint(endpoint.kind));
+      stateEndpointResults.append(button);
+    }
+  }
+
+  function showStateEndpoint(kind: "raw" | "reconstructed"): void {
+    const canvas = kind === "reconstructed" ? state.depthFinalReconstructedCanvas : state.depthFinalStateCanvas;
+    if (!canvas) {
+      depthMotionReadout.textContent = kind === "reconstructed" ? "No reconstructed final state yet" : "No raw final state yet";
+      return;
+    }
+    const name = kind === "reconstructed" ? "Reconstructed final state" : "2.5D final state";
+    actions.displayDepthPreviewCanvas?.(canvas, name);
+    depthMotionReadout.textContent =
+      kind === "reconstructed"
+        ? `${canvas.width} x ${canvas.height} reconstructed final state shown`
+        : `${canvas.width} x ${canvas.height} raw 2.5D final state shown`;
+    renderStateEndpointResults(true);
+  }
+
   async function ensureDepthFinalStateFrame({
     operation,
     button,
@@ -1114,8 +1213,10 @@ export function createDepthMotionController({
     state.depthFinalReconstructedFingerprint = "";
     generatedStateSeedancePromptFingerprint = "";
     controls.stateSeedancePrompt.value = "";
+    stateEndpointRenderRevision += 1;
     actions.displayDepthPreviewCanvas?.(canvas, "2.5D final state");
     syncStateSeedancePromptPreview();
+    renderStateEndpointResults(true);
     setProgressButton(button, depthMotionReadout, "Final captured", progressStart + span * 0.92);
     return canvas;
   }
@@ -1125,9 +1226,10 @@ export function createDepthMotionController({
     button,
     progressStart,
     progressEnd,
-  }: ProgressButtonOptions): Promise<HTMLCanvasElement> {
+    force = false,
+  }: ProgressButtonOptions & { force?: boolean }): Promise<HTMLCanvasElement> {
     const fingerprint = depthFinalStateOperationFingerprint();
-    if (state.depthFinalReconstructedCanvas && state.depthFinalReconstructedFingerprint === fingerprint) {
+    if (!force && state.depthFinalReconstructedCanvas && state.depthFinalReconstructedFingerprint === fingerprint) {
       return state.depthFinalReconstructedCanvas;
     }
     const span = Math.max(0.01, progressEnd - progressStart);
@@ -1138,9 +1240,18 @@ export function createDepthMotionController({
       progressEnd: progressStart + span * 0.24,
     });
     setProgressButton(button, depthMotionReadout, "Reconstructing final", progressStart + span * 0.28);
+    const sourceCanvas = sourceFrameCanvas();
+    if (!sourceCanvas) {
+      throw new Error("Load a still image or pause on a video frame first.");
+    }
+    const reconstructionInput = createFinalStateReconstructionHandoff(
+      rawFinal,
+      sourceCanvas,
+      Number(controls.radiusScale.value),
+    );
     const result = await requestRunwayInpaint(
       {
-        imageDataUrl: canvasPromptDataUrl(rawFinal, { size: 1536, type: "image/png" }),
+        imageDataUrl: canvasPromptDataUrl(reconstructionInput, { size: 1536, type: "image/png" }),
         model: "gpt_image_2",
         ratio: FINAL_STATE_RECONSTRUCTION_RATIO,
         prompt: depthFinalReconstructionPrompt(),
@@ -1165,8 +1276,10 @@ export function createDepthMotionController({
     state.depthFinalReconstructedFingerprint = fingerprint;
     generatedStateSeedancePromptFingerprint = "";
     controls.stateSeedancePrompt.value = "";
+    stateEndpointRenderRevision += 1;
     actions.displayDepthPreviewCanvas?.(canvas, "Reconstructed final state");
     syncStateSeedancePromptPreview();
+    renderStateEndpointResults(true);
     return canvas;
   }
 
@@ -1787,6 +1900,7 @@ export function createDepthMotionController({
     syncStateSeedancePromptPreview();
     syncImageSeedancePromptPreview();
     syncDepthMotionPresetDescription();
+    renderStateEndpointResults();
     const hasSource = hasSourceFrame();
     const ready = Boolean(state.depthMapCanvas && hasSource);
     const hasSeedanceOutput = (state.seedanceOutputs?.length || 0) > 0;
@@ -1948,10 +2062,11 @@ export function createDepthMotionController({
       "Use @PlateSketch as an exact square final-frame domemaster guide.",
       "It is a 180-degree equidistant fulldome frame with a circular fisheye projection and black exterior outside the dome circle.",
       "Reconstruct it as a clean opaque last-frame still for image-to-video interpolation.",
+      "Treat pure white areas inside the circular dome projection as missing disoccluded pixels to restore, not as objects, lighting, fog, or design elements.",
       "Preserve the endpoint composition, orientation, scale, fisheye geometry, lighting, materials, and scene identity.",
-      "Repair only depth-warp damage: missing disoccluded gaps, holes, splat speckles, jagged tears, stretched duplicate edges, banding, and broken reprojection seams.",
-      "Fill damaged interior pixels as coherent continuation of nearby scene content while keeping the black outside-circle mask pure black.",
-      "No visible masks, checkerboards, radial debug lines, UI overlays, labels, borders, text, rectangular crops, or redesigned subjects.",
+      "Repair only depth-warp damage: white missing gaps, holes, splat speckles, jagged tears, stretched duplicate edges, banding, and broken reprojection seams.",
+      "Fill damaged interior pixels as coherent continuation of nearby scene content while keeping the outside-circle mask pure black.",
+      "No visible white patches, masks, checkerboards, radial debug lines, UI overlays, labels, borders, text, rectangular crops, or redesigned subjects.",
     ].join(" ");
   }
 
@@ -2091,6 +2206,65 @@ function canvasPromptDataUrl(
   context.fillRect(0, 0, width, height);
   context.drawImage(sourceCanvas, 0, 0, width, height);
   return canvas.toDataURL(type, quality);
+}
+
+function createFinalStateReconstructionHandoff(
+  rawCanvas: HTMLCanvasElement,
+  sourceCanvas: HTMLCanvasElement,
+  radiusScale: number,
+): HTMLCanvasElement {
+  const canvas = cloneCanvas(rawCanvas);
+  const width = canvas.width;
+  const height = canvas.height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  const image = context.getImageData(0, 0, width, height);
+  const sourceSample = document.createElement("canvas");
+  sourceSample.width = width;
+  sourceSample.height = height;
+  const sourceContext = sourceSample.getContext("2d", { alpha: false, willReadFrequently: true });
+  sourceContext.fillStyle = "#000";
+  sourceContext.fillRect(0, 0, width, height);
+  sourceContext.drawImage(sourceCanvas, 0, 0, width, height);
+  const source = sourceContext.getImageData(0, 0, width, height);
+  const data = image.data;
+  const sourceData = source.data;
+  const centerX = width * 0.5;
+  const centerY = height * 0.5;
+  const radiusX = Math.max(1, width * 0.5 * clamp(Number(radiusScale) || 1, 0.25, 2));
+  const radiusY = Math.max(1, height * 0.5 * clamp(Number(radiusScale) || 1, 0.25, 2));
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = (y * width + x) * 4;
+      const normalizedX = (x + 0.5 - centerX) / radiusX;
+      const normalizedY = (y + 0.5 - centerY) / radiusY;
+      const insideDome = Math.hypot(normalizedX, normalizedY) <= 1.002;
+      if (!insideDome) {
+        data[index] = 0;
+        data[index + 1] = 0;
+        data[index + 2] = 0;
+        data[index + 3] = 255;
+        continue;
+      }
+
+      const rawLuma = luma(data, index);
+      const sourceLuma = luma(sourceData, index);
+      const missingInteriorPixel = data[index + 3] < 16 || (rawLuma <= 8 && sourceLuma >= 18);
+      if (missingInteriorPixel) {
+        data[index] = 255;
+        data[index + 1] = 255;
+        data[index + 2] = 255;
+        data[index + 3] = 255;
+      }
+    }
+  }
+
+  context.putImageData(image, 0, 0);
+  return canvas;
+}
+
+function luma(data: Uint8ClampedArray, index: number): number {
+  return data[index] * 0.2126 + data[index + 1] * 0.7152 + data[index + 2] * 0.0722;
 }
 
 function isCheckboxControl(

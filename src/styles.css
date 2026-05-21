@@ -669,6 +669,65 @@ button.progressing:disabled {
   line-height: 1.2;
 }
 
+.state-endpoint-results {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.state-endpoint-results:empty {
+  display: none;
+}
+
+.state-endpoint-card {
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 6px;
+  min-width: 0;
+  padding: 7px;
+  text-align: left;
+}
+
+.state-endpoint-card.active {
+  border-color: rgba(246, 200, 95, 0.72);
+  box-shadow: 0 0 0 1px rgba(246, 200, 95, 0.32);
+}
+
+.state-endpoint-card img {
+  width: 100%;
+  aspect-ratio: 1;
+  display: block;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.state-endpoint-label {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.state-endpoint-label span,
+.state-endpoint-label strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.state-endpoint-label span {
+  color: var(--dim);
+  font-size: 10px;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.state-endpoint-label strong {
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
 .preset-summary {
   margin: -4px 0 0;
   padding: 8px 9px;

@@ -68,6 +68,7 @@ export function queryZenithDom() {
     stateSeedancePromptState: q<HTMLElement>("#stateSeedancePromptState"),
     stateSeedanceFirstReference: q<HTMLElement>("#stateSeedanceFirstReference"),
     stateSeedanceLastReference: q<HTMLElement>("#stateSeedanceLastReference"),
+    stateEndpointResults: q<HTMLElement>("#stateEndpointResults"),
     imageSeedancePromptPreview: q<HTMLElement>("#imageSeedancePromptPreview"),
     imageSeedancePromptState: q<HTMLElement>("#imageSeedancePromptState"),
     imageSeedanceReference: q<HTMLElement>("#imageSeedanceReference"),
