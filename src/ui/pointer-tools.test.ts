@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { sourceDomeDirectionToScreenPoint } from "../geometry/dome-view.js";
+import { physicalDomeDirectionFromSourceDirection, sourceDomeDirectionToScreenPoint } from "../geometry/dome-view.js";
 import {
   plateUvToDisplayFlatPoint,
   plateUvToFlatPoint,
@@ -203,6 +203,89 @@ describe("pointer placement edit gate", () => {
 
     expect(state.platePlacements[0].azimuth).not.toBe(0);
     expect(state.platePlacements[0].radius).toBeCloseTo(1, 5);
+  });
+
+  test("moves a plate from projected views with source rotation, mirror, and dome tilt", () => {
+    const placement = {
+      azimuth: 38,
+      radius: 0.48,
+      scale: 0.55,
+      spin: 0,
+      opacity: 1,
+    };
+    const initialAzimuth = placement.azimuth;
+    const state = {
+      viewMode: "orbit",
+      plates: [{ name: "plate.png", aspect: 1 }],
+      activePlateIndex: 0,
+      platePlacements: [placement],
+      pointer: { active: false, mode: null as null, x: 0, y: 0 },
+      camera: {},
+    };
+    const sourceRotationRadians = (37 * Math.PI) / 180;
+    const domeTiltRadians = (-11 * Math.PI) / 180;
+    const mirror = true;
+    const prepared = preparePlatePlacement(placement, state.plates[0]);
+    const physical = physicalDomeDirectionFromSourceDirection(prepared.center, {
+      sourceRotationRadians,
+      domeTiltRadians,
+      mirror,
+    });
+    const viewMatrix = lookAtLH([physical[0] * 3, physical[1] * 3, physical[2] * 3], physical, [0, 1, 0]);
+    const center = sourceDomeDirectionToScreenPoint(prepared.center, {
+      rect: { x: 0, y: 0, width: 100, height: 100 },
+      viewMatrix,
+      fovDegrees: 86,
+      sourceRotationRadians,
+      domeTiltRadians,
+      mirror,
+    });
+    if (!center) throw new Error("Expected transformed plate center to project");
+    const controls = {
+      editPlacement: { checked: true },
+      activePlate: { value: "0" },
+      fov: { value: "86" },
+      radiusScale: { value: "1" },
+      rotation: { value: "37" },
+      domeTilt: { value: "-11" },
+      mirror: { checked: true },
+      theaterPitch: { value: "28" },
+      plateFit: { value: "contain" },
+    };
+    const controller = createPointerToolController({
+      canvas: {
+        clientWidth: 100,
+        clientHeight: 100,
+        setPointerCapture() {},
+        releasePointerCapture() {},
+        classList: {
+          add() {},
+          remove() {},
+        },
+      },
+      state,
+      controls,
+      getCssLayout: () => ({
+        fullRect: { x: 0, y: 0, width: 100, height: 100 },
+        domeRect: { x: 0, y: 0, width: 100, height: 100 },
+      }),
+      activeDomeCamera: () => "orbit",
+      currentDomeViewMatrix: () => viewMatrix,
+      actions: {
+        ensurePlatePlacements() {},
+        updatePatchControlsFromActive() {},
+        updatePlateSelect() {},
+        schedulePlatePreview() {},
+        scheduleWorkspaceAutosave() {},
+      },
+    });
+
+    controller.handlePointerDown({ clientX: center.x, clientY: center.y, pointerId: 1 });
+    expect(state.pointer.mode).toBe("plate");
+    controller.handlePointerMove({ clientX: center.x + 7, clientY: center.y + 3, pointerId: 1 });
+    controller.handlePointerUp({ clientX: center.x + 7, clientY: center.y + 3, pointerId: 1 });
+
+    expect(state.platePlacements[0].azimuth).not.toBe(initialAzimuth);
   });
 
   test("dragging empty dome rotates the selected plate", () => {

@@ -32,15 +32,6 @@ struct VertexOut {
 const PI: f32 = 3.141592653589793;
 const HALF_PI: f32 = 1.5707963267948966;
 
-fn rotate2d(value: vec2<f32>, angle: f32) -> vec2<f32> {
-  let s = sin(angle);
-  let c = cos(angle);
-  return vec2<f32>(
-    value.x * c - value.y * s,
-    value.x * s + value.y * c
-  );
-}
-
 @vertex
 fn vertexMain(@location(0) position: vec3<f32>) -> VertexOut {
   var out: VertexOut;
@@ -195,13 +186,12 @@ fn inverseProjectionRadius(radial: f32) -> f32 {
 
 @fragment
 fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
-  let normalized = vec2<f32>(
-    (in.uv.x - 0.5) / max(uniforms.fisheyeScale.x, 0.0001),
-    (in.uv.y - 0.5) / max(uniforms.fisheyeScale.y, 0.0001)
-  );
+  let fisheyeScale = max(uniforms.fisheyeScale, vec2<f32>(0.0001));
+  let normalized = (in.uv - vec2<f32>(0.5, 0.5)) / fisheyeScale;
   let radius = length(normalized);
   let insideMask = step(radius, 1.0);
-  let sampleUv = rotate2d(in.uv - vec2<f32>(0.5, 0.5), uniforms.rotation) + vec2<f32>(0.5, 0.5);
+  let rotatedSample = rotate2d(normalized, uniforms.rotation);
+  let sampleUv = vec2<f32>(0.5, 0.5) + rotatedSample * fisheyeScale;
   let sampledColor = textureSample(domeTexture, domeSampler, sampleUv).rgb * uniforms.exposure;
   var color = select(sampledColor, vec3<f32>(0.0, 0.0, 0.0), radius > 1.0);
   let theta = inverseProjectionRadius(radius);

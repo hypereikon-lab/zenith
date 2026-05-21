@@ -53,6 +53,35 @@ describe("fulldome projection math", () => {
     }
   });
 
+  test("maps source uv and dome directions round-trip for every projection curve", () => {
+    const rectangularProfile: ProjectionProfile = {
+      ...profile,
+      width: 2000,
+      height: 1000,
+      fisheyeScaleX: 0.25,
+      fisheyeScaleY: 0.5,
+      radiusPixels: 500,
+    };
+    const samples = [
+      [0.5, 0.5],
+      [0.5, 0.05],
+      [0.72, 0.5],
+      [0.5, 0.88],
+      [0.34, 0.32],
+    ];
+
+    for (const projectionMode of ["equidistant", "equisolid", "orthographic", "stereographic", "custom"]) {
+      const activeProfile = { ...rectangularProfile, projectionMode, customCurve: 1.62 };
+      for (const [u, v] of samples) {
+        const direction = mapUvToDomeDirection(u, v, activeProfile);
+        if (!direction) throw new Error(`Expected valid source uv for ${projectionMode}`);
+        const roundTrip = domeDirectionToMotionUv(direction, activeProfile);
+        expect(roundTrip?.u).toBeCloseTo(u, 8);
+        expect(roundTrip?.v).toBeCloseTo(v, 8);
+      }
+    }
+  });
+
   test("slerp preserves angular midpoint on the dome", () => {
     const north = mapUvToDomeDirection(0.5, 0, profile);
     const east = mapUvToDomeDirection(1, 0.5, profile);

@@ -1,7 +1,11 @@
-import { clamp } from "../projection.js";
 import type { Point2D, Rect } from "../projection.js";
 
-export type FlatLayout = { flatRect?: Rect | null; domeRect?: Rect | null; domePane?: Rect | null; fullRect?: Rect | null };
+export type FlatLayout = {
+  flatRect?: Rect | null;
+  domeRect?: Rect | null;
+  domePane?: Rect | null;
+  fullRect?: Rect | null;
+};
 export type FlatPointerMetrics = {
   rect: Rect;
   radius: number;
@@ -12,8 +16,6 @@ export type FlatPointerMetrics = {
   dx: number;
   dy: number;
 };
-export type DomePoint = { radius: number; azimuth: number };
-export type MapUv = { u: number; v: number };
 
 export function flatMapMetricsFromClient(client: Point2D, layout: FlatLayout): FlatPointerMetrics | null {
   const rect = layout.flatRect;
@@ -33,23 +35,5 @@ export function flatMapMetricsFromClient(client: Point2D, layout: FlatLayout): F
     y: client.y,
     dx: (client.x - cx) / radius,
     dy: (client.y - cy) / radius,
-  };
-}
-
-export function flatDomePointFromMetrics(metrics: FlatPointerMetrics): DomePoint | null {
-  const r = Math.hypot(metrics.dx, metrics.dy);
-  if (r > 1.02) return null;
-  return {
-    radius: clamp(r, 0, 1),
-    azimuth: (((Math.atan2(metrics.dx, -metrics.dy) * 180) / Math.PI + 540) % 360) - 180,
-  };
-}
-
-export function flatMapUvFromMetrics(metrics: FlatPointerMetrics): MapUv | null {
-  const r = Math.hypot(metrics.dx, metrics.dy);
-  if (r > 1.02) return null;
-  return {
-    u: clamp((metrics.x - metrics.rect.x) / metrics.rect.width, 0, 1),
-    v: clamp((metrics.y - metrics.rect.y) / metrics.rect.height, 0, 1),
   };
 }

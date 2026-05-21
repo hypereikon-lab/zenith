@@ -29,10 +29,13 @@ describe("flat shader", () => {
 
   test("rotates flat texture sampling with the domemaster azimuth", () => {
     const helperIndex = flatShaderCode.indexOf("fn rotate2d");
-    const sampleIndex = flatShaderCode.indexOf("let sampleUv = rotate2d");
+    const sampleIndex = flatShaderCode.indexOf("let rotatedSample = rotate2d");
     expect(helperIndex).toBeGreaterThan(-1);
     expect(helperIndex).toBeLessThan(sampleIndex);
-    expect(flatShaderCode).toContain("let sampleUv = rotate2d(in.uv - vec2<f32>(0.5, 0.5), uniforms.rotation)");
+    expect(flatShaderCode).toContain("let fisheyeScale = max(uniforms.fisheyeScale, vec2<f32>(0.0001));");
+    expect(flatShaderCode).toContain("let normalized = (in.uv - vec2<f32>(0.5, 0.5)) / fisheyeScale");
+    expect(flatShaderCode).toContain("let rotatedSample = rotate2d(normalized, uniforms.rotation)");
+    expect(flatShaderCode).toContain("let sampleUv = vec2<f32>(0.5, 0.5) + rotatedSample * fisheyeScale");
     expect(flatShaderCode).toContain("textureSample(domeTexture, domeSampler, sampleUv)");
   });
 

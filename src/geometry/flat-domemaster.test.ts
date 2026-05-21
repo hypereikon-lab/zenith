@@ -54,4 +54,37 @@ describe("flat domemaster coordinate spaces", () => {
     expect(orthographic?.x).toBeCloseTo(75);
     expect(orthographic?.x).toBeGreaterThan(equidistant?.x ?? 0);
   });
+
+  test("round-trips source directions through flat display mapping for every projection curve", () => {
+    const metrics = { cx: 120, cy: 96, radius: 72 };
+    const sourceDirection = normalize([0.33, 0.72, 0.61]);
+    const rotationRadians = Math.PI * 0.37;
+
+    for (const projectionMode of ["equidistant", "equisolid", "orthographic", "stereographic", "custom"]) {
+      const options = { projectionMode, customCurve: 1.7 };
+      const sourcePoint = domeDirectionToFlatPoint(sourceDirection, metrics.cx, metrics.cy, metrics.radius, options);
+      const displayPoint = sourceFlatToDisplayFlatPoint(sourcePoint, metrics.cx, metrics.cy, rotationRadians);
+      if (!displayPoint) throw new Error(`Expected display point for ${projectionMode}`);
+
+      const roundTrip = flatDisplayPointToDomeDirection(displayPoint, metrics, {
+        ...options,
+        rotationRadians,
+      });
+
+      expectVectorClose(roundTrip, sourceDirection);
+    }
+  });
 });
+
+function normalize(vector: [number, number, number]): [number, number, number] {
+  const length = Math.hypot(vector[0], vector[1], vector[2]) || 1;
+  return [vector[0] / length, vector[1] / length, vector[2] / length];
+}
+
+function expectVectorClose(actual: [number, number, number] | null, expected: [number, number, number]): void {
+  expect(actual).not.toBeNull();
+  const value = actual as [number, number, number];
+  for (let index = 0; index < 3; index += 1) {
+    expect(value[index]).toBeCloseTo(expected[index], 8);
+  }
+}

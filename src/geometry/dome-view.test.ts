@@ -77,6 +77,43 @@ describe("dome view pointer projection", () => {
 
     expectVectorClose(roundTrip, source);
   });
+
+  test("round-trips source directions through inside, theater, and orbit screen projections", () => {
+    const transform = {
+      sourceRotationRadians: -Math.PI / 7,
+      domeTiltRadians: Math.PI / 11,
+      mirror: true,
+    };
+    const source: Vec3 = normalize([0.24, 0.62, 0.76]);
+    const physical = physicalDomeDirectionFromSourceDirection(source, transform);
+    const projections: DomeViewProjection[] = [
+      {
+        ...baseProjection,
+        ...transform,
+        viewMatrix: lookAtLH([0, 0, 0], physical, [0, 1, 0]),
+        fovDegrees: 92,
+      },
+      {
+        ...baseProjection,
+        ...transform,
+        viewMatrix: lookAtLH([0, -0.24, -0.58], physical, [0, 1, 0]),
+        fovDegrees: 108,
+      },
+      {
+        ...baseProjection,
+        ...transform,
+        viewMatrix: lookAtLH([physical[0] * 3, physical[1] * 3, physical[2] * 3], physical, [0, 1, 0]),
+        fovDegrees: 84,
+      },
+    ];
+
+    for (const projection of projections) {
+      const screen = sourceDomeDirectionToScreenPoint(source, projection);
+      if (!screen) throw new Error("Expected source direction to project to screen");
+      const roundTrip = sourceDomeDirectionFromScreenPoint(screen, projection);
+      expectVectorClose(roundTrip, source);
+    }
+  });
 });
 
 function expectVectorClose(received: Vec3 | null, expected: Vec3): void {

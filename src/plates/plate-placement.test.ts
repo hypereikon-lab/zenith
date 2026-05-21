@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 import {
   cornerOffsetFromLocal,
+  directionFromPlateUv,
+  directionToPlateLocal,
   normalizePlatePlacement,
   plateCornerBaseLocal,
   plateCornerLocal,
@@ -59,6 +61,39 @@ describe("plate placement corner warp", () => {
     expect(uv).not.toBeNull();
     expect(uv?.x).toBeCloseTo(0.72, 5);
     expect(uv?.y).toBeCloseTo(0.28, 5);
+  });
+
+  test("round-trips warped uv through spherical direction and local inverse", () => {
+    const placement = preparePlatePlacement(
+      {
+        azimuth: 74,
+        radius: 0.58,
+        scale: 0.9,
+        spin: -31,
+        cornerOffsets: {
+          nw: { x: 0.08, y: -0.05 },
+          ne: { x: -0.14, y: 0.1 },
+          se: { x: 0.07, y: -0.03 },
+          sw: { x: -0.04, y: 0.12 },
+        },
+      },
+      { aspect: 1.35 },
+    );
+
+    for (const [u, v] of [
+      [0.5, 0.5],
+      [0.22, 0.36],
+      [0.74, 0.63],
+    ]) {
+      const direction = directionFromPlateUv(placement, u, v);
+      const local = directionToPlateLocal(direction, placement);
+      expect(local).not.toBeNull();
+      const uv = plateLocalToWarpedUv(local!, placement);
+
+      expect(uv).not.toBeNull();
+      expect(uv?.x).toBeCloseTo(u, 5);
+      expect(uv?.y).toBeCloseTo(v, 5);
+    }
   });
 
   test("derives a bounded corner offset from a dragged local corner", () => {
