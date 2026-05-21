@@ -70,7 +70,6 @@ export function createViewController({ state, controls, elements, viewLabels, ac
     const preset = {
       version: 1,
       viewMode: state.viewMode,
-      projectionMode: controls.projectionMode.value,
       controls: {
         fov: Number(controls.fov.value),
         renderScale: Number(controls.renderScale.value),
@@ -81,7 +80,6 @@ export function createViewController({ state, controls, elements, viewLabels, ac
         theaterEyeDrop: Number(controls.theaterEyeDrop.value),
         theaterSeatBack: Number(controls.theaterSeatBack.value),
         theaterPitch: Number(controls.theaterPitch.value),
-        customCurve: Number(controls.customCurve.value),
         shellShade: Number(controls.shellShade.value),
         floorOpacity: Number(controls.floorOpacity.value),
         exposure: Number(controls.exposure.value),

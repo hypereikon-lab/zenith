@@ -68,8 +68,6 @@ type PointerToolControls = {
   radiusScale?: ValueControl;
   rotation?: ValueControl;
   domeTilt?: ValueControl;
-  projectionMode?: ValueControl;
-  customCurve?: ValueControl;
   mirror?: CheckboxControl;
   plateFit?: ValueControl;
   plateCornerMode?: ValueControl;
@@ -490,7 +488,6 @@ export function createPointerToolController({
     return flatDisplayPointToDomePoint(point, metrics, {
       radiusScale: controls.radiusScale?.value ?? 1,
       rotationRadians: flatRotationRadians(),
-      ...flatProjectionOptions(),
     });
   }
 
@@ -498,7 +495,6 @@ export function createPointerToolController({
     return flatDisplayPointToDomeDirection(point, metrics, {
       radiusScale: controls.radiusScale?.value ?? 1,
       rotationRadians: flatRotationRadians(),
-      ...flatProjectionOptions(),
     });
   }
 
@@ -509,7 +505,7 @@ export function createPointerToolController({
       projectSourceDirection: (direction) => {
         const radius = flatMapRadius(metrics, controls.radiusScale?.value ?? 1);
         return sourceFlatToDisplayFlatPoint(
-          domeDirectionToFlatPoint(direction, metrics.cx, metrics.cy, radius, flatProjectionOptions()),
+          domeDirectionToFlatPoint(direction, metrics.cx, metrics.cy, radius),
           metrics.cx,
           metrics.cy,
           flatRotationRadians(),
@@ -551,13 +547,6 @@ export function createPointerToolController({
 
   function flatRotationRadians(): number {
     return ((Number(controls.rotation?.value) || 0) * Math.PI) / 180;
-  }
-
-  function flatProjectionOptions(): { projectionMode: string; customCurve: number } {
-    return {
-      projectionMode: controls.projectionMode?.value || "equidistant",
-      customCurve: Number(controls.customCurve?.value) || 1,
-    };
   }
 
   function activePlate(): PointerToolState["plates"][number] | null {

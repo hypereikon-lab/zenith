@@ -1,7 +1,6 @@
 import { clamp } from "../projection.js";
 import { externalImageTextureUsage, renderCopyTextureUsage } from "../graphics/texture-usage.js";
 import { depthGuideModeIndex, motionPoseAt, normalizeDepthMotionSettings } from "./depth-parallax-renderer.js";
-import type { ProjectionMode } from "../app/types.js";
 import type { ProjectionProfile } from "../projection.js";
 import type { DepthMotionInput, DepthMotionSettings, MotionPose } from "./depth-parallax-renderer.js";
 
@@ -10,8 +9,8 @@ struct Uniforms {
   fisheyeScaleOutputSize: vec4<f32>,
   nearFarPolarityContrast: vec4<f32>,
   anglesSplat: vec4<f32>,
-  offsetProjection: vec4<f32>,
-  customPad: vec4<f32>,
+  motionOffset: vec4<f32>,
+  guideOptions: vec4<f32>,
 };
 
 struct VertexOut {
@@ -27,40 +26,12 @@ struct VertexOut {
 
 const HALF_PI: f32 = 1.5707963267948966;
 
-fn projectionRadius(theta: f32) -> f32 {
-  let normalized = clamp(theta / HALF_PI, 0.0, 1.0);
-  let mode = uniforms.offsetProjection.w;
-  if (mode < 0.5) {
-    return normalized;
-  }
-  if (mode < 1.5) {
-    return sin(theta * 0.5) / sin(HALF_PI * 0.5);
-  }
-  if (mode < 2.5) {
-    return sin(theta);
-  }
-  if (mode < 3.5) {
-    return tan(theta * 0.5);
-  }
-  return pow(normalized, max(uniforms.customPad.x, 0.05));
+fn equidistantRadiusForTheta(theta: f32) -> f32 {
+  return clamp(theta / HALF_PI, 0.0, 1.0);
 }
 
-fn inverseProjectionRadius(radial: f32) -> f32 {
-  let r = clamp(radial, 0.0, 1.0);
-  let mode = uniforms.offsetProjection.w;
-  if (mode < 0.5) {
-    return r * HALF_PI;
-  }
-  if (mode < 1.5) {
-    return 2.0 * asin(clamp(r * sin(HALF_PI * 0.5), 0.0, 1.0));
-  }
-  if (mode < 2.5) {
-    return asin(clamp(r, 0.0, 1.0));
-  }
-  if (mode < 3.5) {
-    return 2.0 * atan(r);
-  }
-  return pow(r, 1.0 / max(uniforms.customPad.x, 0.05)) * HALF_PI;
+fn thetaFromEquidistantRadius(radial: f32) -> f32 {
+  return clamp(radial, 0.0, 1.0) * HALF_PI;
 }
 
 fn mapUvToDomeDirection(uv: vec2<f32>) -> vec4<f32> {
@@ -70,7 +41,7 @@ fn mapUvToDomeDirection(uv: vec2<f32>) -> vec4<f32> {
   if (radial > 1.0001) {
     return vec4<f32>(0.0, 1.0, 0.0, -1.0);
   }
-  let theta = inverseProjectionRadius(radial);
+  let theta = thetaFromEquidistantRadius(radial);
   let azimuth = select(0.0, atan2(normalized.x, -normalized.y), radial > 0.000001);
   let sinTheta = sin(theta);
   return vec4<f32>(
@@ -87,7 +58,7 @@ fn domeDirectionToUv(direction: vec3<f32>) -> vec4<f32> {
   }
   let fisheyeScale = uniforms.fisheyeScaleOutputSize.xy;
   let theta = acos(clamp(direction.y, 0.0, 1.0));
-  let radial = projectionRadius(theta);
+  let radial = equidistantRadiusForTheta(theta);
   if (radial > 1.0001) {
     return vec4<f32>(0.5, 0.5, 0.0, -1.0);
   }
@@ -175,7 +146,7 @@ fn multiOctaveGuideNoise(uv: vec2<f32>) -> f32 {
 }
 
 fn applyGuideNoise(rgb: vec3<f32>, uv: vec2<f32>) -> vec3<f32> {
-  let amount = clamp(uniforms.customPad.z, 0.0, 0.2);
+  let amount = clamp(uniforms.guideOptions.z, 0.0, 0.2);
   if (amount <= 0.00001) {
     return rgb;
   }
@@ -206,7 +177,7 @@ fn vertexMain(@builtin(vertex_index) vertexIndex: u32, @location(0) sourceUv: ve
 
   let meters = depthMeters(sourceUv);
   let point = sourceDirection.xyz * meters;
-  let relative = point - uniforms.offsetProjection.xyz;
+  let relative = point - uniforms.motionOffset.xyz;
   let distance = length(relative);
   if (distance <= 0.0001) {
     out.position = vec4<f32>(3.0, 3.0, 1.0, 1.0);
@@ -240,7 +211,7 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
     discard;
   }
   let color = textureSample(sourceTexture, linearSampler, in.sourceUv);
-  let guideMode = uniforms.customPad.y;
+  let guideMode = uniforms.guideOptions.y;
   var rgb = color.rgb;
   if (guideMode < 0.5) {
     rgb = color.rgb;
@@ -260,14 +231,6 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
 }
 `;
 
-const PROJECTION_MODE_INDEX: Record<ProjectionMode, number> = {
-  equidistant: 0,
-  equisolid: 1,
-  orthographic: 2,
-  stereographic: 3,
-  custom: 4,
-};
-
 type DepthWebGpuPreviewRendererOptions = {
   canvas?: HTMLCanvasElement | null;
   device?: GPUDevice | null;
@@ -282,10 +245,7 @@ type DepthWebGpuRenderInput = {
   waitForCompletion?: boolean;
 };
 type DepthWebGpuFrame = { texture: GPUTexture | null; width: number; height: number };
-type DepthPreviewUniformProfile = Pick<
-  ProjectionProfile,
-  "fisheyeScaleX" | "fisheyeScaleY" | "projectionMode" | "customCurve"
->;
+type DepthPreviewUniformProfile = Pick<ProjectionProfile, "fisheyeScaleX" | "fisheyeScaleY">;
 type DepthPreviewUniformSettings = Pick<
   DepthMotionSettings,
   "nearMeters" | "farMeters" | "polarity" | "depthContrast" | "guideMode" | "guideNoise" | "gapFillPasses"
@@ -523,7 +483,6 @@ export function createDepthWebGpuPreviewRenderer({
 }
 
 export function buildDepthPreviewUniformArray({ profile, settings, pose, size }: UniformInput): Float32Array {
-  const projectionMode = PROJECTION_MODE_INDEX[profile.projectionMode as ProjectionMode] ?? 0;
   return new Float32Array([
     profile.fisheyeScaleX,
     profile.fisheyeScaleY,
@@ -540,8 +499,8 @@ export function buildDepthPreviewUniformArray({ profile, settings, pose, size }:
     pose.offset[0],
     pose.offset[1],
     pose.offset[2],
-    projectionMode,
-    profile.customCurve,
+    0,
+    0,
     depthGuideModeIndex(settings.guideMode),
     settings.guideNoise,
     0,

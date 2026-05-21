@@ -1,7 +1,6 @@
 import {
   DEFAULT_DEPTH_PROMPT,
   DEFAULT_INPAINT_PROMPT,
-  PROJECTION_MODE,
   VERSION_STORAGE_KEY,
   VIEW_LABELS,
   createInitialState,
@@ -171,7 +170,6 @@ const renderer = createDomeRenderer({
   video,
   videoTransport,
   viewCamera,
-  projectionMode: PROJECTION_MODE,
   actions: {
     setGpuState,
     updateMediaReadouts: () => mediaController.updateMediaReadouts(),
@@ -854,8 +852,6 @@ function buildHudOptions(width: number, height: number, dpr: number, layout: Css
     showZenith: controls.showZenith.checked,
     radiusScale: Number(controls.radiusScale.value),
     flatRotationRadians: (Number(controls.rotation.value) * Math.PI) / 180,
-    projectionMode: controls.projectionMode.value,
-    customCurve: Number(controls.customCurve.value),
     domeTiltRadians: (Number(controls.domeTilt.value) * Math.PI) / 180,
     mirror: controls.mirror.checked,
     fovDegrees: Number(controls.fov.value),

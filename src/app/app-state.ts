@@ -1,13 +1,5 @@
 import { DEFAULT_CAMERA, DEFAULT_VIEW_MODE } from "./default-profile.js";
-import type { ProjectionMode, ViewMode, ZenithState } from "./types.js";
-
-export const PROJECTION_MODE: Record<ProjectionMode, number> = {
-  equidistant: 0,
-  equisolid: 1,
-  orthographic: 2,
-  stereographic: 3,
-  custom: 4,
-};
+import type { ViewMode, ZenithState } from "./types.js";
 
 export const VIEW_LABELS = {
   inside: "Center POV",

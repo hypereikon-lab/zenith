@@ -28,8 +28,6 @@ export type HudOptions = {
   showZenith: boolean;
   radiusScale: number;
   flatRotationRadians: number;
-  projectionMode: string;
-  customCurve: number;
   domeTiltRadians: number;
   mirror: boolean;
   plateCount: number;
@@ -145,7 +143,7 @@ function drawPlatePlacementHud(
     const bounds = visiblePlateUvBounds(placement, options.plateFit);
     drawPlacementOutline(ctx, placement, bounds, cx, cy, radius, flatRotation, options);
     const center = sourceFlatToDisplayFlatPoint(
-      domeDirectionToFlatPoint(placement.center, cx, cy, radius, flatProjectionOptions(options)),
+      domeDirectionToFlatPoint(placement.center, cx, cy, radius),
       cx,
       cy,
       flatRotation,
@@ -187,16 +185,7 @@ function drawPlacementOutline(
       const t = step / segments;
       const u = lerp(edge[0], edge[2], t);
       const v = lerp(edge[1], edge[3], t);
-      const point = plateUvToDisplayFlatPoint(
-        placement,
-        u,
-        v,
-        cx,
-        cy,
-        radius,
-        flatRotation,
-        flatProjectionOptions(options),
-      );
+      const point = plateUvToDisplayFlatPoint(placement, u, v, cx, cy, radius, flatRotation);
       if (!point) {
         started = false;
         continue;
@@ -229,32 +218,11 @@ function drawPlacementHandles(
     [bounds.minU, bounds.maxV],
   ];
   const points = handleUvs
-    .map(([u, v]) =>
-      plateUvToDisplayFlatPoint(placement, u, v, cx, cy, radius, flatRotation, flatProjectionOptions(options)),
-    )
+    .map(([u, v]) => plateUvToDisplayFlatPoint(placement, u, v, cx, cy, radius, flatRotation))
     .filter((point): point is Point2D => Boolean(point));
   const centerU = (bounds.minU + bounds.maxU) * 0.5;
-  const projectionOptions = flatProjectionOptions(options);
-  const top = plateUvToDisplayFlatPoint(
-    placement,
-    centerU,
-    bounds.minV,
-    cx,
-    cy,
-    radius,
-    flatRotation,
-    projectionOptions,
-  );
-  const rotate = plateUvToDisplayFlatPoint(
-    placement,
-    centerU,
-    bounds.minV - 0.18,
-    cx,
-    cy,
-    radius,
-    flatRotation,
-    projectionOptions,
-  );
+  const top = plateUvToDisplayFlatPoint(placement, centerU, bounds.minV, cx, cy, radius, flatRotation);
+  const rotate = plateUvToDisplayFlatPoint(placement, centerU, bounds.minV - 0.18, cx, cy, radius, flatRotation);
 
   ctx.save();
   ctx.lineWidth = 1.5;
@@ -288,13 +256,6 @@ function drawRoundHandle(ctx: CanvasRenderingContext2D, x: number, y: number, ra
   ctx.stroke();
 }
 
-function flatProjectionOptions(options: HudOptions): { projectionMode: string; customCurve: number } {
-  return {
-    projectionMode: options.projectionMode || "equidistant",
-    customCurve: Number(options.customCurve) || 1,
-  };
-}
-
 function drawFlatDirectionLabel(
   ctx: CanvasRenderingContext2D,
   label: string,
@@ -304,7 +265,7 @@ function drawFlatDirectionLabel(
   radius: number,
   options: HudOptions,
 ): void {
-  const sourcePoint = domeDirectionToFlatPoint(direction, cx, cy, radius, flatProjectionOptions(options));
+  const sourcePoint = domeDirectionToFlatPoint(direction, cx, cy, radius);
   const displayPoint = sourceFlatToDisplayFlatPoint(sourcePoint, cx, cy, options.flatRotationRadians);
   if (!displayPoint) return;
   const dx = displayPoint.x - cx;

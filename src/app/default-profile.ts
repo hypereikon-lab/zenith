@@ -55,7 +55,6 @@ export const DEFAULT_PLATE_REFERENCES = Array.isArray(plateSketch.plates)
   : [];
 
 export const DEFAULT_CONTROL_VALUES = {
-  projectionMode: stringOr(viewerControls.projectionMode, "equidistant"),
   fov: numberOr(viewerControls.fov, 92),
   renderScale: numberOr(viewerControls.renderScale, 1),
   meshQuality: numberOr(viewerControls.meshQuality, 1),
@@ -65,7 +64,6 @@ export const DEFAULT_CONTROL_VALUES = {
   theaterEyeDrop: numberOr(viewerControls.theaterEyeDrop, 0.34),
   theaterSeatBack: numberOr(viewerControls.theaterSeatBack, 0.58),
   theaterPitch: numberOr(viewerControls.theaterPitch, 28),
-  customCurve: numberOr(viewerControls.customCurve, 1),
   shellShade: numberOr(viewerControls.shellShade, 0.34),
   floorOpacity: numberOr(viewerControls.floorOpacity, 0.5),
   exposure: numberOr(viewerControls.exposure, 1),

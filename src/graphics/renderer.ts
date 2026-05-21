@@ -5,7 +5,7 @@ import { domeShaderCode, flatShaderCode, roomShaderCode } from "./shaders.js";
 import { renderCopyTextureUsage } from "./texture-usage.js";
 import { SourceTextureController } from "../media/source-texture.js";
 import { PlateGpuCompositor } from "../plates/plate-gpu-compositor.js";
-import type { ProjectionMode, SetGpuState, ViewMode, ZenithState } from "../app/types.js";
+import type { SetGpuState, ViewMode, ZenithState } from "../app/types.js";
 import type { PlateRenderOptions } from "../plates/plate-gpu-compositor.js";
 import type { ZenithControls, ZenithDom } from "../ui/dom.js";
 import type { HudOptions } from "../ui/hud-renderer.js";
@@ -34,7 +34,6 @@ type DomeRendererOptions = {
     currentDomeViewMatrix: () => Float32Array;
     theaterViewMatrix: () => Float32Array;
   };
-  projectionMode: Record<ProjectionMode, number>;
   actions: {
     setGpuState: SetGpuState;
     updateMediaReadouts: () => void;
@@ -50,7 +49,6 @@ export function createDomeRenderer({
   video,
   videoTransport,
   viewCamera,
-  projectionMode,
   actions,
 }: DomeRendererOptions) {
   const { canvas, hud, hudContext, perfReadout, uploadReadout } = dom;
@@ -278,7 +276,7 @@ export function createDomeRenderer({
 
   function createUniforms() {
     uniformBuffer = device.createBuffer({
-      size: 160,
+      size: 128,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
     roomUniformBuffer = device.createBuffer({
@@ -612,7 +610,7 @@ export function createDomeRenderer({
     const fisheyeScaleX = ((minSourceSide * 0.5) / sourceWidth) * radiusScale;
     const fisheyeScaleY = ((minSourceSide * 0.5) / sourceHeight) * radiusScale;
 
-    const data = new Float32Array(36);
+    const data = new Float32Array(32);
     data.set(mvp, 0);
     data[16] = fisheyeScaleX;
     data[17] = fisheyeScaleY;
@@ -621,15 +619,13 @@ export function createDomeRenderer({
     data[20] = Number(controls.overlayOpacity.value);
     data[21] = controls.mirror.checked ? 1 : 0;
     data[22] = (Number(controls.domeTilt.value) * Math.PI) / 180;
-    data[23] = projectionMode[controls.projectionMode.value as ProjectionMode] ?? 0;
-    data[24] = Number(controls.customCurve.value);
-    data[25] = cutaway ? 1 : 0;
-    data[26] = controls.showRings.checked ? 1 : 0;
-    data[27] = controls.showSpokes.checked ? 1 : 0;
-    data[28] = controls.showHorizon.checked ? 1 : 0;
-    data[29] = controls.showZenith.checked ? 1 : 0;
-    data[30] = controls.showSourceCircle.checked ? 1 : 0;
-    data[31] = Number(controls.shellShade.value);
+    data[23] = cutaway ? 1 : 0;
+    data[24] = controls.showRings.checked ? 1 : 0;
+    data[25] = controls.showSpokes.checked ? 1 : 0;
+    data[26] = controls.showHorizon.checked ? 1 : 0;
+    data[27] = controls.showZenith.checked ? 1 : 0;
+    data[28] = controls.showSourceCircle.checked ? 1 : 0;
+    data[29] = Number(controls.shellShade.value);
     device.queue.writeBuffer(uniformBuffer, 0, data);
   }
 

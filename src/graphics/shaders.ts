@@ -9,8 +9,6 @@ struct Uniforms {
   overlayOpacity: f32,
   mirror: f32,
   domeTilt: f32,
-  projectionMode: f32,
-  customCurve: f32,
   cutaway: f32,
   showRings: f32,
   showSpokes: f32,
@@ -47,20 +45,7 @@ fn rotateX(v: vec3<f32>, angle: f32) -> vec3<f32> {
 }
 
 fn projectionRadius(theta: f32) -> f32 {
-  let normalized = clamp(theta / HALF_PI, 0.0, 1.0);
-  if (uniforms.projectionMode < 0.5) {
-    return normalized;
-  }
-  if (uniforms.projectionMode < 1.5) {
-    return sin(theta * 0.5) / sin(HALF_PI * 0.5);
-  }
-  if (uniforms.projectionMode < 2.5) {
-    return sin(theta);
-  }
-  if (uniforms.projectionMode < 3.5) {
-    return tan(theta * 0.5);
-  }
-  return pow(normalized, max(uniforms.customCurve, 0.05));
+  return clamp(theta / HALF_PI, 0.0, 1.0);
 }
 
 fn gridLine(value: f32, interval: f32, widthFactor: f32) -> f32 {
@@ -112,8 +97,6 @@ struct Uniforms {
   overlayOpacity: f32,
   mirror: f32,
   domeTilt: f32,
-  projectionMode: f32,
-  customCurve: f32,
   cutaway: f32,
   showRings: f32,
   showSpokes: f32,
@@ -167,23 +150,6 @@ fn lineAt(value: f32, interval: f32, widthFactor: f32) -> f32 {
   return 1.0 - smoothstep(0.0, width, dist);
 }
 
-fn inverseProjectionRadius(radial: f32) -> f32 {
-  let r = clamp(radial, 0.0, 1.0);
-  if (uniforms.projectionMode < 0.5) {
-    return r * HALF_PI;
-  }
-  if (uniforms.projectionMode < 1.5) {
-    return 2.0 * asin(clamp(r * sin(HALF_PI * 0.5), 0.0, 1.0));
-  }
-  if (uniforms.projectionMode < 2.5) {
-    return asin(clamp(r, 0.0, 1.0));
-  }
-  if (uniforms.projectionMode < 3.5) {
-    return 2.0 * atan(r);
-  }
-  return pow(r, 1.0 / max(uniforms.customCurve, 0.05)) * HALF_PI;
-}
-
 @fragment
 fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
   let fisheyeScale = max(uniforms.fisheyeScale, vec2<f32>(0.0001));
@@ -194,7 +160,7 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
   let sampleUv = vec2<f32>(0.5, 0.5) + rotatedSample * fisheyeScale;
   let sampledColor = textureSample(domeTexture, domeSampler, sampleUv).rgb * uniforms.exposure;
   var color = select(sampledColor, vec3<f32>(0.0, 0.0, 0.0), radius > 1.0);
-  let theta = inverseProjectionRadius(radius);
+  let theta = clamp(radius, 0.0, 1.0) * HALF_PI;
   let angle = atan2(normalized.x, -normalized.y) + uniforms.rotation;
 
   let ring = lineAt(theta, HALF_PI / 6.0, 1.4) * insideMask * uniforms.showRings;

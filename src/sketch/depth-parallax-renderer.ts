@@ -13,8 +13,6 @@ export type DepthPolarity = "brightFar" | "brightNear";
 export type DepthProjectionInput = {
   size: number | string;
   radiusScale: number | string;
-  projectionMode: string;
-  customCurve: number | string;
 };
 export type DepthMotionInput = Partial<{
   nearMeters: number | string;
@@ -57,7 +55,7 @@ export type MotionPose = {
   offset: Vec3;
 };
 
-export function createDepthProjectionProfile({ size, radiusScale, projectionMode, customCurve }: DepthProjectionInput): ProjectionProfile {
+export function createDepthProjectionProfile({ size, radiusScale }: DepthProjectionInput): ProjectionProfile {
   const safeSize = Math.max(8, Math.round(Number(size) || 1024));
   const scale = clamp(Number(radiusScale) || 1, 0.25, 2);
   return {
@@ -66,8 +64,6 @@ export function createDepthProjectionProfile({ size, radiusScale, projectionMode
     fisheyeScaleX: 0.5 * scale,
     fisheyeScaleY: 0.5 * scale,
     radiusPixels: safeSize * 0.5 * scale,
-    projectionMode: projectionMode || "equidistant",
-    customCurve: Number(customCurve) || 1,
   };
 }
 
@@ -97,7 +93,11 @@ export function depthGuideModeIndex(mode: string): number {
   return GUIDE_MODE_INDEX[mode as DepthGuideMode] ?? GUIDE_MODE_INDEX.source;
 }
 
-export function depthMetersFromRgba(data: Uint8ClampedArray | Uint8Array, index: number, settings: DepthMotionSettings): number {
+export function depthMetersFromRgba(
+  data: Uint8ClampedArray | Uint8Array,
+  index: number,
+  settings: DepthMotionSettings,
+): number {
   const luma = (data[index] * 0.2126 + data[index + 1] * 0.7152 + data[index + 2] * 0.0722) / 255;
   const rawFarFactor = settings.polarity === "brightNear" ? 1 - luma : luma;
   const farFactor = clamp(0.5 + (rawFarFactor - 0.5) * settings.depthContrast, 0, 1);

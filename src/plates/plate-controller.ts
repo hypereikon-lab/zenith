@@ -46,8 +46,6 @@ type PlateControllerOptions = {
     patchSpin: { value: string; disabled: boolean };
     patchOpacity: { value: string; disabled: boolean };
     plateFeather: { value: string; disabled: boolean };
-    projectionMode?: { value: string };
-    customCurve?: { value: string };
   };
   elements: {
     commitPlateMap: { disabled: boolean };
@@ -193,12 +191,8 @@ export function createPlateController({
     if (hasEnoughPlatesForLayout()) schedulePlatePreview(0);
   }
 
-  function handlePlatePreviewControlInput(event?: Event) {
+  function handlePlatePreviewControlInput() {
     if (!hasEnoughPlatesForLayout() || !shouldAutoRenderPlatePreview()) return;
-    if (isProjectionPreviewControl(event)) {
-      renderPlatePreviewImmediately();
-      return;
-    }
     schedulePlatePreview(140);
   }
 
@@ -428,20 +422,6 @@ export function createPlateController({
     scheduleGpuPlatePreview(delay);
   }
 
-  function renderPlatePreviewImmediately(): void {
-    if (platePreviewTimer) {
-      clearTimeout(platePreviewTimer);
-      platePreviewTimer = null;
-    }
-    markPlateCompositeDirty();
-    try {
-      renderPlateSketchGpu();
-    } catch (error) {
-      console.error("Plate GPU preview failed.", error);
-      actions.setGpuState("Plate GPU preview failed", true);
-    }
-  }
-
   function markPlateCompositeDirty() {
     if (state.plateCompositeDirty) return;
     state.plateCompositeDirty = true;
@@ -475,8 +455,6 @@ export function createPlateController({
       plateCount,
       plateFit: controls.plateFit.value,
       plateFeather: Number(controls.plateFeather.value),
-      projectionMode: controls.projectionMode?.value,
-      customCurve: controls.customCurve?.value,
       platePlacements: state.platePlacements,
       size: PLATE_COMPOSITE_SIZE,
     });
@@ -512,8 +490,6 @@ export function createPlateController({
       plateCount,
       plateFit: controls.plateFit.value,
       plateFeather: Number(controls.plateFeather.value),
-      projectionMode: controls.projectionMode?.value,
-      customCurve: controls.customCurve?.value,
       platePlacements: state.platePlacements,
       size: PLATE_COMPOSITE_SIZE,
     });
@@ -570,12 +546,6 @@ export function createPlateController({
 
   function shouldAutoRenderPlatePreview(): boolean {
     return controls.editPlacement.checked || isPlateSketchSourceName(state.sourceName);
-  }
-
-  function isProjectionPreviewControl(event?: Event): boolean {
-    const target = event?.target;
-    const id = target && typeof target === "object" && "id" in target ? String(target.id || "") : "";
-    return id === "projectionMode" || id === "customCurve";
   }
 
   return {

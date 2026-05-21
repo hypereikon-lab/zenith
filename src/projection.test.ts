@@ -17,8 +17,6 @@ const profile: ProjectionProfile = {
   fisheyeScaleX: 0.5,
   fisheyeScaleY: 0.5,
   radiusPixels: 1024,
-  projectionMode: "equidistant",
-  customCurve: 1,
 };
 
 function expectCloseVector(actual: Vec3 | number[], expected: Vec3 | number[], precision = 8): void {
@@ -43,17 +41,14 @@ describe("fulldome projection math", () => {
     expectCloseVector(mapUvToDomeDirection(0, 0.5, profile), [-1, 0, 0]);
   });
 
-  test("projection radius functions round-trip for supported modes", () => {
-    for (const projectionMode of ["equidistant", "equisolid", "orthographic", "stereographic", "custom"]) {
-      const activeProfile = { ...profile, projectionMode, customCurve: 1.32 };
-      for (const theta of [0, HALF_PI * 0.1, HALF_PI * 0.45, HALF_PI * 0.85, HALF_PI]) {
-        const radial = projectionRadiusForTheta(theta, activeProfile);
-        expect(inverseMotionProjectionRadius(radial, activeProfile)).toBeCloseTo(theta, 8);
-      }
+  test("projection radius functions round-trip through the equidistant domemaster contract", () => {
+    for (const theta of [0, HALF_PI * 0.1, HALF_PI * 0.45, HALF_PI * 0.85, HALF_PI]) {
+      const radial = projectionRadiusForTheta(theta);
+      expect(inverseMotionProjectionRadius(radial)).toBeCloseTo(theta, 8);
     }
   });
 
-  test("maps source uv and dome directions round-trip for every projection curve", () => {
+  test("maps source uv and dome directions round-trip for rectangular equidistant sources", () => {
     const rectangularProfile: ProjectionProfile = {
       ...profile,
       width: 2000,
@@ -70,15 +65,12 @@ describe("fulldome projection math", () => {
       [0.34, 0.32],
     ];
 
-    for (const projectionMode of ["equidistant", "equisolid", "orthographic", "stereographic", "custom"]) {
-      const activeProfile = { ...rectangularProfile, projectionMode, customCurve: 1.62 };
-      for (const [u, v] of samples) {
-        const direction = mapUvToDomeDirection(u, v, activeProfile);
-        if (!direction) throw new Error(`Expected valid source uv for ${projectionMode}`);
-        const roundTrip = domeDirectionToMotionUv(direction, activeProfile);
-        expect(roundTrip?.u).toBeCloseTo(u, 8);
-        expect(roundTrip?.v).toBeCloseTo(v, 8);
-      }
+    for (const [u, v] of samples) {
+      const direction = mapUvToDomeDirection(u, v, rectangularProfile);
+      if (!direction) throw new Error("Expected valid equidistant source uv");
+      const roundTrip = domeDirectionToMotionUv(direction, rectangularProfile);
+      expect(roundTrip?.u).toBeCloseTo(u, 8);
+      expect(roundTrip?.v).toBeCloseTo(v, 8);
     }
   });
 

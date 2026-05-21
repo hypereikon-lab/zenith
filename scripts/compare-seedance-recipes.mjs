@@ -244,9 +244,8 @@ const payload = {
     height: imageSize.height,
   },
   projection: {
-    mode: args.projection || "source image",
+    lens: args.projection || "equidistant 180 domemaster source image",
     radiusScale: 1,
-    customCurve: 0,
     outsideMask: "preserve pitch black outside the circular domemaster projection when present",
   },
 };

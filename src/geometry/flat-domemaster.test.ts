@@ -6,7 +6,6 @@ import {
   flatDisplayPointToDomePoint,
   sourceFlatToDisplayFlatPoint,
 } from "./flat-domemaster.js";
-import { HALF_PI } from "../projection.js";
 
 describe("flat domemaster coordinate spaces", () => {
   test("maps viewport client points into canvas-local CSS pixels", () => {
@@ -34,45 +33,38 @@ describe("flat domemaster coordinate spaces", () => {
     expect(direction[2]).toBeCloseTo(Math.sin(Math.PI * 0.25));
   });
 
-  test("uses the active projection curve when reading flat source radius", () => {
+  test("reads flat source radius as equidistant dome radius", () => {
     const metrics = { cx: 50, cy: 50, radius: 50 };
     const halfwayRight = { x: 75, y: 50 };
 
-    const equidistant = flatDisplayPointToDomePoint(halfwayRight, metrics, { projectionMode: "equidistant" });
-    const orthographic = flatDisplayPointToDomePoint(halfwayRight, metrics, { projectionMode: "orthographic" });
+    const point = flatDisplayPointToDomePoint(halfwayRight, metrics);
 
-    expect(equidistant?.radius).toBeCloseTo(0.5);
-    expect(orthographic?.radius).toBeCloseTo(Math.asin(0.5) / HALF_PI);
+    expect(point?.radius).toBeCloseTo(0.5);
+    expect(point?.azimuth).toBeCloseTo(90);
   });
 
-  test("projects dome directions through the active flat projection curve", () => {
+  test("projects dome directions through equidistant flat geometry", () => {
     const direction: [number, number, number] = [0.5, Math.sqrt(1 - 0.5 * 0.5), 0];
-    const equidistant = domeDirectionToFlatPoint(direction, 50, 50, 50, { projectionMode: "equidistant" });
-    const orthographic = domeDirectionToFlatPoint(direction, 50, 50, 50, { projectionMode: "orthographic" });
+    const point = domeDirectionToFlatPoint(direction, 50, 50, 50);
 
-    expect(equidistant?.x).toBeCloseTo(50 + (Math.asin(0.5) / HALF_PI) * 50);
-    expect(orthographic?.x).toBeCloseTo(75);
-    expect(orthographic?.x).toBeGreaterThan(equidistant?.x ?? 0);
+    expect(point?.x).toBeCloseTo(50 + (Math.asin(0.5) / (Math.PI * 0.5)) * 50);
+    expect(point?.y).toBeCloseTo(50);
   });
 
-  test("round-trips source directions through flat display mapping for every projection curve", () => {
+  test("round-trips source directions through flat display mapping", () => {
     const metrics = { cx: 120, cy: 96, radius: 72 };
     const sourceDirection = normalize([0.33, 0.72, 0.61]);
     const rotationRadians = Math.PI * 0.37;
 
-    for (const projectionMode of ["equidistant", "equisolid", "orthographic", "stereographic", "custom"]) {
-      const options = { projectionMode, customCurve: 1.7 };
-      const sourcePoint = domeDirectionToFlatPoint(sourceDirection, metrics.cx, metrics.cy, metrics.radius, options);
-      const displayPoint = sourceFlatToDisplayFlatPoint(sourcePoint, metrics.cx, metrics.cy, rotationRadians);
-      if (!displayPoint) throw new Error(`Expected display point for ${projectionMode}`);
+    const sourcePoint = domeDirectionToFlatPoint(sourceDirection, metrics.cx, metrics.cy, metrics.radius);
+    const displayPoint = sourceFlatToDisplayFlatPoint(sourcePoint, metrics.cx, metrics.cy, rotationRadians);
+    if (!displayPoint) throw new Error("Expected equidistant display point");
 
-      const roundTrip = flatDisplayPointToDomeDirection(displayPoint, metrics, {
-        ...options,
-        rotationRadians,
-      });
+    const roundTrip = flatDisplayPointToDomeDirection(displayPoint, metrics, {
+      rotationRadians,
+    });
 
-      expectVectorClose(roundTrip, sourceDirection);
-    }
+    expectVectorClose(roundTrip, sourceDirection);
   });
 });
 

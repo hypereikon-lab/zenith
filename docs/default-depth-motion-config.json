@@ -28,7 +28,6 @@
       "orbitDistance": 1.6305548183768994
     },
     "controls": {
-      "projectionMode": "equidistant",
       "fov": 80,
       "renderScale": 1,
       "meshQuality": 2,
@@ -38,7 +37,6 @@
       "theaterEyeDrop": 0.26,
       "theaterSeatBack": 0.38,
       "theaterPitch": 50.6,
-      "customCurve": 0.38,
       "shellShade": 0,
       "floorOpacity": 0.71,
       "exposure": 1.06,

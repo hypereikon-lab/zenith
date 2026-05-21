@@ -2,13 +2,15 @@ import { describe, expect, test } from "vitest";
 import { domeShaderCode, flatShaderCode } from "./shaders.js";
 
 describe("dome shader", () => {
-  test("uses one full projection path instead of an equidistant fast-map bypass", () => {
+  test("uses one equidistant domemaster path instead of a projection-mode branch", () => {
     expect(domeShaderCode).not.toContain("fastMap");
     expect(domeShaderCode).not.toContain("domeMap");
+    expect(domeShaderCode).not.toContain("projectionMode");
+    expect(domeShaderCode).not.toContain("customCurve");
     expect(domeShaderCode).toContain("let dir = normalize(rotateX(physicalDir, uniforms.domeTilt))");
+    expect(domeShaderCode).toContain("return clamp(theta / HALF_PI, 0.0, 1.0);");
     expect(domeShaderCode).toContain("let radial = clamp(projectionRadius(theta), 0.0, 1.0)");
     expect(domeShaderCode).toContain("sin(azimuth) * uniforms.fisheyeScale.x");
-    expect(domeShaderCode).toContain("uniforms.customCurve");
   });
 });
 
@@ -39,12 +41,11 @@ describe("flat shader", () => {
     expect(flatShaderCode).toContain("textureSample(domeTexture, domeSampler, sampleUv)");
   });
 
-  test("draws flat latitude rings through the active projection curve", () => {
+  test("draws flat latitude rings through equidistant domemaster geometry", () => {
     expect(flatShaderCode).toContain("const HALF_PI: f32 = 1.5707963267948966;");
-    expect(flatShaderCode).toContain("fn inverseProjectionRadius");
-    expect(flatShaderCode).toContain("let theta = inverseProjectionRadius(radius)");
+    expect(flatShaderCode).toContain("let theta = clamp(radius, 0.0, 1.0) * HALF_PI");
     expect(flatShaderCode).toContain("lineAt(theta, HALF_PI / 6.0");
-    expect(flatShaderCode).toContain("uniforms.projectionMode");
-    expect(flatShaderCode).toContain("uniforms.customCurve");
+    expect(flatShaderCode).not.toContain("projectionMode");
+    expect(flatShaderCode).not.toContain("customCurve");
   });
 });

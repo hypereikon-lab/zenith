@@ -19,8 +19,6 @@ describe("depth WebGPU reprojection preview", () => {
       profile: {
         fisheyeScaleX: 0.5,
         fisheyeScaleY: 0.5,
-        projectionMode: "equisolid",
-        customCurve: 1.25,
       },
       settings: {
         nearMeters: 1,
@@ -45,8 +43,8 @@ describe("depth WebGPU reprojection preview", () => {
     expect(uniforms[3]).toBeCloseTo(720);
     expect(uniforms[6]).toBe(0);
     expect(uniforms[11]).toBeGreaterThan(1);
-    expect(uniforms[15]).toBe(1);
-    expect(uniforms[16]).toBeCloseTo(1.25);
+    expect(uniforms[15]).toBe(0);
+    expect(uniforms[16]).toBe(0);
     expect(uniforms[17]).toBe(2);
     expect(uniforms[18]).toBeCloseTo(0.05);
   });

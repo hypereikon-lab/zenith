@@ -12,11 +12,7 @@ import {
 } from "../runway/client.js";
 import { clearProgressButton, setProgressButton } from "../ui/progress-buttons.js";
 import { errorMessage } from "../utils/errors.js";
-import {
-  CUSTOM_DEPTH_MOTION_PRESET_ID,
-  DEPTH_MOTION_PRESETS,
-  findDepthMotionPreset,
-} from "./depth-motion-presets.js";
+import { CUSTOM_DEPTH_MOTION_PRESET_ID, DEPTH_MOTION_PRESETS, findDepthMotionPreset } from "./depth-motion-presets.js";
 import { createDepthProjectionProfile, normalizeDepthMotionSettings } from "./depth-parallax-renderer.js";
 import { createDepthWebGpuPreviewRenderer } from "./depth-webgpu-renderer.js";
 import type { OperationToken } from "../operation-manager.js";
@@ -634,7 +630,6 @@ export function createDepthMotionController({
         viewMode: state.viewMode,
         camera: { ...state.camera },
         controls: controlSnapshot([
-          "projectionMode",
           "fov",
           "renderScale",
           "meshQuality",
@@ -644,7 +639,6 @@ export function createDepthMotionController({
           "theaterEyeDrop",
           "theaterSeatBack",
           "theaterPitch",
-          "customCurve",
           "shellShade",
           "floorOpacity",
           "exposure",
@@ -830,7 +824,12 @@ export function createDepthMotionController({
     updateDepthMotionUiState({ preserveText: true });
   }
 
-  async function ensureSeedancePrompt({ operation, button, progressStart, progressEnd }: ProgressButtonOptions): Promise<string> {
+  async function ensureSeedancePrompt({
+    operation,
+    button,
+    progressStart,
+    progressEnd,
+  }: ProgressButtonOptions): Promise<string> {
     const prompt = controls.seedancePrompt.value.trim();
     if (prompt && generatedSeedancePromptFingerprint === codexPromptOperationFingerprint()) {
       syncSeedancePromptPreview();
@@ -963,8 +962,6 @@ export function createDepthMotionController({
     const profile = createDepthProjectionProfile({
       size,
       radiusScale: Number(controls.radiusScale.value),
-      projectionMode: controls.projectionMode.value,
-      customCurve: Number(controls.customCurve.value),
     });
     const settings: DepthMotionSettings & { size: number } = {
       ...readDepthMotionSettings(),
@@ -1113,9 +1110,8 @@ export function createDepthMotionController({
         contrast: Number(controls.depthContrast.value),
       },
       projection: {
-        mode: controls.projectionMode.value,
         radiusScale: Number(controls.radiusScale.value),
-        customCurve: Number(controls.customCurve.value),
+        lens: "equidistant 180 domemaster",
       },
       guide: {
         look: controls.depthGuideMode.value,
@@ -1154,15 +1150,16 @@ export function createDepthMotionController({
         height: state.sourceHeight,
       },
       projection: {
-        mode: controls.projectionMode.value,
         radiusScale: Number(controls.radiusScale.value),
-        customCurve: Number(controls.customCurve.value),
+        lens: "equidistant 180 domemaster",
         outsideMask: "preserve pitch black outside the circular domemaster projection when present",
       },
     };
   }
 
-  async function sampleDepthMotionGuideFrames(): Promise<Array<{ label: string; progress: number; imageDataUrl: string }>> {
+  async function sampleDepthMotionGuideFrames(): Promise<
+    Array<{ label: string; progress: number; imageDataUrl: string }>
+  > {
     const samples = [0, 0.18, 0.36, 0.56, 0.78, 1];
     const { renderFrame } = await buildDepthGpuExportRenderer();
     const frames = [];
@@ -1281,9 +1278,7 @@ export function createDepthMotionController({
       state.mediaKind,
       controls.imageSeedancePromptMode.value,
       controls.imageSeedanceRatio?.value || "auto",
-      controls.projectionMode.value,
       controls.radiusScale.value,
-      controls.customCurve.value,
       controls.depthSketchDuration.value,
     ].join("|");
   }
@@ -1363,7 +1358,8 @@ export function createDepthMotionController({
       mp4ExportSupportMessage = "WebCodecs MP4 export ready";
     } catch (error) {
       mp4ExportSupport = "unavailable";
-      mp4ExportSupportMessage = errorMessage(error) || "No MP4-compatible WebCodecs encoder is available in this browser";
+      mp4ExportSupportMessage =
+        errorMessage(error) || "No MP4-compatible WebCodecs encoder is available in this browser";
     } finally {
       updateDepthMotionUiState({ preserveText: true });
     }
@@ -1551,4 +1547,3 @@ async function copyTextToClipboard(text: string): Promise<void> {
     textarea.remove();
   }
 }
-

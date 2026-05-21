@@ -103,7 +103,8 @@
               <select id="activePlate"></select>
             </label>
             <div class="placement-hint">
-              Click a plate to select it. Drag inside to move. Corner handles use the selected corner mode. The round handle rotates, wheel scales, and Shift+wheel rotates.
+              Click a plate to select it. Drag inside to move. Corner handles use the selected corner mode. The round
+              handle rotates, wheel scales, and Shift+wheel rotates.
             </div>
             <label class="select-row">
               <span>Corner drag</span>
@@ -175,7 +176,9 @@
             <button id="runwayInpaint" class="primary-action" type="button" disabled>Run inpaint</button>
             <button id="exportRunwayOutput" type="button" disabled>Export PNG</button>
           </div>
-          <button id="useRunwayOutput" class="primary-action secondary" type="button" disabled hidden>Use result</button>
+          <button id="useRunwayOutput" class="primary-action secondary" type="button" disabled hidden>
+            Use result
+          </button>
           <div id="runwayResults" class="result-strip" aria-live="polite"></div>
           <dl class="mini-readout">
             <div>
@@ -442,16 +445,6 @@
 
         <div class="section workspace-section" data-workspace="review">
           <div class="section-title">Projection tuning</div>
-          <label class="select-row">
-            <span>Lens</span>
-            <select id="projectionMode">
-              <option value="equidistant">Equidistant</option>
-              <option value="equisolid">Equisolid</option>
-              <option value="orthographic">Orthographic</option>
-              <option value="stereographic">Stereographic</option>
-              <option value="custom">Custom curve</option>
-            </select>
-          </label>
           <div class="control-grid">
             <label>
               <span>FOV</span>
@@ -488,10 +481,6 @@
             <label>
               <span>View pitch</span>
               <input id="theaterPitch" type="range" min="4" max="68" value="28" step="0.1" />
-            </label>
-            <label>
-              <span>Curve</span>
-              <input id="customCurve" type="range" min="0.35" max="2.5" value="1" step="0.01" />
             </label>
             <label>
               <span>Shell shade</span>

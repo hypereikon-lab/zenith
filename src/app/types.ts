@@ -8,7 +8,6 @@ import type {
 export type ViewMode = "inside" | "theater" | "orbit" | "flat" | "split" | "cutaway";
 export type WorkspaceId = "create" | "inpaint" | "depth" | "ship" | string;
 export type MediaKind = "image" | "video";
-export type ProjectionMode = "equidistant" | "equisolid" | "orthographic" | "stereographic" | "custom";
 export type ActiveDomeCamera = "inside" | "theater" | "orbit";
 export type PointerMode = "view" | "plate" | null;
 

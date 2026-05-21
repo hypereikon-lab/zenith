@@ -159,9 +159,7 @@ export function bindZenithEvents(dom: ZenithDom, actions: ZenithEventActions): v
   [controls.plateCount, controls.plateFit].forEach((control) => {
     control.addEventListener("change", actions.handlePlateCountFitChange);
   });
-  controls.projectionMode.addEventListener("input", actions.handlePlatePreviewControlInput);
-  controls.projectionMode.addEventListener("change", actions.handlePlatePreviewControlInput);
-  [controls.plateFeather, controls.customCurve].forEach((control) => {
+  [controls.plateFeather].forEach((control) => {
     control.addEventListener("input", actions.handlePlatePreviewControlInput);
     control.addEventListener("change", actions.handlePlatePreviewControlInput);
   });

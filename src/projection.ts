@@ -12,8 +12,6 @@ export type ProjectionProfile = {
   fisheyeScaleX: number;
   fisheyeScaleY: number;
   radiusPixels: number;
-  projectionMode: string;
-  customCurve: number;
 };
 export type MapUv = { u: number; v: number };
 export type TangentBasis = { center: Vec3; right: Vec3; down: Vec3 };
@@ -206,43 +204,17 @@ export function identityRotationRows(): RotationRows {
   ];
 }
 
-export function projectionRadiusForTheta(theta: number, profile: ProjectionProfile): number {
-  const normalized = clamp(theta / HALF_PI, 0, 1);
-  if (profile.projectionMode === "equisolid") {
-    return Math.sin(theta * 0.5) / Math.sin(HALF_PI * 0.5);
-  }
-  if (profile.projectionMode === "orthographic") {
-    return Math.sin(theta);
-  }
-  if (profile.projectionMode === "stereographic") {
-    return Math.tan(theta * 0.5);
-  }
-  if (profile.projectionMode === "custom") {
-    return normalized ** Math.max(profile.customCurve, 0.05);
-  }
-  return normalized;
+export function projectionRadiusForTheta(theta: number): number {
+  return clamp(theta / HALF_PI, 0, 1);
 }
 
-export function inverseMotionProjectionRadius(radial: number, profile: ProjectionProfile): number {
-  const r = clamp(radial, 0, 1);
-  if (profile.projectionMode === "equisolid") {
-    return 2 * Math.asin(clamp(r * Math.sin(HALF_PI * 0.5), 0, 1));
-  }
-  if (profile.projectionMode === "orthographic") {
-    return Math.asin(clamp(r, 0, 1));
-  }
-  if (profile.projectionMode === "stereographic") {
-    return 2 * Math.atan(r);
-  }
-  if (profile.projectionMode === "custom") {
-    return r ** (1 / Math.max(profile.customCurve, 0.05)) * HALF_PI;
-  }
-  return r * HALF_PI;
+export function inverseMotionProjectionRadius(radial: number): number {
+  return clamp(radial, 0, 1) * HALF_PI;
 }
 
 export function projectedPixelSpanToTangentHalf(pixelSpan: number, profile: ProjectionProfile): number {
   const normalizedHalfSpan = clamp((Math.max(1, pixelSpan) * 0.5) / Math.max(1, profile.radiusPixels), 0.0001, 0.96);
-  const halfAngle = Math.min(inverseMotionProjectionRadius(normalizedHalfSpan, profile), 1.35);
+  const halfAngle = Math.min(inverseMotionProjectionRadius(normalizedHalfSpan), 1.35);
   return Math.max(0.0001, Math.tan(halfAngle));
 }
 
@@ -276,7 +248,7 @@ export function mapUvToDomeDirection(u: number, v: number, profile: ProjectionPr
   const y = (v - 0.5) / Math.max(0.0001, profile.fisheyeScaleY);
   const radial = Math.hypot(x, y);
   if (radial > 1.0001) return null;
-  const theta = inverseMotionProjectionRadius(radial, profile);
+  const theta = inverseMotionProjectionRadius(radial);
   const azimuth = radial > 0.000001 ? Math.atan2(x, -y) : 0;
   const sinTheta = Math.sin(theta);
   return [sinTheta * Math.sin(azimuth), Math.cos(theta), sinTheta * Math.cos(azimuth)];
@@ -285,7 +257,7 @@ export function mapUvToDomeDirection(u: number, v: number, profile: ProjectionPr
 export function domeDirectionToMotionUv(direction: Vec3, profile: ProjectionProfile): MapUv | null {
   if (direction[1] < -0.0001) return null;
   const theta = Math.acos(clamp(direction[1], 0, 1));
-  const radial = projectionRadiusForTheta(theta, profile);
+  const radial = projectionRadiusForTheta(theta);
   if (radial > 1.0001) return null;
   const azimuth = Math.atan2(direction[0], direction[2]);
   return {

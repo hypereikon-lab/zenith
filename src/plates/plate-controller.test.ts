@@ -95,49 +95,23 @@ describe("plate controller edit gate", () => {
     expect(calls.readTextureToCanvas).toBe(1);
   });
 
-  test("passes the active projection profile into plate map rendering", async () => {
-    const { controller, controls, calls } = buildPlateControllerHarness();
-    controls.editPlacement.checked = false;
-    controls.projectionMode.value = "orthographic";
-    controls.customCurve.value = "1.6";
-
-    await controller.handlePlacementEditChange();
-
-    expect(calls.lastRenderOptions?.projectionMode).toBe("orthographic");
-    expect(calls.lastRenderOptions?.customCurve).toBe("1.6");
-  });
-
-  test("projection preview controls rebuild generated plate maps immediately", () => {
-    const { controller, controls, calls } = buildPlateControllerHarness();
-    controls.projectionMode.value = "custom";
-    controls.customCurve.value = "2.2";
-
-    controller.handlePlatePreviewControlInput(controlEvent("customCurve"));
-
-    expect(calls.renderPlateComposite).toBe(1);
-    expect(calls.lastRenderOptions?.projectionMode).toBe("custom");
-    expect(calls.lastRenderOptions?.customCurve).toBe("2.2");
-  });
-
-  test("non-projection plate preview controls still debounce generated plate maps", () => {
+  test("plate preview controls debounce generated plate maps", () => {
     vi.useFakeTimers();
     const { controller, calls } = buildPlateControllerHarness();
 
-    controller.handlePlatePreviewControlInput(controlEvent("plateFeather"));
+    controller.handlePlatePreviewControlInput();
     expect(calls.renderPlateComposite).toBe(0);
     vi.advanceTimersByTime(141);
 
     expect(calls.renderPlateComposite).toBe(1);
   });
 
-  test("projection controls do not overwrite a non-plate source with a plate preview", () => {
+  test("plate preview controls do not overwrite a non-plate source with a plate preview", () => {
     vi.useFakeTimers();
-    const { controller, state, controls, calls } = buildPlateControllerHarness();
+    const { controller, state, calls } = buildPlateControllerHarness();
     state.sourceName = "fulldome-inpaint-result.png";
-    controls.projectionMode.value = "custom";
-    controls.customCurve.value = "1.8";
 
-    controller.handlePlatePreviewControlInput(controlEvent("customCurve"));
+    controller.handlePlatePreviewControlInput();
     vi.advanceTimersByTime(200);
 
     expect(calls.renderPlateComposite).toBe(0);
@@ -180,8 +154,6 @@ function buildPlateControllerHarness() {
     patchSpin: control("0"),
     patchOpacity: control("1"),
     plateFeather: control("0.025"),
-    projectionMode: control("equidistant"),
-    customCurve: control("1"),
   };
   const elements = {
     commitPlateMap: button(),
@@ -273,8 +245,4 @@ function videoStub() {
     removeAttribute() {},
     load() {},
   };
-}
-
-function controlEvent(id: string): Event {
-  return { target: { id } } as unknown as Event;
 }
