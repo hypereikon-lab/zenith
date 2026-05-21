@@ -237,7 +237,7 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
 `;
 
 const DEPTH_STENCIL_FORMAT = "depth24plus-stencil8";
-const BASE_SPLAT_PIXELS = 0.58;
+const BASE_SPLAT_PIXELS = 0.78;
 
 type DepthWebGpuPreviewRendererOptions = {
   canvas?: HTMLCanvasElement | null;
@@ -343,6 +343,7 @@ export function createDepthWebGpuPreviewRenderer({
   }
 
   function createReprojectionPipeline(module: GPUShaderModule, passKind: "base" | "gapFill"): GPURenderPipeline {
+    const depthCompare: GPUCompareFunction = passKind === "base" ? "less" : "greater";
     const stencilState =
       passKind === "base"
         ? {
@@ -378,7 +379,7 @@ export function createDepthWebGpuPreviewRenderer({
       primitive: { topology: "triangle-list", cullMode: "none" },
       depthStencil: {
         depthWriteEnabled: true,
-        depthCompare: "less",
+        depthCompare,
         format: DEPTH_STENCIL_FORMAT,
         stencilFront: stencilState,
         stencilBack: stencilState,
@@ -437,10 +438,11 @@ export function createDepthWebGpuPreviewRenderer({
     }
 
     const encoder = device.createCommandEncoder();
-    const pass = encoder.beginRenderPass({
+    const targetTexture = currentTargetTexture();
+    const basePass = encoder.beginRenderPass({
       colorAttachments: [
         {
-          view: currentTargetTexture().createView(),
+          view: targetTexture.createView(),
           clearValue: { r: 0, g: 0, b: 0, a: 1 },
           loadOp: "clear",
           storeOp: "store",
@@ -453,23 +455,45 @@ export function createDepthWebGpuPreviewRenderer({
         depthStoreOp: "discard",
         stencilClearValue: 0,
         stencilLoadOp: "clear",
-        stencilStoreOp: "discard",
+        stencilStoreOp: useGapFill ? "store" : "discard",
       },
     });
-    pass.setViewport(0, 0, size, size, 0, 1);
-    pass.setScissorRect(0, 0, size, size);
-    pass.setPipeline(basePipeline);
-    pass.setStencilReference(1);
-    pass.setBindGroup(0, baseBindGroup);
-    pass.setVertexBuffer(0, uvBuffer);
-    pass.draw(6, uvCount);
+    basePass.setViewport(0, 0, size, size, 0, 1);
+    basePass.setScissorRect(0, 0, size, size);
+    basePass.setPipeline(basePipeline);
+    basePass.setStencilReference(1);
+    basePass.setBindGroup(0, baseBindGroup);
+    basePass.setVertexBuffer(0, uvBuffer);
+    basePass.draw(6, uvCount);
+    basePass.end();
+
     if (gapFillBindGroup) {
-      pass.setPipeline(gapFillPipeline);
-      pass.setStencilReference(0);
-      pass.setBindGroup(0, gapFillBindGroup);
-      pass.draw(6, uvCount);
+      const gapFillPass = encoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: targetTexture.createView(),
+            loadOp: "load",
+            storeOp: "store",
+          },
+        ],
+        depthStencilAttachment: {
+          view: depthBuffer.createView(),
+          depthClearValue: 0,
+          depthLoadOp: "clear",
+          depthStoreOp: "discard",
+          stencilLoadOp: "load",
+          stencilStoreOp: "discard",
+        },
+      });
+      gapFillPass.setViewport(0, 0, size, size, 0, 1);
+      gapFillPass.setScissorRect(0, 0, size, size);
+      gapFillPass.setPipeline(gapFillPipeline);
+      gapFillPass.setStencilReference(0);
+      gapFillPass.setBindGroup(0, gapFillBindGroup);
+      gapFillPass.setVertexBuffer(0, uvBuffer);
+      gapFillPass.draw(6, uvCount);
+      gapFillPass.end();
     }
-    pass.end();
     device.queue.submit([encoder.finish()]);
     if (waitForCompletion) {
       await device.queue.onSubmittedWorkDone();

@@ -48,7 +48,7 @@ describe("depth WebGPU reprojection preview", () => {
     expect(uniforms[0]).toBeCloseTo(0.5);
     expect(uniforms[3]).toBeCloseTo(720);
     expect(uniforms[6]).toBe(0);
-    expect(uniforms[11]).toBeCloseTo(0.58);
+    expect(uniforms[11]).toBeCloseTo(0.78);
     expect(uniforms[15]).toBe(0);
     expect(uniforms[16]).toBe(0);
     expect(uniforms[17]).toBe(2);
