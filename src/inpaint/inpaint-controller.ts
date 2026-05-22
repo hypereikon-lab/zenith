@@ -1,8 +1,4 @@
-import {
-  downloadCanvasPng,
-  imageBitmapToCanvas,
-  loadCanvasFromImageSource,
-} from "../media/canvas-utils.js";
+import { downloadCanvasPng, imageBitmapToCanvas, loadCanvasFromImageSource } from "../media/canvas-utils.js";
 import { isStaleOperationError } from "../operation-manager.js";
 import { clamp } from "../projection.js";
 import { requestRunwayInpaint, requestRunwayStatus } from "../runway/client.js";
@@ -48,7 +44,11 @@ export function createInpaintController({
   actions: {
     commitPlateSketchSafely: () => Promise<void>;
     uploadCanvasAsSource: (canvas: HTMLCanvasElement, name: string) => void;
-    uploadMediaSource: (source: ImageBitmap | HTMLCanvasElement | HTMLVideoElement, width: number, height: number) => void;
+    uploadMediaSource: (
+      source: ImageBitmap | HTMLCanvasElement | HTMLVideoElement,
+      width: number,
+      height: number,
+    ) => void;
     updateMediaReadouts: () => void;
     updateDepthMotionUiState?: () => void;
     scheduleWorkspaceAutosave: ScheduleWorkspaceAutosave;
@@ -56,13 +56,7 @@ export function createInpaintController({
     setGpuState?: SetGpuState;
   };
 }) {
-  const {
-    runwayInpaint,
-    useRunwayOutput,
-    exportRunwayOutput,
-    runwayResults,
-    inpaintReadout,
-  } = elements;
+  const { runwayInpaint, useRunwayOutput, exportRunwayOutput, runwayResults, inpaintReadout } = elements;
 
   function useActiveRunwayOutput() {
     return loadRunwayOutput(state.activeRunwayOutputIndex);
@@ -154,12 +148,14 @@ export function createInpaintController({
 
     try {
       const dataUrl = canvas.toDataURL("image/png");
+      const prompt = controls.runwayPrompt.value.trim() || defaultInpaintPrompt;
+      const quality = readInpaintQuality();
       const request = {
         imageDataUrl: dataUrl,
         model: INPAINT_MODEL,
         ratio: INPAINT_RATIO,
-        prompt: controls.runwayPrompt.value.trim() || defaultInpaintPrompt,
-        quality: readInpaintQuality(),
+        prompt,
+        quality,
         outputCount: 1,
       };
 
@@ -169,7 +165,18 @@ export function createInpaintController({
       });
       runwayOperations.assertCurrent(operation, inpaintOperationFingerprint());
 
-      state.runwayOutputs = (result.outputs || []).filter((output) => output.dataUri || output.url);
+      const createdAt = new Date().toISOString();
+      state.runwayOutputs = (result.outputs || [])
+        .filter((output) => output.dataUri || output.url)
+        .map((output, index) => ({
+          ...output,
+          name: `Runway inpaint ${index + 1}`,
+          model: result.model || INPAINT_MODEL,
+          ratio: String(result.ratio || INPAINT_RATIO),
+          quality,
+          prompt,
+          createdAt,
+        }));
       state.activeRunwayOutputIndex = 0;
       renderRunwayResults();
       if (state.runwayOutputs.length > 0) {
@@ -298,7 +305,11 @@ export function createInpaintController({
     return INPAINT_QUALITIES.has(quality) ? quality : "high";
   }
 
-  function handleStaleOperation(error: unknown, readout: HTMLElement, message = "Ignored outdated Runway result"): boolean {
+  function handleStaleOperation(
+    error: unknown,
+    readout: HTMLElement,
+    message = "Ignored outdated Runway result",
+  ): boolean {
     if (!isStaleOperationError(error)) return false;
     readout.textContent = message;
     return true;

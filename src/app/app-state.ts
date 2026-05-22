@@ -57,6 +57,8 @@ export function createInitialState(): ZenithState {
     runwayConfigured: null,
     depthMapCanvas: null,
     depthMapName: "",
+    depthMapModel: "",
+    depthMapPrompt: "",
     depthMotionPreviewCanvas: null,
     depthFinalStateCanvas: null,
     depthFinalStateName: "",

@@ -74,6 +74,8 @@ type DepthMotionControllerOptions = {
     exportSeedanceOutput: HTMLButtonElement;
     copyDepthMotionConfig: HTMLButtonElement;
     exportDepthMotionConfig: HTMLButtonElement;
+    exportDepthMap: HTMLButtonElement;
+    exportGeneratedPrompts: HTMLButtonElement;
     captureDepthFinalState: HTMLButtonElement;
     reconstructDepthFinalState: HTMLButtonElement;
     exportDepthFinalState: HTMLButtonElement;
@@ -126,6 +128,8 @@ export function createDepthMotionController({
     exportSeedanceOutput,
     copyDepthMotionConfig: copyDepthMotionConfigButton,
     exportDepthMotionConfig: exportDepthMotionConfigButton,
+    exportDepthMap: exportDepthMapButton,
+    exportGeneratedPrompts: exportGeneratedPromptsButton,
     captureDepthFinalState: captureDepthFinalStateButton,
     reconstructDepthFinalState: reconstructDepthFinalStateButton,
     exportDepthFinalState: exportDepthFinalStateButton,
@@ -171,9 +175,15 @@ export function createDepthMotionController({
   syncDepthMotionPresetSelection();
   refreshMp4ExportSupport();
 
-  function setDepthMapCanvas(canvas: HTMLCanvasElement | null, name?: string): void {
+  function setDepthMapCanvas(
+    canvas: HTMLCanvasElement | null,
+    name?: string,
+    metadata: { model?: string; prompt?: string } = {},
+  ): void {
     state.depthMapCanvas = canvas ? cloneCanvas(canvas) : null;
     state.depthMapName = state.depthMapCanvas ? name || "Restored depth map" : "";
+    state.depthMapModel = state.depthMapCanvas ? metadata.model || state.depthMapModel || "" : "";
+    state.depthMapPrompt = state.depthMapCanvas ? metadata.prompt || state.depthMapPrompt || "" : "";
     state.depthMotionPreviewCanvas = null;
     clearDepthFinalState();
     stopDepthGpuPreview();
@@ -195,6 +205,8 @@ export function createDepthMotionController({
     }
     state.depthMapCanvas = null;
     state.depthMapName = "";
+    state.depthMapModel = "";
+    state.depthMapPrompt = "";
     state.depthMotionPreviewCanvas = null;
     clearDepthFinalState();
     stopDepthGpuPreview();
@@ -256,12 +268,13 @@ export function createDepthMotionController({
     updateDepthMotionUiState({ preserveText: true });
 
     try {
+      const depthPrompt = controls.depthPrompt.value.trim();
       const result = await requestRunwayDepthMap(
         {
           imageDataUrl: sourceCanvas.toDataURL("image/png"),
           model: DEPTH_MAP_MODEL,
           ratio: DEPTH_MAP_RATIO,
-          prompt: controls.depthPrompt.value.trim(),
+          prompt: depthPrompt,
         },
         {
           signal: operation.signal,
@@ -276,7 +289,10 @@ export function createDepthMotionController({
         throw new Error("Runway returned no depth map.");
       }
       const depthCanvas = await loadCanvasFromImageSource(output.dataUri || output.url);
-      setDepthMapCanvas(depthCanvas, `Runway depth ${result.model || ""}`.trim());
+      setDepthMapCanvas(depthCanvas, `Runway depth ${result.model || ""}`.trim(), {
+        model: result.model || DEPTH_MAP_MODEL,
+        prompt: depthPrompt,
+      });
       controls.depthPolarity.value = "brightFar";
       depthMotionReadout.textContent = `${depthCanvas.width} x ${depthCanvas.height} depth map from ${result.model}`;
       await actions.saveWorkspaceSnapshot?.("depth-map-complete");
@@ -863,8 +879,77 @@ export function createDepthMotionController({
     depthMotionReadout.textContent = "Exported depth motion config JSON";
   }
 
+  async function exportDepthMap() {
+    if (!state.depthMapCanvas) {
+      depthMotionReadout.textContent = "No depth map to export yet";
+      return;
+    }
+    try {
+      await downloadCanvasPng(state.depthMapCanvas, `fulldome-depth-map-${Date.now()}.png`);
+      depthMotionReadout.textContent = `${state.depthMapCanvas.width} x ${state.depthMapCanvas.height} depth map PNG exported`;
+    } catch (error) {
+      console.error(error);
+      depthMotionReadout.textContent = errorMessage(error) || "Could not export depth map PNG";
+    }
+  }
+
+  function exportGeneratedPrompts() {
+    const blob = new Blob([JSON.stringify(buildPromptExport(), null, 2)], { type: "application/json" });
+    downloadBlob(blob, `zenith-generated-prompts-${Date.now()}.json`);
+    depthMotionReadout.textContent = "Exported prompt JSON";
+  }
+
   function depthMotionConfigJson() {
     return JSON.stringify(buildDepthMotionConfig(), null, 2);
+  }
+
+  function buildPromptExport() {
+    return {
+      schema: "zenith.generated-prompts",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      source: {
+        name: state.sourceName,
+        kind: state.mediaKind,
+        width: state.sourceWidth,
+        height: state.sourceHeight,
+      },
+      inpaint: {
+        currentPrompt: controls.runwayPrompt.value.trim(),
+        activeOutputPrompt: state.runwayOutputs[state.activeRunwayOutputIndex || 0]?.prompt || "",
+        outputCount: state.runwayOutputs.length,
+      },
+      depthMap: {
+        currentPrompt: controls.depthPrompt.value.trim(),
+        generatedWithPrompt: state.depthMapPrompt || "",
+        model: state.depthMapModel || DEPTH_MAP_MODEL,
+        loaded: Boolean(state.depthMapCanvas),
+      },
+      seedanceGuide: {
+        promptMode: controls.seedancePromptMode.value,
+        generatedPrompt: controls.seedancePrompt.value.trim(),
+        fresh: Boolean(
+          controls.seedancePrompt.value.trim() &&
+          generatedSeedancePromptFingerprint === codexPromptOperationFingerprint(),
+        ),
+      },
+      stateToState: {
+        promptMode: controls.stateSeedancePromptMode.value,
+        generatedPrompt: controls.stateSeedancePrompt.value.trim(),
+        fresh: Boolean(
+          controls.stateSeedancePrompt.value.trim() &&
+          generatedStateSeedancePromptFingerprint === stateSeedancePromptOperationFingerprint(),
+        ),
+      },
+      imageToVideo: {
+        promptMode: controls.imageSeedancePromptMode.value,
+        generatedPrompt: controls.imageSeedancePrompt.value.trim(),
+        fresh: Boolean(
+          controls.imageSeedancePrompt.value.trim() &&
+          generatedImageSeedancePromptFingerprint === codexImagePromptOperationFingerprint(),
+        ),
+      },
+    };
   }
 
   function buildDepthMotionConfig() {
@@ -885,7 +970,8 @@ export function createDepthMotionController({
         loaded: Boolean(state.depthMapCanvas),
         width: state.depthMapCanvas?.width || 0,
         height: state.depthMapCanvas?.height || 0,
-        model: DEPTH_MAP_MODEL,
+        model: state.depthMapModel || DEPTH_MAP_MODEL,
+        prompt: state.depthMapPrompt || controls.depthPrompt.value,
       },
       viewer: {
         viewMode: state.viewMode,
@@ -936,6 +1022,12 @@ export function createDepthMotionController({
           url: output.url || "",
           dataUri: output.dataUri || "",
           contentType: output.contentType || "",
+          name: output.name || "",
+          model: output.model || "",
+          ratio: output.ratio || "",
+          quality: output.quality || "",
+          prompt: output.prompt || "",
+          createdAt: output.createdAt || "",
           active: index === state.activeRunwayOutputIndex,
         })),
       },
@@ -1963,6 +2055,12 @@ export function createDepthMotionController({
     if (exportDepthMotionConfigButton) {
       exportDepthMotionConfigButton.disabled = busy;
     }
+    if (exportDepthMapButton) {
+      exportDepthMapButton.disabled = busy || !state.depthMapCanvas;
+    }
+    if (exportGeneratedPromptsButton) {
+      exportGeneratedPromptsButton.disabled = busy;
+    }
     controls.depthMotionPreset.disabled = busy;
     if (options && typeof options === "string") {
       depthMotionReadout.textContent = options;
@@ -2210,6 +2308,8 @@ export function createDepthMotionController({
     exportActiveSeedanceOutput,
     copyDepthMotionConfig,
     exportDepthMotionConfig,
+    exportDepthMap,
+    exportGeneratedPrompts,
     applyDepthMotionPreset,
     handleDepthMotionControlInput,
     renderSeedanceResults,

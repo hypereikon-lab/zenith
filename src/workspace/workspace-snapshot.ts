@@ -85,6 +85,8 @@ type WorkspaceSnapshotData = {
   depthMotion?: {
     depthMap?: Blob | string | null;
     depthMapName?: string;
+    depthMapModel?: string;
+    depthMapPrompt?: string;
     finalState?: Blob | string | null;
     finalStateName?: string;
     finalStateFingerprint?: string;
@@ -160,6 +162,12 @@ export async function createWorkspaceSnapshot(reason: string, context: Workspace
         url: output.url || "",
         dataUri: output.dataUri || "",
         contentType: output.contentType || "",
+        name: output.name || "",
+        model: output.model || "",
+        ratio: output.ratio || "",
+        quality: output.quality || "",
+        prompt: output.prompt || "",
+        createdAt: output.createdAt || "",
       })),
       activeIndex: state.activeRunwayOutputIndex,
     },
@@ -179,6 +187,8 @@ export async function createWorkspaceSnapshot(reason: string, context: Workspace
     depthMotion: {
       depthMap,
       depthMapName: state.depthMapName || "",
+      depthMapModel: state.depthMapModel || "",
+      depthMapPrompt: state.depthMapPrompt || "",
       finalState: depthFinalState,
       finalStateName: state.depthFinalStateName || "",
       finalStateFingerprint: state.depthFinalStateFingerprint || "",
@@ -271,6 +281,8 @@ export async function applyWorkspaceSnapshot(
 
   state.depthMapCanvas = await canvasFromBlobOrNull(snapshot.depthMotion?.depthMap);
   state.depthMapName = state.depthMapCanvas ? snapshot.depthMotion?.depthMapName || "Restored depth map" : "";
+  state.depthMapModel = state.depthMapCanvas ? snapshot.depthMotion?.depthMapModel || "" : "";
+  state.depthMapPrompt = state.depthMapCanvas ? snapshot.depthMotion?.depthMapPrompt || "" : "";
   state.depthFinalStateCanvas = await canvasFromBlobOrNull(snapshot.depthMotion?.finalState);
   state.depthFinalStateName = state.depthFinalStateCanvas
     ? snapshot.depthMotion?.finalStateName || "Restored final state"

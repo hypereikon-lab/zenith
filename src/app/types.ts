@@ -34,6 +34,12 @@ export type RunwayOutput = {
   url?: string;
   dataUri?: string;
   contentType?: string;
+  name?: string;
+  model?: string;
+  ratio?: string;
+  quality?: string;
+  prompt?: string;
+  createdAt?: string;
 };
 
 export type SeedanceOutput = RunwayOutput & {
@@ -149,6 +155,8 @@ export type ZenithState = {
   runwayConfigured: boolean | null;
   depthMapCanvas: HTMLCanvasElement | null;
   depthMapName: string;
+  depthMapModel: string;
+  depthMapPrompt: string;
   depthMotionPreviewCanvas: HTMLCanvasElement | null;
   depthFinalStateCanvas: HTMLCanvasElement | null;
   depthFinalStateName: string;

@@ -52,6 +52,8 @@ export function queryZenithDom() {
     exportSeedanceOutput: q<HTMLButtonElement>("#exportSeedanceOutput"),
     copyDepthMotionConfig: q<HTMLButtonElement>("#copyDepthMotionConfig"),
     exportDepthMotionConfig: q<HTMLButtonElement>("#exportDepthMotionConfig"),
+    exportDepthMap: q<HTMLButtonElement>("#exportDepthMap"),
+    exportGeneratedPrompts: q<HTMLButtonElement>("#exportGeneratedPrompts"),
     captureDepthFinalState: q<HTMLButtonElement>("#captureDepthFinalState"),
     reconstructDepthFinalState: q<HTMLButtonElement>("#reconstructDepthFinalState"),
     exportDepthFinalState: q<HTMLButtonElement>("#exportDepthFinalState"),
