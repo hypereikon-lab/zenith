@@ -1251,6 +1251,8 @@ export function createDepthMotionController({
     );
     const result = await requestRunwayInpaint(
       {
+        sourceImageDataUrl: canvasPromptDataUrl(sourceCanvas, { size: 1536, type: "image/png" }),
+        sourceFilename: `fulldome-state-source-${Date.now()}.png`,
         imageDataUrl: canvasPromptDataUrl(reconstructionInput, { size: 1536, type: "image/png" }),
         model: "gpt_image_2",
         ratio: FINAL_STATE_RECONSTRUCTION_RATIO,
@@ -2059,14 +2061,13 @@ export function createDepthMotionController({
 
   function depthFinalReconstructionPrompt(): string {
     return [
-      "Use @PlateSketch as an exact square final-frame domemaster guide.",
-      "It is a 180-degree equidistant fulldome frame with a circular fisheye projection and black exterior outside the dome circle.",
-      "Reconstruct it as a clean opaque last-frame still for image-to-video interpolation.",
-      "Treat pure white areas inside the circular dome projection as missing disoccluded pixels to restore, not as objects, lighting, fog, or design elements.",
-      "Preserve the endpoint composition, orientation, scale, fisheye geometry, lighting, materials, and scene identity.",
-      "Repair only depth-warp damage: white missing gaps, holes, splat speckles, jagged tears, stretched duplicate edges, banding, and broken reprojection seams.",
-      "Fill damaged interior pixels as coherent continuation of nearby scene content while keeping the outside-circle mask pure black.",
-      "No visible white patches, masks, checkerboards, radial debug lines, UI overlays, labels, borders, text, rectangular crops, or redesigned subjects.",
+      "Use @SourceFrame as the visual source of truth for scene identity, material detail, lighting, color, texture, style, and clean domemaster projection.",
+      "Use @PlateSketch as the final camera/end-state geometry guide: it shows where the scene should land after the 2.5D move, but it contains deformation damage.",
+      "Reconstruct @PlateSketch into a clean opaque last-frame still that looks like an actual coherent 3D render of @SourceFrame from the final endpoint, not like a warped flat image.",
+      "Inside the circular dome, black voids, black tears, black holes, white placeholders, missing disocclusions, splat speckles, stretched duplicate edges, banding, jagged seams, and folded/boxy deformation are repair cues, not real objects or lighting.",
+      "Replace those damaged regions with plausible continuation from @SourceFrame: matched flowers, branches, sky, particles, glass/interface marks, reflections, color, shadows, and local depth relationships when visible.",
+      "Preserve the endpoint composition, orientation, scale, circular fisheye geometry, zenith/horizon relationship, and the pure black outside-circle mask.",
+      "Remove all visible 2.5D artifacts and reprojection evidence. No black interior holes, white patches, masks, checkerboards, debug lines, UI overlays, labels, borders, text, rectangular crops, duplicate slabs, or redesigned subjects.",
     ].join(" ");
   }
 

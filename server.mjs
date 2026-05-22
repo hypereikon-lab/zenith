@@ -321,6 +321,7 @@ async function createRunwayInpaint(payload, onProgress = () => {}, options = {})
   }
 
   const { buffer, mime } = parseImageDataUrl(payload.imageDataUrl);
+  const sourceImage = payload.sourceImageDataUrl ? parseImageDataUrl(payload.sourceImageDataUrl) : null;
   const filename = `fulldome-plate-handoff-${Date.now()}.png`;
   const referenceUri = await uploadEphemeralFile({
     apiKey,
@@ -330,12 +331,25 @@ async function createRunwayInpaint(payload, onProgress = () => {}, options = {})
     onProgress,
     signal: options.signal,
   });
+  const sourceReferenceUri = sourceImage
+    ? await uploadEphemeralFile({
+        apiKey,
+        filename: safeMediaFilename(payload.sourceFilename, `fulldome-source-reference-${Date.now()}.png`),
+        buffer: sourceImage.buffer,
+        mime: sourceImage.mime,
+        onProgress,
+        signal: options.signal,
+      })
+    : null;
   const promptText = clampPrompt(String(payload.prompt || ""), config.maxPrompt);
   const body = {
     model,
     promptText,
     ratio: sanitizeRatio(payload.ratio, config.ratio),
-    referenceImages: [{ uri: referenceUri, tag: "PlateSketch" }],
+    referenceImages: [
+      ...(sourceReferenceUri ? [{ uri: sourceReferenceUri, tag: "SourceFrame" }] : []),
+      { uri: referenceUri, tag: "PlateSketch" },
+    ],
   };
 
   if (config.outputCount) {
