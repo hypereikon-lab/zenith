@@ -4,11 +4,13 @@ export const WORKSPACE_AUTOSAVE_ID = "current";
 const WORKSPACE_DB_NAME = "fulldome-workspace-state";
 const WORKSPACE_DB_STORE = "snapshots";
 const WORKSPACE_ACTIVE_SESSION_KEY = "fulldome-workspace-active-session";
+const WORKSPACE_DEFAULT_SESSION_KEY = "fulldome-workspace-default-session";
 type SessionRepositoryOptions = {
   dbName?: string;
   storeName?: string;
   autosaveId?: string;
   activeSessionKey?: string;
+  defaultSessionKey?: string;
   windowRef?: Window;
 };
 export type WorkspaceSessionRecord = {
@@ -45,6 +47,7 @@ export function createWorkspaceSessionRepository({
   storeName = WORKSPACE_DB_STORE,
   autosaveId = WORKSPACE_AUTOSAVE_ID,
   activeSessionKey = WORKSPACE_ACTIVE_SESSION_KEY,
+  defaultSessionKey = WORKSPACE_DEFAULT_SESSION_KEY,
   windowRef = window,
 }: SessionRepositoryOptions = {}) {
   let dbPromise: Promise<IDBDatabase> | null = null;
@@ -53,6 +56,7 @@ export function createWorkspaceSessionRepository({
   let queuedReason: string | null = null;
   let hydrating = false;
   let activeSessionId = autosaveId;
+  let startupDefaultSessionId = "";
 
   function isHydrating() {
     return hydrating;
@@ -83,6 +87,37 @@ export function createWorkspaceSessionRepository({
     } catch {
       // Ignore storage failures; the in-memory action can still continue for this run.
     }
+  }
+
+  function defaultSessionId(): string {
+    try {
+      const stored = windowRef.localStorage?.getItem(defaultSessionKey);
+      if (stored) {
+        startupDefaultSessionId = stored;
+        return stored;
+      }
+    } catch {
+      // Fall through to the in-memory default session.
+    }
+    return startupDefaultSessionId;
+  }
+
+  function setDefaultSessionId(id: string): void {
+    const safeId = String(id || "").trim();
+    startupDefaultSessionId = safeId;
+    try {
+      if (safeId) {
+        windowRef.localStorage?.setItem(defaultSessionKey, safeId);
+      } else {
+        windowRef.localStorage?.removeItem(defaultSessionKey);
+      }
+    } catch {
+      // Ignore storage failures; the in-memory default still works for this run.
+    }
+  }
+
+  function clearDefaultSessionId(): void {
+    setDefaultSessionId("");
   }
 
   function createSessionId(): string {
@@ -195,6 +230,9 @@ export function createWorkspaceSessionRepository({
     isSaveInFlight,
     currentSessionId,
     setCurrentSessionId,
+    defaultSessionId,
+    setDefaultSessionId,
+    clearDefaultSessionId,
     createSessionId,
     scheduleAutosave,
     saveSnapshot,

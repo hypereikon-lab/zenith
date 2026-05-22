@@ -8,6 +8,7 @@ describe("createWorkspaceSessionRepository", () => {
       localStorage: {
         getItem: (key: string) => storage.get(key) ?? null,
         setItem: (key: string, value: string) => storage.set(key, value),
+        removeItem: (key: string) => storage.delete(key),
       },
     } as unknown as Window;
 
@@ -38,5 +39,28 @@ describe("createWorkspaceSessionRepository", () => {
 
     repository.setCurrentSessionId("session-b");
     expect(repository.currentSessionId()).toBe("session-b");
+  });
+
+  it("persists and clears the startup default session id", () => {
+    const storage = new Map<string, string>();
+    const windowRef = {
+      localStorage: {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => storage.set(key, value),
+        removeItem: (key: string) => storage.delete(key),
+      },
+    } as unknown as Window;
+
+    const repository = createWorkspaceSessionRepository({ windowRef });
+    expect(repository.defaultSessionId()).toBe("");
+
+    repository.setDefaultSessionId("session-default");
+    expect(repository.defaultSessionId()).toBe("session-default");
+
+    const nextRepository = createWorkspaceSessionRepository({ windowRef });
+    expect(nextRepository.defaultSessionId()).toBe("session-default");
+
+    nextRepository.clearDefaultSessionId();
+    expect(nextRepository.defaultSessionId()).toBe("");
   });
 });

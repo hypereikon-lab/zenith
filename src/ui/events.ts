@@ -33,6 +33,7 @@ type ZenithEventActions = {
   saveWorkspaceSnapshot: (reason?: string) => Promise<unknown>;
   createWorkspaceSession: () => Promise<void>;
   switchWorkspaceSession: () => Promise<void>;
+  setDefaultWorkspaceSession: () => Promise<void>;
   exportWorkspaceState: () => Promise<void>;
   restoreWorkspaceAutosave: (options?: { silent?: boolean }) => Promise<boolean>;
   clearWorkspaceAutosave: () => Promise<void>;
@@ -156,6 +157,7 @@ export function bindZenithEvents(dom: ZenithDom, actions: ZenithEventActions): v
   dom.saveWorkspace.addEventListener("click", () => actions.saveWorkspaceSnapshot("manual"));
   dom.newWorkspaceSession.addEventListener("click", actions.createWorkspaceSession);
   dom.sessionSelect.addEventListener("change", actions.switchWorkspaceSession);
+  dom.setDefaultWorkspace.addEventListener("click", actions.setDefaultWorkspaceSession);
   dom.exportWorkspaceState.addEventListener("click", actions.exportWorkspaceState);
   dom.restoreWorkspace.addEventListener("click", () => actions.restoreWorkspaceAutosave({ silent: false }));
   dom.clearWorkspace.addEventListener("click", actions.clearWorkspaceAutosave);

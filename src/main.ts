@@ -114,6 +114,7 @@ const {
   sessionSelect,
   saveWorkspace,
   newWorkspaceSession,
+  setDefaultWorkspace,
   restoreWorkspace,
   clearWorkspace,
   sessionReadout,
@@ -410,12 +411,12 @@ async function init() {
   await renderer.initialize();
   await mediaController.loadDefaultTexture();
   versionController.loadSavedVersions();
-  const restored = await restoreWorkspaceAutosave({ silent: true });
+  const restored = await restoreWorkspaceAutosave({ silent: true, preferDefault: true });
   if (!restored) {
     await refreshWorkspaceAutosaveStatus();
     await loadDefaultPlateReferences();
+    await loadDemoSeedanceOutputs();
   }
-  await loadDemoSeedanceOutputs();
   bindEvents();
   renderer.resize();
   plateController.updatePlateLayoutUi();
@@ -528,6 +529,7 @@ function eventActions() {
     saveWorkspaceSnapshot: saveWorkspaceSnapshotNow,
     createWorkspaceSession,
     switchWorkspaceSession,
+    setDefaultWorkspaceSession,
     exportWorkspaceState,
     restoreWorkspaceAutosave,
     clearWorkspaceAutosave,
@@ -730,9 +732,30 @@ async function switchWorkspaceSession() {
   }
 }
 
-async function restoreWorkspaceAutosave({ silent = false } = {}) {
+async function setDefaultWorkspaceSession() {
+  const snapshot = await saveWorkspaceSnapshotNow("set-default-session");
+  if (!snapshot) {
+    sessionReadout.textContent = "Could not save session before setting default";
+    return;
+  }
+  workspaceSession.setDefaultSessionId(workspaceSession.currentSessionId());
+  await refreshWorkspaceSessionSummaries();
+  updateWorkspaceUi({ preserveText: true });
+  sessionReadout.textContent = `${activeWorkspaceSessionName} will load at startup`;
+}
+
+async function restoreWorkspaceAutosave({ silent = false, preferDefault = false } = {}) {
   try {
-    let snapshot = (await workspaceSession.loadSnapshot()) as WorkspaceSnapshot | null;
+    const defaultSessionId = preferDefault ? workspaceSession.defaultSessionId() : "";
+    let snapshot = defaultSessionId
+      ? ((await workspaceSession.loadSnapshot(defaultSessionId)) as WorkspaceSnapshot | null)
+      : null;
+    if (!snapshot && defaultSessionId) {
+      workspaceSession.clearDefaultSessionId();
+    }
+    if (!snapshot) {
+      snapshot = (await workspaceSession.loadSnapshot()) as WorkspaceSnapshot | null;
+    }
     if (!snapshot) {
       const sessions = await workspaceSession.listSnapshots();
       if (sessions.length > 0) {
@@ -771,6 +794,9 @@ async function clearWorkspaceAutosave() {
   try {
     const deletedId = workspaceSession.currentSessionId();
     await workspaceSession.deleteSnapshot(deletedId);
+    if (workspaceSession.defaultSessionId() === deletedId) {
+      workspaceSession.clearDefaultSessionId();
+    }
     await refreshWorkspaceSessionSummaries();
     const fallback = workspaceSessionSummaries.find((session) => session.id !== deletedId) || null;
     if (fallback) {
@@ -849,6 +875,7 @@ function updateWorkspaceUi({ preserveText = false }: { preserveText?: boolean } 
   renderWorkspaceSessionSelect();
   saveWorkspace.disabled = saveInFlight;
   newWorkspaceSession.disabled = saveInFlight;
+  setDefaultWorkspace.disabled = saveInFlight;
   sessionSelect.disabled = saveInFlight || workspaceSessionSummaries.length === 0;
   restoreWorkspace.disabled = !hasSaved || saveInFlight;
   clearWorkspace.disabled = !hasSaved || saveInFlight;
@@ -862,6 +889,7 @@ function updateWorkspaceUi({ preserveText = false }: { preserveText?: boolean } 
 
 function renderWorkspaceSessionSelect(): void {
   const activeId = workspaceSession.currentSessionId();
+  const defaultId = workspaceSession.defaultSessionId();
   const summaries = workspaceSessionSummaries.length
     ? workspaceSessionSummaries
     : [
@@ -878,15 +906,17 @@ function renderWorkspaceSessionSelect(): void {
   for (const summary of summaries) {
     const option = document.createElement("option");
     option.value = summary.id;
+    const defaultLabel = summary.id === defaultId ? " - default" : "";
     const saved = summary.savedAt ? ` - ${formatVersionDate(summary.savedAt)}` : " - unsaved";
     const videos = summary.videoCount ? ` - ${summary.videoCount} video${summary.videoCount === 1 ? "" : "s"}` : "";
-    option.textContent = `${summary.name}${saved}${videos}`;
+    option.textContent = `${summary.name}${defaultLabel}${saved}${videos}`;
     sessionSelect.append(option);
   }
   if (!summaries.some((summary) => summary.id === activeId)) {
     const option = document.createElement("option");
     option.value = activeId;
-    option.textContent = `${activeWorkspaceSessionName} - unsaved`;
+    const defaultLabel = activeId === defaultId ? " - default" : "";
+    option.textContent = `${activeWorkspaceSessionName}${defaultLabel} - unsaved`;
     sessionSelect.prepend(option);
   }
   sessionSelect.value = activeId;

@@ -79,6 +79,7 @@ export function queryZenithDom() {
     sessionSelect: q<HTMLSelectElement>("#sessionSelect"),
     saveWorkspace: q<HTMLButtonElement>("#saveWorkspace"),
     newWorkspaceSession: q<HTMLButtonElement>("#newWorkspaceSession"),
+    setDefaultWorkspace: q<HTMLButtonElement>("#setDefaultWorkspace"),
     exportWorkspaceState: q<HTMLButtonElement>("#exportWorkspaceState"),
     restoreWorkspace: q<HTMLButtonElement>("#restoreWorkspace"),
     clearWorkspace: q<HTMLButtonElement>("#clearWorkspace"),
