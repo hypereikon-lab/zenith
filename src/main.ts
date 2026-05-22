@@ -23,7 +23,11 @@ import { createPointerToolController } from "./ui/pointer-tools.js";
 import { errorMessage } from "./utils/errors.js";
 import { createDepthMotionController } from "./sketch/depth-motion-controller.js";
 import { createDemoTourController } from "./capture/demo-tour-controller.js";
-import { createWorkspaceSessionRepository, WORKSPACE_AUTOSAVE_DELAY_MS } from "./workspace/session-repository.js";
+import {
+  WORKSPACE_AUTOSAVE_DELAY_MS,
+  WORKSPACE_AUTOSAVE_ID,
+  createWorkspaceSessionRepository,
+} from "./workspace/session-repository.js";
 import { createVersionController } from "./workspace/version-controller.js";
 import { formatVersionDate } from "./workspace/version-utils.js";
 import {
@@ -34,6 +38,7 @@ import { createViewCaptureController } from "./capture/view-capture-controller.j
 import type { RunwayOutput, SeedanceOutput, WorkspaceId } from "./app/types.js";
 import type { CssLayout } from "./graphics/render-layout.js";
 import type { HudOptions } from "./ui/hud-renderer.js";
+import type { WorkspaceSessionSummary } from "./workspace/session-repository.js";
 
 type WorkspaceSnapshot = Awaited<ReturnType<typeof buildWorkspaceSnapshot>>;
 type PortableWorkspaceSnapshot = Record<string, unknown> & {
@@ -103,7 +108,9 @@ const {
   imageSeedancePromptState,
   imageSeedanceReference,
   depthMotionReadout,
+  sessionSelect,
   saveWorkspace,
+  newWorkspaceSession,
   restoreWorkspace,
   clearWorkspace,
   sessionReadout,
@@ -149,6 +156,8 @@ const state = createInitialState();
 
 const runwayOperations = new OperationManager();
 const workspaceSession = createWorkspaceSessionRepository();
+let activeWorkspaceSessionName = "Current session";
+let workspaceSessionSummaries: WorkspaceSessionSummary[] = [];
 const viewCamera = createViewCamera({ state, controls });
 const videoTransport = createVideoTransport({
   video,
@@ -457,13 +466,22 @@ async function loadDemoSeedanceOutputs() {
 
 async function refreshWorkspaceAutosaveStatus() {
   try {
+    await refreshWorkspaceSessionSummaries();
     const snapshot = (await workspaceSession.loadSnapshot()) as WorkspaceSnapshot | null;
+    if (snapshot) {
+      activeWorkspaceSessionName = workspaceSessionName(snapshot);
+    }
     state.workspaceSavedAt = snapshot?.savedAt || null;
   } catch (error) {
     console.error(error);
+    workspaceSessionSummaries = [];
     state.workspaceSavedAt = null;
   }
   updateWorkspaceUi();
+}
+
+async function refreshWorkspaceSessionSummaries() {
+  workspaceSessionSummaries = await workspaceSession.listSnapshots();
 }
 
 function bindEvents() {
@@ -499,6 +517,8 @@ function eventActions() {
     handleDepthMotionControlInput: depthMotionController.handleDepthMotionControlInput,
     setWorkspace,
     saveWorkspaceSnapshot: saveWorkspaceSnapshotNow,
+    createWorkspaceSession,
+    switchWorkspaceSession,
     exportWorkspaceState,
     restoreWorkspaceAutosave,
     clearWorkspaceAutosave,
@@ -614,7 +634,7 @@ function scheduleWorkspaceAutosave(reason = "auto", delay = WORKSPACE_AUTOSAVE_D
 async function saveWorkspaceSnapshotNow(reason = "manual") {
   if (workspaceSession.isHydrating()) return null;
   if (reason === "manual") {
-    sessionReadout.textContent = "Saving session";
+    sessionReadout.textContent = `Saving ${activeWorkspaceSessionName}`;
   }
 
   try {
@@ -627,10 +647,14 @@ async function saveWorkspaceSnapshotNow(reason = "manual") {
       },
     )) as WorkspaceSnapshot | null;
     if (!snapshot) return null;
-    const verified = (await workspaceSession.loadSnapshot()) as WorkspaceSnapshot | null;
+    const [verified] = await Promise.all([
+      workspaceSession.loadSnapshot() as Promise<WorkspaceSnapshot | null>,
+      refreshWorkspaceSessionSummaries(),
+    ]);
     state.workspaceSavedAt = snapshot.savedAt;
+    activeWorkspaceSessionName = workspaceSessionName(snapshot);
     if (reason === "manual") {
-      sessionReadout.textContent = `Saved ${formatVersionDate(snapshot.savedAt)} · ${workspaceSaveSummary(verified || snapshot)}`;
+      sessionReadout.textContent = `${activeWorkspaceSessionName} saved ${formatVersionDate(snapshot.savedAt)} - ${workspaceSaveSummary(verified || snapshot)}`;
     }
     updateWorkspaceUi({ preserveText: reason === "manual" });
     return snapshot;
@@ -657,20 +681,71 @@ async function exportWorkspaceState() {
   }
 }
 
+async function createWorkspaceSession() {
+  const previousName = activeWorkspaceSessionName;
+  await saveWorkspaceSnapshotNow("before-new-session");
+  const defaultName = `Session ${new Date().toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })}`;
+  const requested = window.prompt("Name this session", defaultName);
+  if (requested === null) {
+    activeWorkspaceSessionName = previousName;
+    updateWorkspaceUi({ preserveText: true });
+    return;
+  }
+  activeWorkspaceSessionName = requested.trim() || defaultName;
+  workspaceSession.setCurrentSessionId(workspaceSession.createSessionId());
+  state.workspaceSavedAt = null;
+  const snapshot = await saveWorkspaceSnapshotNow("new-session");
+  if (snapshot) {
+    sessionReadout.textContent = `Created ${activeWorkspaceSessionName}`;
+  }
+}
+
+async function switchWorkspaceSession() {
+  const selectedId = sessionSelect.value;
+  if (!selectedId || selectedId === workspaceSession.currentSessionId()) return;
+  const saved = await saveWorkspaceSnapshotNow("before-session-switch");
+  if (!saved) {
+    sessionSelect.value = workspaceSession.currentSessionId();
+    sessionReadout.textContent = "Could not save current session before switching";
+    return;
+  }
+  workspaceSession.setCurrentSessionId(selectedId);
+  const restored = await restoreWorkspaceAutosave({ silent: false });
+  if (!restored) {
+    await refreshWorkspaceAutosaveStatus();
+  }
+}
+
 async function restoreWorkspaceAutosave({ silent = false } = {}) {
   try {
-    const snapshot = (await workspaceSession.loadSnapshot()) as WorkspaceSnapshot | null;
+    let snapshot = (await workspaceSession.loadSnapshot()) as WorkspaceSnapshot | null;
     if (!snapshot) {
+      const sessions = await workspaceSession.listSnapshots();
+      if (sessions.length > 0) {
+        workspaceSession.setCurrentSessionId(sessions[0].id);
+        snapshot = (await workspaceSession.loadSnapshot(sessions[0].id)) as WorkspaceSnapshot | null;
+      }
+    }
+    if (!snapshot) {
+      workspaceSessionSummaries = [];
       state.workspaceSavedAt = null;
       updateWorkspaceUi();
       if (!silent) sessionReadout.textContent = "No saved session";
       return false;
     }
     await workspaceSession.withHydration(() => hydrateWorkspaceSnapshot(snapshot, workspaceSnapshotContext()));
+    workspaceSession.setCurrentSessionId(String(snapshot.id || WORKSPACE_AUTOSAVE_ID));
+    activeWorkspaceSessionName = workspaceSessionName(snapshot);
+    await refreshWorkspaceSessionSummaries();
     state.workspaceSavedAt = snapshot.savedAt || null;
     updateWorkspaceUi();
     if (!silent) {
-      sessionReadout.textContent = `Restored ${formatVersionDate(snapshot.savedAt)}`;
+      sessionReadout.textContent = `Restored ${activeWorkspaceSessionName} - ${formatVersionDate(snapshot.savedAt)}`;
     }
     return true;
   } catch (error) {
@@ -685,13 +760,26 @@ async function restoreWorkspaceAutosave({ silent = false } = {}) {
 
 async function clearWorkspaceAutosave() {
   try {
-    await workspaceSession.deleteSnapshot();
+    const deletedId = workspaceSession.currentSessionId();
+    await workspaceSession.deleteSnapshot(deletedId);
+    await refreshWorkspaceSessionSummaries();
+    const fallback = workspaceSessionSummaries.find((session) => session.id !== deletedId) || null;
+    if (fallback) {
+      workspaceSession.setCurrentSessionId(fallback.id);
+      const restored = await restoreWorkspaceAutosave({ silent: true });
+      sessionReadout.textContent = restored
+        ? `Deleted session; restored ${activeWorkspaceSessionName}`
+        : "Deleted session";
+      return;
+    }
+    workspaceSession.setCurrentSessionId(WORKSPACE_AUTOSAVE_ID);
+    activeWorkspaceSessionName = "Current session";
     state.workspaceSavedAt = null;
     updateWorkspaceUi();
-    sessionReadout.textContent = "Cleared saved session";
+    sessionReadout.textContent = "Deleted saved session";
   } catch (error) {
     console.error(error);
-    sessionReadout.textContent = errorMessage(error) || "Could not clear session";
+    sessionReadout.textContent = errorMessage(error) || "Could not delete session";
   }
 }
 
@@ -708,12 +796,16 @@ function handleWorkspaceControlChange(event: Event): void {
     return;
   }
   if (target.type === "file") return;
-  if (target.id === "versionSelect") return;
+  if (target.id === "versionSelect" || target.id === "sessionSelect") return;
   scheduleWorkspaceAutosave("controls");
 }
 
 function workspaceSnapshotContext() {
   return {
+    session: {
+      id: workspaceSession.currentSessionId(),
+      name: activeWorkspaceSessionName,
+    },
     state,
     controls,
     video,
@@ -745,13 +837,56 @@ function workspaceSnapshotContext() {
 function updateWorkspaceUi({ preserveText = false }: { preserveText?: boolean } = {}): void {
   const hasSaved = Boolean(state.workspaceSavedAt);
   const saveInFlight = workspaceSession.isSaveInFlight();
+  renderWorkspaceSessionSelect();
   saveWorkspace.disabled = saveInFlight;
+  newWorkspaceSession.disabled = saveInFlight;
+  sessionSelect.disabled = saveInFlight || workspaceSessionSummaries.length === 0;
   restoreWorkspace.disabled = !hasSaved || saveInFlight;
   clearWorkspace.disabled = !hasSaved || saveInFlight;
   if (!preserveText) {
-    sessionReadout.textContent = hasSaved ? `Saved ${formatVersionDate(state.workspaceSavedAt)}` : "No saved session";
+    sessionReadout.textContent = hasSaved
+      ? `${activeWorkspaceSessionName} - saved ${formatVersionDate(state.workspaceSavedAt)}`
+      : `${activeWorkspaceSessionName} - not saved yet`;
   }
   updateWorkflowStatus();
+}
+
+function renderWorkspaceSessionSelect(): void {
+  const activeId = workspaceSession.currentSessionId();
+  const summaries = workspaceSessionSummaries.length
+    ? workspaceSessionSummaries
+    : [
+        {
+          id: activeId,
+          name: activeWorkspaceSessionName,
+          savedAt: "",
+          reason: "",
+          sourceName: "",
+          videoCount: 0,
+        },
+      ];
+  sessionSelect.replaceChildren();
+  for (const summary of summaries) {
+    const option = document.createElement("option");
+    option.value = summary.id;
+    const saved = summary.savedAt ? ` - ${formatVersionDate(summary.savedAt)}` : " - unsaved";
+    const videos = summary.videoCount ? ` - ${summary.videoCount} video${summary.videoCount === 1 ? "" : "s"}` : "";
+    option.textContent = `${summary.name}${saved}${videos}`;
+    sessionSelect.append(option);
+  }
+  if (!summaries.some((summary) => summary.id === activeId)) {
+    const option = document.createElement("option");
+    option.value = activeId;
+    option.textContent = `${activeWorkspaceSessionName} - unsaved`;
+    sessionSelect.prepend(option);
+  }
+  sessionSelect.value = activeId;
+}
+
+function workspaceSessionName(snapshot: WorkspaceSnapshot | null | undefined): string {
+  return String(
+    snapshot?.session?.name || (snapshot?.id === WORKSPACE_AUTOSAVE_ID ? "Current session" : "Untitled session"),
+  );
 }
 
 type WorkflowState = "waiting" | "ready" | "active" | "done" | "warning";
@@ -799,7 +934,9 @@ function updateWorkflowStatus(): void {
 
   seedanceStillReference.textContent = hasSource ? `${state.sourceName || "Current source"} still` : "Needs source";
   seedanceMotionReference.textContent = hasDepthMap ? "2.5D MP4 guide" : "Needs depth map";
-  stateSeedanceFirstReference.textContent = hasSource ? `${state.sourceName || "Current source"} still` : "Needs source";
+  stateSeedanceFirstReference.textContent = hasSource
+    ? `${state.sourceName || "Current source"} still`
+    : "Needs source";
   stateSeedanceLastReference.textContent = state.depthFinalReconstructedCanvas
     ? `${state.depthFinalReconstructedName || "Reconstructed final"}`
     : state.depthFinalStateCanvas

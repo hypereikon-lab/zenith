@@ -378,7 +378,9 @@
             <button id="captureDepthFinalState" type="button" disabled>Capture final</button>
             <button id="reconstructDepthFinalState" type="button" disabled>Reconstruct final</button>
             <button id="codexStateSeedancePrompt" type="button" disabled hidden>Plan state prompt</button>
-            <button id="runwayStateSeedance" class="primary-action" type="button" disabled>Generate state motion</button>
+            <button id="runwayStateSeedance" class="primary-action" type="button" disabled>
+              Generate state motion
+            </button>
           </div>
         </div>
 
@@ -438,10 +440,15 @@
 
         <div class="section workspace-section" data-workspace="ship">
           <div class="section-title">Session & versions</div>
-          <div class="button-row three">
+          <label class="select-row">
+            <span>Session</span>
+            <select id="sessionSelect"></select>
+          </label>
+          <div class="button-row four">
             <button id="saveWorkspace" type="button">Save now</button>
-            <button id="restoreWorkspace" type="button" disabled>Restore last</button>
-            <button id="clearWorkspace" type="button" disabled>Clear saved</button>
+            <button id="newWorkspaceSession" type="button">New session</button>
+            <button id="restoreWorkspace" type="button" disabled>Restore selected</button>
+            <button id="clearWorkspace" type="button" disabled>Delete session</button>
           </div>
           <div class="button-row">
             <button id="exportWorkspaceState" type="button">Export full state</button>

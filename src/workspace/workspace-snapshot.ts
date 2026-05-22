@@ -1,8 +1,4 @@
-import {
-  canvasBlobOrNull,
-  canvasFromBlobOrNull,
-  makeCanvasThumbnail,
-} from "../media/canvas-utils.js";
+import { canvasBlobOrNull, canvasFromBlobOrNull, makeCanvasThumbnail } from "../media/canvas-utils.js";
 import { PLATE_PLACEMENT_MODEL_VERSION, normalizePlatePlacement } from "../plates/plate-placement.js";
 import { clamp } from "../projection.js";
 import { cloneJson } from "./version-utils.js";
@@ -21,6 +17,10 @@ type WorkspacePlateSnapshot = {
   image?: Blob | string | null;
 };
 type WorkspaceSnapshotContext = {
+  session?: {
+    id?: string;
+    name?: string;
+  };
   state: ZenithState;
   controls: ZenithControls;
   video: HTMLVideoElement;
@@ -52,6 +52,10 @@ type WorkspaceSnapshotData = {
   version?: number;
   reason?: string;
   savedAt?: string;
+  session?: {
+    id?: string;
+    name?: string;
+  };
   ui?: {
     viewMode?: string;
     activeWorkspace?: string;
@@ -103,6 +107,8 @@ export async function createWorkspaceSnapshot(reason: string, context: Workspace
   actions.ensurePlatePlacements();
 
   const savedAt = new Date().toISOString();
+  const sessionId = context.session?.id || WORKSPACE_AUTOSAVE_ID;
+  const sessionName = context.session?.name || "Current session";
   const [sourceCanvas, plateComposite, depthMap, depthFinalState, depthFinalReconstructed, plates] = await Promise.all([
     canvasBlobOrNull(state.sourceCanvas),
     canvasBlobOrNull(state.plateCompositeCanvas),
@@ -113,10 +119,14 @@ export async function createWorkspaceSnapshot(reason: string, context: Workspace
   ]);
 
   return {
-    id: WORKSPACE_AUTOSAVE_ID,
+    id: sessionId,
     version: 1,
     reason,
     savedAt,
+    session: {
+      id: sessionId,
+      name: sessionName,
+    },
     ui: {
       viewMode: state.viewMode,
       activeWorkspace: state.activeWorkspace,
@@ -184,7 +194,10 @@ export async function createWorkspaceSnapshot(reason: string, context: Workspace
   };
 }
 
-export async function applyWorkspaceSnapshot(snapshot: WorkspaceSnapshotData, context: WorkspaceSnapshotContext): Promise<void> {
+export async function applyWorkspaceSnapshot(
+  snapshot: WorkspaceSnapshotData,
+  context: WorkspaceSnapshotContext,
+): Promise<void> {
   const { state, controls, video, sidePanel, runwayOperations, actions } = context;
   runwayOperations.abortAll("Workspace snapshot changed.");
 

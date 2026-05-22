@@ -3,11 +3,36 @@ export const WORKSPACE_AUTOSAVE_ID = "current";
 
 const WORKSPACE_DB_NAME = "fulldome-workspace-state";
 const WORKSPACE_DB_STORE = "snapshots";
+const WORKSPACE_ACTIVE_SESSION_KEY = "fulldome-workspace-active-session";
 type SessionRepositoryOptions = {
   dbName?: string;
   storeName?: string;
   autosaveId?: string;
+  activeSessionKey?: string;
   windowRef?: Window;
+};
+export type WorkspaceSessionRecord = {
+  id?: string;
+  savedAt?: string;
+  reason?: string;
+  session?: {
+    id?: string;
+    name?: string;
+  };
+  media?: {
+    name?: string;
+  };
+  seedance?: {
+    outputs?: unknown[];
+  };
+};
+export type WorkspaceSessionSummary = {
+  id: string;
+  name: string;
+  savedAt: string;
+  reason: string;
+  sourceName: string;
+  videoCount: number;
 };
 type SaveSnapshotOptions = {
   onStateChange?: () => void;
@@ -19,6 +44,7 @@ export function createWorkspaceSessionRepository({
   dbName = WORKSPACE_DB_NAME,
   storeName = WORKSPACE_DB_STORE,
   autosaveId = WORKSPACE_AUTOSAVE_ID,
+  activeSessionKey = WORKSPACE_ACTIVE_SESSION_KEY,
   windowRef = window,
 }: SessionRepositoryOptions = {}) {
   let dbPromise: Promise<IDBDatabase> | null = null;
@@ -26,6 +52,7 @@ export function createWorkspaceSessionRepository({
   let saveInFlight = false;
   let queuedReason: string | null = null;
   let hydrating = false;
+  let activeSessionId = autosaveId;
 
   function isHydrating() {
     return hydrating;
@@ -33,6 +60,33 @@ export function createWorkspaceSessionRepository({
 
   function isSaveInFlight() {
     return saveInFlight;
+  }
+
+  function currentSessionId(): string {
+    try {
+      const stored = windowRef.localStorage?.getItem(activeSessionKey);
+      if (stored) {
+        activeSessionId = stored;
+        return stored;
+      }
+    } catch {
+      // Fall through to the in-memory active session.
+    }
+    return activeSessionId || autosaveId;
+  }
+
+  function setCurrentSessionId(id: string): void {
+    const safeId = String(id || "").trim() || autosaveId;
+    activeSessionId = safeId;
+    try {
+      windowRef.localStorage?.setItem(activeSessionKey, safeId);
+    } catch {
+      // Ignore storage failures; the in-memory action can still continue for this run.
+    }
+  }
+
+  function createSessionId(): string {
+    return `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   }
 
   function cancelScheduledAutosave() {
@@ -89,14 +143,23 @@ export function createWorkspaceSessionRepository({
     }
   }
 
-  async function loadSnapshot() {
+  async function loadSnapshot(id = currentSessionId()) {
     const db = await openDb();
-    return idbGet(db, storeName, autosaveId);
+    return idbGet(db, storeName, id || autosaveId);
   }
 
-  async function deleteSnapshot() {
+  async function deleteSnapshot(id = currentSessionId()) {
     const db = await openDb();
-    await idbDelete(db, storeName, autosaveId);
+    await idbDelete(db, storeName, id || autosaveId);
+  }
+
+  async function listSnapshots(): Promise<WorkspaceSessionSummary[]> {
+    const db = await openDb();
+    const snapshots = (await idbGetAll(db, storeName)) as WorkspaceSessionRecord[];
+    return snapshots
+      .filter((snapshot) => snapshot?.id)
+      .map(sessionSummaryFromSnapshot)
+      .sort((a, b) => (b.savedAt || "").localeCompare(a.savedAt || ""));
   }
 
   async function withHydration<T>(task: () => T | Promise<T>): Promise<T> {
@@ -130,11 +193,30 @@ export function createWorkspaceSessionRepository({
   return {
     isHydrating,
     isSaveInFlight,
+    currentSessionId,
+    setCurrentSessionId,
+    createSessionId,
     scheduleAutosave,
     saveSnapshot,
     loadSnapshot,
     deleteSnapshot,
+    listSnapshots,
     withHydration,
+  };
+}
+
+function sessionSummaryFromSnapshot(snapshot: WorkspaceSessionRecord): WorkspaceSessionSummary {
+  const id = String(snapshot.id || WORKSPACE_AUTOSAVE_ID);
+  const sessionId = String(snapshot.session?.id || id);
+  return {
+    id,
+    name: String(
+      snapshot.session?.name || (sessionId === WORKSPACE_AUTOSAVE_ID ? "Current session" : "Untitled session"),
+    ),
+    savedAt: String(snapshot.savedAt || ""),
+    reason: String(snapshot.reason || ""),
+    sourceName: String(snapshot.media?.name || ""),
+    videoCount: Array.isArray(snapshot.seedance?.outputs) ? snapshot.seedance.outputs.length : 0,
   };
 }
 
@@ -158,6 +240,14 @@ function idbGet(db: IDBDatabase, storeName: string, id: IDBValidKey): Promise<un
   return new Promise((resolve, reject) => {
     const request = db.transaction(storeName, "readonly").objectStore(storeName).get(id);
     request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function idbGetAll(db: IDBDatabase, storeName: string): Promise<unknown[]> {
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(storeName, "readonly").objectStore(storeName).getAll();
+    request.onsuccess = () => resolve(request.result || []);
     request.onerror = () => reject(request.error);
   });
 }
