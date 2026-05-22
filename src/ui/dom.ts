@@ -54,6 +54,7 @@ export function queryZenithDom() {
     exportDepthMotionConfig: q<HTMLButtonElement>("#exportDepthMotionConfig"),
     captureDepthFinalState: q<HTMLButtonElement>("#captureDepthFinalState"),
     reconstructDepthFinalState: q<HTMLButtonElement>("#reconstructDepthFinalState"),
+    exportDepthFinalState: q<HTMLButtonElement>("#exportDepthFinalState"),
     codexStateSeedancePrompt: q<HTMLButtonElement>("#codexStateSeedancePrompt"),
     runwayStateSeedance: q<HTMLButtonElement>("#runwayStateSeedance"),
     codexImageSeedancePrompt: q<HTMLButtonElement>("#codexImageSeedancePrompt"),

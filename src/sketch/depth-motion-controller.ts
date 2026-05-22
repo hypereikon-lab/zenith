@@ -1,4 +1,4 @@
-import { cloneCanvas, downloadBlob, loadCanvasFromImageSource } from "../media/canvas-utils.js";
+import { cloneCanvas, downloadBlob, downloadCanvasPng, loadCanvasFromImageSource } from "../media/canvas-utils.js";
 import { encodeCanvasSequenceMp4, hasWebCodecsMp4Support, supportedMp4VideoConfig } from "../media/webcodecs-mp4.js";
 import { isStaleOperationError } from "../operation-manager.js";
 import { PLATE_PLACEMENT_MODEL_VERSION } from "../plates/plate-placement.js";
@@ -76,6 +76,7 @@ type DepthMotionControllerOptions = {
     exportDepthMotionConfig: HTMLButtonElement;
     captureDepthFinalState: HTMLButtonElement;
     reconstructDepthFinalState: HTMLButtonElement;
+    exportDepthFinalState: HTMLButtonElement;
     codexStateSeedancePrompt: HTMLButtonElement;
     runwayStateSeedance: HTMLButtonElement;
     codexImageSeedancePrompt: HTMLButtonElement;
@@ -127,6 +128,7 @@ export function createDepthMotionController({
     exportDepthMotionConfig: exportDepthMotionConfigButton,
     captureDepthFinalState: captureDepthFinalStateButton,
     reconstructDepthFinalState: reconstructDepthFinalStateButton,
+    exportDepthFinalState: exportDepthFinalStateButton,
     codexStateSeedancePrompt,
     runwayStateSeedance,
     codexImageSeedancePrompt,
@@ -387,6 +389,24 @@ export function createDepthMotionController({
       clearProgressButton(reconstructDepthFinalStateButton, previousText);
       reconstructingFinalState = false;
       updateDepthMotionUiState({ preserveText: true });
+    }
+  }
+
+  async function exportDepthFinalState() {
+    const canvas = stateFinalReferenceCanvas();
+    if (!canvas) {
+      depthMotionReadout.textContent = "No final state to export yet";
+      return;
+    }
+
+    const reconstructed = Boolean(state.depthFinalReconstructedCanvas);
+    const kind = reconstructed ? "reconstructed" : "raw";
+    try {
+      await downloadCanvasPng(canvas, `fulldome-${kind}-final-state-${Date.now()}.png`);
+      depthMotionReadout.textContent = `${canvas.width} x ${canvas.height} ${kind} final state PNG exported`;
+    } catch (error) {
+      console.error(error);
+      depthMotionReadout.textContent = errorMessage(error) || "Could not export final state PNG";
     }
   }
 
@@ -960,19 +980,18 @@ export function createDepthMotionController({
           finalStateName: state.depthFinalStateName,
           finalStateReady: Boolean(state.depthFinalStateCanvas),
           finalStateFresh: Boolean(
-            state.depthFinalStateCanvas &&
-              state.depthFinalStateFingerprint === depthFinalStateOperationFingerprint(),
+            state.depthFinalStateCanvas && state.depthFinalStateFingerprint === depthFinalStateOperationFingerprint(),
           ),
           reconstructedFinalStateName: state.depthFinalReconstructedName,
           reconstructedFinalStateReady: Boolean(state.depthFinalReconstructedCanvas),
           reconstructedFinalStateFresh: Boolean(
             state.depthFinalReconstructedCanvas &&
-              state.depthFinalReconstructedFingerprint === depthFinalStateOperationFingerprint(),
+            state.depthFinalReconstructedFingerprint === depthFinalStateOperationFingerprint(),
           ),
           generatedPrompt: controls.stateSeedancePrompt.value.trim(),
           generatedPromptFresh: Boolean(
             controls.stateSeedancePrompt.value.trim() &&
-              generatedStateSeedancePromptFingerprint === stateSeedancePromptOperationFingerprint(),
+            generatedStateSeedancePromptFingerprint === stateSeedancePromptOperationFingerprint(),
           ),
         },
         imageToVideo: {
@@ -1174,7 +1193,8 @@ export function createDepthMotionController({
   function showStateEndpoint(kind: "raw" | "reconstructed"): void {
     const canvas = kind === "reconstructed" ? state.depthFinalReconstructedCanvas : state.depthFinalStateCanvas;
     if (!canvas) {
-      depthMotionReadout.textContent = kind === "reconstructed" ? "No reconstructed final state yet" : "No raw final state yet";
+      depthMotionReadout.textContent =
+        kind === "reconstructed" ? "No reconstructed final state yet" : "No raw final state yet";
       return;
     }
     const name = kind === "reconstructed" ? "Reconstructed final state" : "2.5D final state";
@@ -1922,6 +1942,7 @@ export function createDepthMotionController({
     runwaySeedance.disabled = busy || !ready || state.runwayConfigured === false || mp4ExportSupport !== "available";
     captureDepthFinalStateButton.disabled = busy || !ready;
     reconstructDepthFinalStateButton.disabled = busy || !ready || state.runwayConfigured === false;
+    exportDepthFinalStateButton.disabled = busy || !stateFinalReferenceCanvas();
     codexStateSeedancePrompt.disabled = busy || !ready;
     runwayStateSeedance.disabled = busy || !ready || state.runwayConfigured === false;
     if (codexImageSeedancePrompt) {
@@ -2031,7 +2052,9 @@ export function createDepthMotionController({
   function syncStateSeedancePromptPreview(forcedState = "") {
     if (!stateSeedancePromptPreview || !stateSeedancePromptState) return;
     const prompt = controls.stateSeedancePrompt.value.trim();
-    const fresh = Boolean(prompt && generatedStateSeedancePromptFingerprint === stateSeedancePromptOperationFingerprint());
+    const fresh = Boolean(
+      prompt && generatedStateSeedancePromptFingerprint === stateSeedancePromptOperationFingerprint(),
+    );
     stateSeedancePromptPreview.textContent = prompt || "Generated on send";
     stateSeedancePromptPreview.classList.toggle("empty", !prompt);
     stateSeedancePromptPreview.classList.toggle("stale", Boolean(prompt && !fresh));
@@ -2176,6 +2199,7 @@ export function createDepthMotionController({
     sendDepthMotionToSeedance,
     captureDepthFinalState,
     reconstructDepthFinalState,
+    exportDepthFinalState,
     planStateSeedancePrompt,
     sendStateToSeedance,
     planImageSeedancePrompt,

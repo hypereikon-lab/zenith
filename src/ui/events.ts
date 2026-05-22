@@ -20,6 +20,7 @@ type ZenithEventActions = {
   exportDepthMotionConfig: () => void;
   captureDepthFinalState: () => Promise<void>;
   reconstructDepthFinalState: () => Promise<void>;
+  exportDepthFinalState: () => Promise<void>;
   planStateSeedancePrompt: () => Promise<void>;
   sendStateToSeedance: () => Promise<void>;
   planImageSeedancePrompt: () => Promise<void>;
@@ -116,6 +117,7 @@ export function bindZenithEvents(dom: ZenithDom, actions: ZenithEventActions): v
   dom.exportDepthMotionConfig.addEventListener("click", actions.exportDepthMotionConfig);
   dom.captureDepthFinalState.addEventListener("click", actions.captureDepthFinalState);
   dom.reconstructDepthFinalState.addEventListener("click", actions.reconstructDepthFinalState);
+  dom.exportDepthFinalState.addEventListener("click", actions.exportDepthFinalState);
   dom.codexStateSeedancePrompt.addEventListener("click", actions.planStateSeedancePrompt);
   dom.runwayStateSeedance.addEventListener("click", actions.sendStateToSeedance);
   dom.codexImageSeedancePrompt.addEventListener("click", actions.planImageSeedancePrompt);
