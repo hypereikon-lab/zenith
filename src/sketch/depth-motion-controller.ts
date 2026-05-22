@@ -2084,13 +2084,15 @@ export function createDepthMotionController({
 
   function depthFinalReconstructionPrompt(): string {
     return [
-      "Use @SourceFrame as the visual source of truth for scene identity, material detail, lighting, color, texture, style, and clean domemaster projection.",
-      "Use @PlateSketch as the final camera/end-state geometry guide: it shows where the scene should land after the 2.5D move, but it contains deformation damage.",
-      "Reconstruct @PlateSketch into a clean opaque last-frame still that looks like an actual coherent 3D render of @SourceFrame from the final endpoint, not like a warped flat image.",
-      "Inside the circular dome, black voids, black tears, black holes, white placeholders, missing disocclusions, splat speckles, stretched duplicate edges, banding, jagged seams, and folded/boxy deformation are repair cues, not real objects or lighting.",
-      "Replace those damaged regions with plausible continuation from @SourceFrame: matched flowers, branches, sky, particles, glass/interface marks, reflections, color, shadows, and local depth relationships when visible.",
-      "Preserve the endpoint composition, orientation, scale, circular fisheye geometry, zenith/horizon relationship, and the pure black outside-circle mask.",
-      "Remove all visible 2.5D artifacts and reprojection evidence. No black interior holes, white patches, masks, checkerboards, debug lines, UI overlays, labels, borders, text, rectangular crops, duplicate slabs, or redesigned subjects.",
+      "Generate one clean opaque square domemaster last frame.",
+      "@SourceFrame is the primary visual reference: preserve its scene identity, botanical subjects, holographic marks, lighting, color palette, material detail, and photographic/CG finish.",
+      "@PlateSketch is not a texture reference. It is only an endpoint composition guide from a broken 2.5D projection.",
+      "Use only the large coherent placement cues from @PlateSketch: circular fisheye layout, endpoint framing, object scale, horizon/zenith relationship, and broad occlusion positions.",
+      "Inside the dome, white regions are explicit repair regions. Black holes, dark tears, sparse dots, stippled splats, granular colored noise, smeared translucent streaks, duplicate slabs, banding, jagged seams, and patchy clouds in @PlateSketch are invalid projection damage even when they contain color.",
+      "Do not preserve or beautify that damage. Do not turn splats into dust, stars, flowers, foliage, fog, clouds, particles, or texture.",
+      "Reconstruct damaged regions from @SourceFrame as plausible continuous surfaces: smooth coherent sky where sky should be, real petals and stems where flowers should be, continuous branches/leaves where vegetation should be, and fine holographic lines only where they belong in the source.",
+      "When uncertain, prefer clean low-detail continuation from @SourceFrame over invented ornamental detail or noisy stipple.",
+      "Keep the pure black outside-circle mask. No visible white patches, black interior holes, masks, checkerboards, debug lines, UI overlays, text, rectangular crops, painterly smearing, random speckle fields, or redesigned subjects.",
     ].join(" ");
   }
 
@@ -2257,10 +2259,15 @@ function createFinalStateReconstructionHandoff(
   const centerY = height * 0.5;
   const radiusX = Math.max(1, width * 0.5 * clamp(Number(radiusScale) || 1, 0.25, 2));
   const radiusY = Math.max(1, height * 0.5 * clamp(Number(radiusScale) || 1, 0.25, 2));
+  const pixelCount = width * height;
+  const inside = new Uint8Array(pixelCount);
+  const support = new Uint8Array(pixelCount);
+  const damaged = new Uint8Array(pixelCount);
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
-      const index = (y * width + x) * 4;
+      const pixelIndex = y * width + x;
+      const index = pixelIndex * 4;
       const normalizedX = (x + 0.5 - centerX) / radiusX;
       const normalizedY = (y + 0.5 - centerY) / radiusY;
       const insideDome = Math.hypot(normalizedX, normalizedY) <= 1.002;
@@ -2273,19 +2280,111 @@ function createFinalStateReconstructionHandoff(
       }
 
       const rawLuma = luma(data, index);
+      const chroma =
+        Math.max(data[index], data[index + 1], data[index + 2]) -
+        Math.min(data[index], data[index + 1], data[index + 2]);
+      inside[pixelIndex] = 1;
+      support[pixelIndex] = rawLuma > 18 || (rawLuma > 10 && chroma > 20) ? 1 : 0;
+    }
+  }
+
+  const supportIntegral = integralImage(support, width, height);
+  const sourceSupport = new Uint8Array(pixelCount);
+  for (let index = 0; index < pixelCount; index += 1) {
+    const sourceIndex = index * 4;
+    sourceSupport[index] = luma(sourceData, sourceIndex) > 18 ? 1 : 0;
+  }
+  const sourceIntegral = integralImage(sourceSupport, width, height);
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const pixelIndex = y * width + x;
+      if (!inside[pixelIndex]) continue;
+      const index = pixelIndex * 4;
+      const rawLuma = luma(data, index);
       const sourceLuma = luma(sourceData, index);
-      const missingInteriorPixel = data[index + 3] < 16 || (rawLuma <= 8 && sourceLuma >= 18);
-      if (missingInteriorPixel) {
-        data[index] = 255;
-        data[index + 1] = 255;
-        data[index + 2] = 255;
-        data[index + 3] = 255;
+      const localSupport = integralSum(supportIntegral, width, height, x - 3, y - 3, x + 3, y + 3);
+      const localSource = integralSum(sourceIntegral, width, height, x - 3, y - 3, x + 3, y + 3);
+      const blackHole = data[index + 3] < 16 || rawLuma <= 8;
+      const darkTear = rawLuma <= 18 && (sourceLuma >= 18 || localSource >= 10);
+      const sparseSplat = support[pixelIndex] && localSupport <= 8;
+      const isolatedDarkSpeck = rawLuma <= 36 && localSupport >= 12 && (sourceLuma >= 24 || localSource >= 18);
+      if (blackHole || darkTear || sparseSplat || isolatedDarkSpeck) {
+        damaged[pixelIndex] = 1;
       }
     }
   }
 
+  const repair = dilateMask(damaged, inside, width, height, 2);
+  for (let pixelIndex = 0; pixelIndex < pixelCount; pixelIndex += 1) {
+    if (!repair[pixelIndex]) continue;
+    const index = pixelIndex * 4;
+    data[index] = 255;
+    data[index + 1] = 255;
+    data[index + 2] = 255;
+    data[index + 3] = 255;
+  }
+
   context.putImageData(image, 0, 0);
   return canvas;
+}
+
+function integralImage(mask: Uint8Array, width: number, height: number): Uint32Array {
+  const integral = new Uint32Array((width + 1) * (height + 1));
+  for (let y = 0; y < height; y += 1) {
+    let rowSum = 0;
+    for (let x = 0; x < width; x += 1) {
+      rowSum += mask[y * width + x];
+      const writeIndex = (y + 1) * (width + 1) + x + 1;
+      integral[writeIndex] = integral[writeIndex - width - 1] + rowSum;
+    }
+  }
+  return integral;
+}
+
+function integralSum(
+  integral: Uint32Array,
+  width: number,
+  height: number,
+  minX: number,
+  minY: number,
+  maxX: number,
+  maxY: number,
+): number {
+  const x0 = clamp(Math.floor(minX), 0, width);
+  const y0 = clamp(Math.floor(minY), 0, height);
+  const x1 = clamp(Math.ceil(maxX + 1), 0, width);
+  const y1 = clamp(Math.ceil(maxY + 1), 0, height);
+  const stride = width + 1;
+  return (
+    integral[y1 * stride + x1] - integral[y0 * stride + x1] - integral[y1 * stride + x0] + integral[y0 * stride + x0]
+  );
+}
+
+function dilateMask(mask: Uint8Array, bounds: Uint8Array, width: number, height: number, passes: number): Uint8Array {
+  let source = mask;
+  for (let pass = 0; pass < passes; pass += 1) {
+    const next = new Uint8Array(source);
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const pixelIndex = y * width + x;
+        if (!source[pixelIndex]) continue;
+        for (let offsetY = -1; offsetY <= 1; offsetY += 1) {
+          for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
+            const sampleX = x + offsetX;
+            const sampleY = y + offsetY;
+            if (sampleX < 0 || sampleX >= width || sampleY < 0 || sampleY >= height) continue;
+            const sampleIndex = sampleY * width + sampleX;
+            if (bounds[sampleIndex]) {
+              next[sampleIndex] = 1;
+            }
+          }
+        }
+      }
+    }
+    source = next;
+  }
+  return source;
 }
 
 function luma(data: Uint8ClampedArray, index: number): number {
