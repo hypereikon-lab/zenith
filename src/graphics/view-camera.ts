@@ -1,4 +1,5 @@
 import { lookAtLH } from "../projection.js";
+import { normalizeSourceProjectionMode } from "../geometry/source-projection.js";
 import type { ActiveDomeCamera, ZenithState } from "../app/types.js";
 import type { ZenithControls } from "../ui/dom.js";
 import type { Vec3 } from "../projection.js";
@@ -47,13 +48,18 @@ export function createViewCamera({ state, controls }: ViewCameraOptions) {
 
   function orbitViewMatrix() {
     const { orbitYaw, orbitPitch, orbitDistance } = state.camera;
-    const target: Vec3 = [0, 0.42, 0];
+    const target: Vec3 = [0, orbitTargetY(), 0];
     const eye: Vec3 = [
       target[0] + orbitDistance * Math.cos(orbitPitch) * Math.sin(orbitYaw),
       target[1] + orbitDistance * Math.sin(orbitPitch),
       target[2] + orbitDistance * Math.cos(orbitPitch) * Math.cos(orbitYaw),
     ];
     return lookAtLH(eye, target, [0, 1, 0]);
+  }
+
+  function orbitTargetY(): number {
+    if (state.viewMode === "cave") return 0;
+    return normalizeSourceProjectionMode(controls.sourceProjection.value).startsWith("nadir") ? -0.42 : 0.42;
   }
 
   return {

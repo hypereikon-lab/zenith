@@ -6,6 +6,7 @@ type DefaultConfig = {
   plateSketch?: { activePlateIndex?: unknown; controls?: ConfigRecord; placements?: ConfigRecord[]; plates?: Array<{ name?: unknown }> };
   inpaint?: { controls?: ConfigRecord };
   depthMotion?: { controls?: ConfigRecord };
+  cave?: { controls?: ConfigRecord };
   seedance?: {
     promptMode?: unknown;
     imageToVideo?: { promptMode?: unknown; ratio?: unknown };
@@ -21,6 +22,7 @@ const plateSketch = config.plateSketch || {};
 const plateControls = plateSketch.controls || {};
 const inpaintControls = config.inpaint?.controls || {};
 const depthMotionControls = config.depthMotion?.controls || {};
+const caveControls = config.cave?.controls || {};
 const seedance = config.seedance || {};
 
 export const DEFAULT_VIEW_MODE = String(viewer.viewMode || "flat");
@@ -72,6 +74,7 @@ export const DEFAULT_CONTROL_VALUES = {
   floorOpacity: numberOr(viewerControls.floorOpacity, 0.5),
   exposure: numberOr(viewerControls.exposure, 1),
   overlayOpacity: numberOr(viewerControls.overlayOpacity, 0.24),
+  sourceProjection: stringOr(inpaintControls.sourceProjection, "zenith-180"),
   mirror: Boolean(viewerControls.mirror),
   showRings: booleanOr(viewerControls.showRings, true),
   showSpokes: booleanOr(viewerControls.showSpokes, true),
@@ -90,6 +93,9 @@ export const DEFAULT_CONTROL_VALUES = {
   stateSeedanceRatio: stringOr(seedance.stateToState?.ratio, "640:640"),
   imageSeedancePromptMode: stringOr(seedance.imageToVideo?.promptMode, "auto"),
   imageSeedanceRatio: stringOr(seedance.imageToVideo?.ratio, "640:640"),
+  caveSource: stringOr(caveControls.caveSource, "current"),
+  caveProjection: stringOr(caveControls.caveProjection, "nadir-270"),
+  caveFaceSize: stringOr(caveControls.caveFaceSize, "1024"),
   depthPolarity: stringOr(depthMotionControls.depthPolarity, "brightFar"),
   depthGuideMode: stringOr(depthMotionControls.depthGuideMode, "depthShaded"),
   depthSketchSize: stringOr(depthMotionControls.depthSketchSize, "720"),

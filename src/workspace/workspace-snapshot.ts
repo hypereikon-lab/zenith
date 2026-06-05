@@ -168,6 +168,7 @@ export async function createWorkspaceSnapshot(reason: string, context: Workspace
         quality: output.quality || "",
         prompt: output.prompt || "",
         createdAt: output.createdAt || "",
+        sourceProjectionMode: output.sourceProjectionMode || "",
       })),
       activeIndex: state.activeRunwayOutputIndex,
     },

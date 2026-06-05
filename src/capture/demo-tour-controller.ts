@@ -1,4 +1,5 @@
 import { clamp } from "../projection.js";
+import { normalizeSourceProjectionMode } from "../geometry/source-projection.js";
 import { loadCanvasFromImageSource } from "../media/canvas-utils.js";
 import type { MediaKind, RunwayOutput, ViewMode, WorkspaceId, ZenithState } from "../app/types.js";
 import type { NormalizedPlatePlacement } from "../plates/plate-placement.js";
@@ -288,22 +289,41 @@ export function createDemoTourController({ state, controls, video, elements, act
     demoCursor.style.transform = `translate(-50%, -50%) scale(${gesture.scale})`;
 
     const phase = Math.sin(progress * Math.PI * 2);
+    const verticalSign = projectionVerticalSign();
     if (view === "flat") {
       controls.rotation.value = String(wrapDegrees(Number(previousState.rotation) + progress * 42));
       return;
     }
     if (view === "orbit") {
       state.camera.orbitYaw = previousState.camera.orbitYaw + progress * 1.15;
-      state.camera.orbitPitch = clamp(previousState.camera.orbitPitch + phase * 0.18 - Math.cos(progress * Math.PI) * 0.1, -0.34, 1.28);
+      state.camera.orbitPitch = clamp(
+        previousState.camera.orbitPitch + verticalSign * (phase * 0.18 - Math.cos(progress * Math.PI) * 0.1),
+        verticalSign < 0 ? -1.28 : -0.34,
+        verticalSign < 0 ? 0.34 : 1.28,
+      );
       return;
     }
     if (view === "theater") {
       state.camera.theaterYaw = previousState.camera.theaterYaw + progress * 1.25 + phase * 0.18;
-      controls.theaterPitch.value = String(clamp(Number(previousState.theaterPitch) + phase * 18 - Math.cos(progress * Math.PI) * 16, -12, 68));
+      controls.theaterPitch.value = String(
+        clamp(
+          Number(previousState.theaterPitch) + verticalSign * (phase * 18 - Math.cos(progress * Math.PI) * 16),
+          verticalSign < 0 ? -68 : -12,
+          verticalSign < 0 ? 12 : 68,
+        ),
+      );
       return;
     }
     state.camera.insideYaw = previousState.camera.insideYaw + progress * 1.45 + phase * 0.2;
-    state.camera.insidePitch = clamp(previousState.camera.insidePitch + phase * 0.28 - Math.cos(progress * Math.PI) * 0.22, -0.58, 1.42);
+    state.camera.insidePitch = clamp(
+      previousState.camera.insidePitch + verticalSign * (phase * 0.28 - Math.cos(progress * Math.PI) * 0.22),
+      verticalSign < 0 ? -1.42 : -0.58,
+      verticalSign < 0 ? 0.58 : 1.42,
+    );
+  }
+
+  function projectionVerticalSign(): 1 | -1 {
+    return normalizeSourceProjectionMode(controls.sourceProjection.value).startsWith("nadir") ? -1 : 1;
   }
 
   function tickInpaintPulse(now: number): void {

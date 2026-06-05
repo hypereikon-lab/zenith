@@ -27,6 +27,9 @@ type ZenithEventActions = {
   sendStateToSeedance: () => Promise<void>;
   planImageSeedancePrompt: () => Promise<void>;
   sendImageToSeedance: () => Promise<void>;
+  exportCaveFaces: () => Promise<void>;
+  updateCaveExportUiState: () => void;
+  handleSourceProjectionChange: () => void;
   applyDepthMotionPreset: () => void;
   handleDepthMotionControlInput: (event?: Event) => void;
   setWorkspace: (workspace?: string) => void;
@@ -100,6 +103,7 @@ export function bindZenithEvents(dom: ZenithDom, actions: ZenithEventActions): v
     if (!file) return;
     await actions.loadMediaFile(file);
   });
+  controls.sourceProjection.addEventListener("change", actions.handleSourceProjectionChange);
   dom.platesInput.addEventListener("change", async () => {
     await actions.loadPlateFiles(Array.from(dom.platesInput.files || []));
   });
@@ -127,6 +131,11 @@ export function bindZenithEvents(dom: ZenithDom, actions: ZenithEventActions): v
   dom.runwayStateSeedance.addEventListener("click", actions.sendStateToSeedance);
   dom.codexImageSeedancePrompt.addEventListener("click", actions.planImageSeedancePrompt);
   dom.runwayImageSeedance.addEventListener("click", actions.sendImageToSeedance);
+  dom.exportCaveFaces.addEventListener("click", actions.exportCaveFaces);
+  [controls.caveSource, controls.caveProjection, controls.caveFaceSize].forEach((control) => {
+    control.addEventListener("input", actions.updateCaveExportUiState);
+    control.addEventListener("change", actions.updateCaveExportUiState);
+  });
   controls.depthMotionPreset.addEventListener("change", actions.applyDepthMotionPreset);
   [
     controls.depthPolarity,
@@ -190,6 +199,7 @@ export function bindZenithEvents(dom: ZenithDom, actions: ZenithEventActions): v
     button.addEventListener("click", () => actions.setViewMode(button.dataset.view));
   });
   dom.lookZenith.addEventListener("click", () => actions.lookAtPreset("zenith"));
+  dom.lookNadir.addEventListener("click", () => actions.lookAtPreset("nadir"));
   dom.lookNorth.addEventListener("click", () => actions.lookAtPreset("north"));
   dom.lookHorizon.addEventListener("click", () => actions.lookAtPreset("horizon"));
   dom.captureFrameButton.addEventListener("click", actions.captureFrame);
@@ -253,6 +263,8 @@ export function applyWorkspaceDom(dom: ZenithDom, workspace?: string): void {
     button.setAttribute("aria-pressed", active ? "true" : "false");
   });
   dom.workspaceSections.forEach((section: HTMLElement) => {
-    section.classList.toggle("workspace-section-hidden", section.dataset.workspace !== activeWorkspace);
+    const sectionWorkspace = section.dataset.workspace || "";
+    const isGlobalSection = sectionWorkspace === "all";
+    section.classList.toggle("workspace-section-hidden", !isGlobalSection && sectionWorkspace !== activeWorkspace);
   });
 }

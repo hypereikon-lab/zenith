@@ -4,10 +4,12 @@ import type {
   PlateCornerOffsets,
   PlatePlacementInput,
 } from "../plates/plate-placement.js";
+import type { SourceProjectionMode } from "../geometry/source-projection.js";
 
-export type ViewMode = "inside" | "theater" | "orbit" | "flat" | "split" | "cutaway";
+export type ViewMode = "inside" | "theater" | "orbit" | "flat" | "split" | "cave" | "cutaway";
 export type WorkspaceId = "create" | "inpaint" | "depth" | "ship" | string;
 export type MediaKind = "image" | "video";
+export type { SourceProjectionMode };
 export type ActiveDomeCamera = "inside" | "theater" | "orbit";
 export type PointerMode = "view" | "plate" | null;
 
@@ -40,6 +42,7 @@ export type RunwayOutput = {
   quality?: string;
   prompt?: string;
   createdAt?: string;
+  sourceProjectionMode?: string;
 };
 
 export type SeedanceOutput = RunwayOutput & {

@@ -1,9 +1,10 @@
 import {
   DEFAULT_DEPTH_PROMPT,
-  DEFAULT_INPAINT_PROMPT,
   VERSION_STORAGE_KEY,
   VIEW_LABELS,
   createInitialState,
+  inpaintPromptForProjection,
+  shouldReplaceWithProjectionInpaintPrompt,
 } from "./app/app-state.js";
 import { createViewController } from "./app/view-controller.js";
 import { DEMO_SEEDANCE_OUTPUTS } from "./app/demo-seedance-outputs.js";
@@ -16,16 +17,19 @@ import { createMediaController } from "./media/media-controller.js";
 import { createVideoTransport } from "./media/video-transport.js";
 import { OperationManager } from "./operation-manager.js";
 import { createPlateController } from "./plates/plate-controller.js";
+import { compensatePlateSpinsForProjectionCenterChange } from "./plates/plate-projection-compensation.js";
 import { queryZenithDom } from "./ui/dom.js";
 import { applyWorkspaceDom, bindZenithEvents } from "./ui/events.js";
 import { drawZenithHud } from "./ui/hud-renderer.js";
 import { createPointerToolController } from "./ui/pointer-tools.js";
 import { errorMessage } from "./utils/errors.js";
 import { createDepthMotionController } from "./sketch/depth-motion-controller.js";
+import { createCaveExportController } from "./capture/cave-export-controller.js";
 import { createDemoTourController } from "./capture/demo-tour-controller.js";
 import {
   WORKSPACE_AUTOSAVE_DELAY_MS,
   WORKSPACE_AUTOSAVE_ID,
+  WORKSPACE_STARTUP_DEFAULT_ID,
   createWorkspaceSessionRepository,
 } from "./workspace/session-repository.js";
 import { createVersionController } from "./workspace/version-controller.js";
@@ -35,7 +39,7 @@ import {
   createWorkspaceSnapshot as buildWorkspaceSnapshot,
 } from "./workspace/workspace-snapshot.js";
 import { createViewCaptureController } from "./capture/view-capture-controller.js";
-import type { RunwayOutput, SeedanceOutput, WorkspaceId } from "./app/types.js";
+import type { RunwayOutput, SeedanceOutput, SourceProjectionMode, WorkspaceId } from "./app/types.js";
 import type { CssLayout } from "./graphics/render-layout.js";
 import type { HudOptions } from "./ui/hud-renderer.js";
 import type { WorkspaceSessionSummary } from "./workspace/session-repository.js";
@@ -111,6 +115,8 @@ const {
   imageSeedancePromptState,
   imageSeedanceReference,
   depthMotionReadout,
+  exportCaveFaces,
+  caveExportReadout,
   sessionSelect,
   saveWorkspace,
   newWorkspaceSession,
@@ -150,11 +156,12 @@ const {
 } = domeForgeDom;
 
 applyDefaultControlValues(controls);
-controls.runwayPrompt.value = DEFAULT_INPAINT_PROMPT;
+controls.runwayPrompt.value = inpaintPromptForProjection(sourceProjectionMode());
 controls.depthPrompt.value = DEFAULT_DEPTH_PROMPT;
 controls.seedancePrompt.value = "";
 controls.stateSeedancePrompt.value = "";
 controls.imageSeedancePrompt.value = "";
+applyProjectionModeToPrompt({ force: true });
 
 const state = createInitialState();
 
@@ -162,6 +169,7 @@ const runwayOperations = new OperationManager();
 const workspaceSession = createWorkspaceSessionRepository();
 let activeWorkspaceSessionName = "Current session";
 let workspaceSessionSummaries: WorkspaceSessionSummary[] = [];
+let lastSourceProjectionMode: SourceProjectionMode = sourceProjectionMode();
 const viewCamera = createViewCamera({ state, controls });
 const videoTransport = createVideoTransport({
   video,
@@ -227,7 +235,7 @@ const inpaintController = createInpaintController({
   controls,
   runwayOperations,
   videoTransport,
-  defaultInpaintPrompt: DEFAULT_INPAINT_PROMPT,
+  defaultInpaintPrompt: () => inpaintPromptForProjection(sourceProjectionMode()),
   elements: {
     runwayInpaint,
     useRunwayOutput,
@@ -322,7 +330,8 @@ const plateController = createPlateController({
 });
 const versionController = createVersionController({
   storageKey: VERSION_STORAGE_KEY,
-  defaultInpaintPrompt: DEFAULT_INPAINT_PROMPT,
+  defaultInpaintPrompt: () => inpaintPromptForProjection(sourceProjectionMode()),
+  normalizeInpaintPrompt: normalizeInpaintPromptForCurrentProjection,
   state,
   controls,
   elements: {
@@ -368,6 +377,15 @@ const viewCaptureController = createViewCaptureController({
     captureSquareFrame,
     recordCanvas,
     captureReadout,
+  },
+});
+const caveExportController = createCaveExportController({
+  state,
+  controls,
+  video,
+  elements: {
+    exportCaveFaces,
+    caveExportReadout,
   },
 });
 const demoTourController = createDemoTourController({
@@ -425,6 +443,7 @@ async function init() {
   updateWorkflowStatus();
   viewController.updateUiState();
   depthMotionController.updateDepthMotionUiState();
+  caveExportController.updateCaveExportUiState();
   inpaintController.checkRunwayStatus().finally(() => depthMotionController.updateDepthMotionUiState());
   setGpuState("Ready", false);
   renderer.startFrameLoop();
@@ -523,6 +542,9 @@ function eventActions() {
     sendStateToSeedance: depthMotionController.sendStateToSeedance,
     planImageSeedancePrompt: depthMotionController.planImageSeedancePrompt,
     sendImageToSeedance: depthMotionController.sendImageToSeedance,
+    exportCaveFaces: caveExportController.exportCaveFaces,
+    updateCaveExportUiState: caveExportController.updateCaveExportUiState,
+    handleSourceProjectionChange,
     applyDepthMotionPreset: depthMotionController.applyDepthMotionPreset,
     handleDepthMotionControlInput: depthMotionController.handleDepthMotionControlInput,
     setWorkspace,
@@ -588,6 +610,48 @@ function setWorkspace(workspace: WorkspaceId = "create"): void {
   scheduleWorkspaceAutosave("workspace", 350);
 }
 
+function sourceProjectionMode(): SourceProjectionMode {
+  const value = String(controls.sourceProjection.value || "zenith-180");
+  if (value === "zenith-270" || value === "nadir-180" || value === "nadir-270") return value;
+  return "zenith-180";
+}
+
+function applyProjectionModeToPrompt({ force = false }: { force?: boolean } = {}): void {
+  const currentPrompt = controls.runwayPrompt.value;
+  if (!force && !shouldReplaceWithProjectionInpaintPrompt(currentPrompt)) return;
+  controls.runwayPrompt.value = inpaintPromptForProjection(sourceProjectionMode());
+}
+
+function normalizeInpaintPromptForCurrentProjection(prompt: string): string {
+  if (!shouldReplaceWithProjectionInpaintPrompt(prompt)) return prompt;
+  return inpaintPromptForProjection(sourceProjectionMode());
+}
+
+function handleSourceProjectionChange(): void {
+  const previousMode = lastSourceProjectionMode;
+  const nextMode = sourceProjectionMode();
+  lastSourceProjectionMode = nextMode;
+  if (state.platePlacements.length > 0) {
+    state.platePlacements = compensatePlateSpinsForProjectionCenterChange(state.platePlacements, previousMode, nextMode);
+    plateController.updatePatchControlsFromActive();
+  }
+  applyProjectionModeToPrompt();
+  controls.caveProjection.value = nextMode;
+  viewController.alignCameraToProjection();
+  renderer.createDomeGeometry();
+  state.inpaintWhiteCanvas = null;
+  state.inpaintMaskCanvas = null;
+  if (state.plateCompositeCanvas || state.plateCompositeTexture) {
+    state.plateCompositeDirty = true;
+    inpaintController.clearInpaintState();
+    plateController.schedulePlatePreview(0);
+  }
+  caveExportController.updateCaveExportUiState();
+  inpaintController.updateInpaintUiState();
+  updateWorkflowStatus();
+  scheduleWorkspaceAutosave("source-projection", 250);
+}
+
 function handleWindowDragEnter(event: DragEvent): void {
   event.preventDefault();
   state.dragDepth += 1;
@@ -632,8 +696,8 @@ function handleKeyDown(event: KeyboardEvent): void {
     state.panelHidden = !state.panelHidden;
     sidePanel.classList.toggle("hidden", state.panelHidden);
     scheduleWorkspaceAutosave("panel", 250);
-  } else if (/^Digit[1-5]$/.test(event.code)) {
-    const modes = ["inside", "theater", "orbit", "flat", "split"];
+  } else if (/^Digit[1-6]$/.test(event.code)) {
+    const modes = ["inside", "theater", "orbit", "flat", "split", "cave"];
     viewController.setViewMode(modes[Number(event.code.slice(-1)) - 1]);
   }
 }
@@ -733,15 +797,33 @@ async function switchWorkspaceSession() {
 }
 
 async function setDefaultWorkspaceSession() {
-  const snapshot = await saveWorkspaceSnapshotNow("set-default-session");
+  const snapshot = await saveWorkspaceSnapshotNow("before-startup-default");
   if (!snapshot) {
-    sessionReadout.textContent = "Could not save session before setting default";
+    sessionReadout.textContent = "Could not save current state before setting startup default";
     return;
   }
-  workspaceSession.setDefaultSessionId(workspaceSession.currentSessionId());
+  const defaultSnapshot = {
+    ...snapshot,
+    id: WORKSPACE_STARTUP_DEFAULT_ID,
+    reason: "startup-default",
+    savedAt: new Date().toISOString(),
+    session: {
+      id: WORKSPACE_STARTUP_DEFAULT_ID,
+      name: "Startup default",
+    },
+  };
+  const savedDefault = (await workspaceSession.saveSnapshot("startup-default", () => defaultSnapshot, {
+    onStateChange: () => updateWorkspaceUi({ preserveText: true }),
+    scheduleQueuedSave: saveWorkspaceSnapshotNow,
+  })) as WorkspaceSnapshot | null;
+  if (!savedDefault) {
+    sessionReadout.textContent = "Could not save startup default";
+    return;
+  }
+  workspaceSession.setDefaultSessionId(WORKSPACE_STARTUP_DEFAULT_ID);
   await refreshWorkspaceSessionSummaries();
   updateWorkspaceUi({ preserveText: true });
-  sessionReadout.textContent = `${activeWorkspaceSessionName} will load at startup`;
+  sessionReadout.textContent = `Startup default saved from ${activeWorkspaceSessionName} - future runs load this snapshot`;
 }
 
 async function restoreWorkspaceAutosave({ silent = false, preferDefault = false } = {}) {
@@ -771,13 +853,25 @@ async function restoreWorkspaceAutosave({ silent = false, preferDefault = false 
       return false;
     }
     await workspaceSession.withHydration(() => hydrateWorkspaceSnapshot(snapshot, workspaceSnapshotContext()));
-    workspaceSession.setCurrentSessionId(String(snapshot.id || WORKSPACE_AUTOSAVE_ID));
-    activeWorkspaceSessionName = workspaceSessionName(snapshot);
+    lastSourceProjectionMode = sourceProjectionMode();
+    applyProjectionModeToPrompt();
+    renderer.createDomeGeometry();
+    caveExportController.updateCaveExportUiState();
+    const restoredStartupDefault = String(snapshot.id || "") === WORKSPACE_STARTUP_DEFAULT_ID;
+    if (restoredStartupDefault) {
+      workspaceSession.setCurrentSessionId(WORKSPACE_AUTOSAVE_ID);
+      activeWorkspaceSessionName = "Current session";
+    } else {
+      workspaceSession.setCurrentSessionId(String(snapshot.id || WORKSPACE_AUTOSAVE_ID));
+      activeWorkspaceSessionName = workspaceSessionName(snapshot);
+    }
     await refreshWorkspaceSessionSummaries();
-    state.workspaceSavedAt = snapshot.savedAt || null;
+    state.workspaceSavedAt = restoredStartupDefault ? null : snapshot.savedAt || null;
     updateWorkspaceUi();
     if (!silent) {
-      sessionReadout.textContent = `Restored ${activeWorkspaceSessionName} - ${formatVersionDate(snapshot.savedAt)}`;
+      sessionReadout.textContent = restoredStartupDefault
+        ? `Loaded startup default into Current session - ${formatVersionDate(snapshot.savedAt)}`
+        : `Restored ${activeWorkspaceSessionName} - ${formatVersionDate(snapshot.savedAt)}`;
     }
     return true;
   } catch (error) {
@@ -924,7 +1018,12 @@ function renderWorkspaceSessionSelect(): void {
 
 function workspaceSessionName(snapshot: WorkspaceSnapshot | null | undefined): string {
   return String(
-    snapshot?.session?.name || (snapshot?.id === WORKSPACE_AUTOSAVE_ID ? "Current session" : "Untitled session"),
+    snapshot?.session?.name ||
+      (snapshot?.id === WORKSPACE_STARTUP_DEFAULT_ID
+        ? "Startup default"
+        : snapshot?.id === WORKSPACE_AUTOSAVE_ID
+          ? "Current session"
+          : "Untitled session"),
   );
 }
 
@@ -984,6 +1083,7 @@ function updateWorkflowStatus(): void {
         ? "Needs capture"
         : "Needs depth map";
   imageSeedanceReference.textContent = hasSource ? `${state.sourceName || "Current source"} still` : "Needs source";
+  caveExportController.updateCaveExportUiState();
 }
 
 function setWorkflowStep(step: string, text: string, status: WorkflowState): void {
@@ -1060,10 +1160,11 @@ function buildHudOptions(width: number, height: number, dpr: number, layout: Css
     layout,
     viewMode: state.viewMode,
     activeWorkspace: state.activeWorkspace,
-    viewLabel: VIEW_LABELS[state.viewMode as keyof typeof VIEW_LABELS] || state.viewMode,
+    viewLabel: viewController.currentViewLabel(),
     showLabels: controls.showLabels.checked,
     showSourceCircle: controls.showSourceCircle.checked,
     showZenith: controls.showZenith.checked,
+    sourceProjectionMode: sourceProjectionMode(),
     radiusScale: Number(controls.radiusScale.value),
     flatRotationRadians: (Number(controls.rotation.value) * Math.PI) / 180,
     domeTiltRadians: (Number(controls.domeTilt.value) * Math.PI) / 180,

@@ -1,5 +1,6 @@
 export const WORKSPACE_AUTOSAVE_DELAY_MS = 900;
 export const WORKSPACE_AUTOSAVE_ID = "current";
+export const WORKSPACE_STARTUP_DEFAULT_ID = "startup-default";
 
 const WORKSPACE_DB_NAME = "fulldome-workspace-state";
 const WORKSPACE_DB_STORE = "snapshots";
@@ -249,7 +250,12 @@ function sessionSummaryFromSnapshot(snapshot: WorkspaceSessionRecord): Workspace
   return {
     id,
     name: String(
-      snapshot.session?.name || (sessionId === WORKSPACE_AUTOSAVE_ID ? "Current session" : "Untitled session"),
+      snapshot.session?.name ||
+        (sessionId === WORKSPACE_STARTUP_DEFAULT_ID
+          ? "Startup default"
+          : sessionId === WORKSPACE_AUTOSAVE_ID
+            ? "Current session"
+            : "Untitled session"),
     ),
     savedAt: String(snapshot.savedAt || ""),
     reason: String(snapshot.reason || ""),

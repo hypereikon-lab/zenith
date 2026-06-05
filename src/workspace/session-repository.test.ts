@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { WORKSPACE_AUTOSAVE_ID, createWorkspaceSessionRepository } from "./session-repository.js";
+import {
+  WORKSPACE_AUTOSAVE_ID,
+  WORKSPACE_STARTUP_DEFAULT_ID,
+  createWorkspaceSessionRepository,
+} from "./session-repository.js";
 
 describe("createWorkspaceSessionRepository", () => {
   it("persists the active session id through localStorage", () => {
@@ -62,5 +66,24 @@ describe("createWorkspaceSessionRepository", () => {
 
     nextRepository.clearDefaultSessionId();
     expect(nextRepository.defaultSessionId()).toBe("");
+  });
+
+  it("keeps the startup default slot separate from the active autosave slot", () => {
+    const storage = new Map<string, string>();
+    const windowRef = {
+      localStorage: {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => storage.set(key, value),
+        removeItem: (key: string) => storage.delete(key),
+      },
+    } as unknown as Window;
+
+    const repository = createWorkspaceSessionRepository({ windowRef });
+    repository.setCurrentSessionId(WORKSPACE_AUTOSAVE_ID);
+    repository.setDefaultSessionId(WORKSPACE_STARTUP_DEFAULT_ID);
+
+    expect(repository.currentSessionId()).toBe(WORKSPACE_AUTOSAVE_ID);
+    expect(repository.defaultSessionId()).toBe(WORKSPACE_STARTUP_DEFAULT_ID);
+    expect(WORKSPACE_STARTUP_DEFAULT_ID).not.toBe(WORKSPACE_AUTOSAVE_ID);
   });
 });

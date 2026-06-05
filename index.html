@@ -28,6 +28,15 @@
           <input id="mediaInput" type="file" accept="image/*,video/*" />
           <span>Load source media</span>
         </label>
+        <label class="select-row">
+          <span>Projection</span>
+          <select id="sourceProjection">
+            <option value="zenith-180" selected>Zenith 180</option>
+            <option value="zenith-270">Zenith 270</option>
+            <option value="nadir-180">Nadir 180</option>
+            <option value="nadir-270">Nadir 270</option>
+          </select>
+        </label>
 
         <nav class="stage-nav" aria-label="Workspace">
           <button class="stage-tab active" data-workspace-tab="create" type="button">
@@ -442,7 +451,46 @@
         </div>
 
         <div class="section workspace-section" data-workspace="ship">
-          <div class="section-title">Session & versions</div>
+          <div class="section-title">CAVE remap</div>
+          <label class="select-row">
+            <span>Source</span>
+            <select id="caveSource">
+              <option value="current" selected>Current source</option>
+              <option value="reconstructed-final">Reconstructed final</option>
+              <option value="raw-final">Raw final state</option>
+            </select>
+          </label>
+          <label class="select-row">
+            <span>Fisheye</span>
+            <select id="caveProjection">
+              <option value="nadir-270" selected>Nadir 270</option>
+              <option value="nadir-180">Nadir 180</option>
+              <option value="zenith-270">Zenith 270</option>
+              <option value="zenith-180">Zenith 180</option>
+            </select>
+          </label>
+          <label class="select-row">
+            <span>Face size</span>
+            <select id="caveFaceSize">
+              <option value="512">512 square</option>
+              <option value="1024" selected>1024 square</option>
+              <option value="1536">1536 square</option>
+              <option value="2048">2048 square</option>
+            </select>
+          </label>
+          <div class="button-row">
+            <button id="exportCaveFaces" class="primary-action" type="button" disabled>Export CAVE ZIP</button>
+          </div>
+          <dl class="mini-readout">
+            <div>
+              <dt>CAVE</dt>
+              <dd id="caveExportReadout">Needs still source</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="section workspace-section" data-workspace="all">
+          <div class="section-title">State & versions</div>
           <label class="select-row">
             <span>Session</span>
             <select id="sessionSelect"></select>
@@ -450,7 +498,7 @@
           <div class="button-row five">
             <button id="saveWorkspace" type="button">Save now</button>
             <button id="newWorkspaceSession" type="button">New session</button>
-            <button id="setDefaultWorkspace" type="button">Set default</button>
+            <button id="setDefaultWorkspace" type="button">Save startup default</button>
             <button id="restoreWorkspace" type="button" disabled>Restore selected</button>
             <button id="clearWorkspace" type="button" disabled>Delete session</button>
           </div>
@@ -494,9 +542,11 @@
             <button class="segment" data-view="orbit" type="button">Orbit</button>
             <button class="segment" data-view="flat" type="button">Flat</button>
             <button class="segment" data-view="split" type="button">Split</button>
+            <button class="segment" data-view="cave" type="button">CAVE</button>
           </div>
-          <div class="button-row three">
-            <button id="lookZenith" type="button">Zenith</button>
+          <div class="button-row four">
+            <button id="lookZenith" type="button">Center</button>
+            <button id="lookNadir" type="button">Nadir</button>
             <button id="lookNorth" type="button">North</button>
             <button id="lookHorizon" type="button">Horizon</button>
           </div>
@@ -539,7 +589,7 @@
             </label>
             <label>
               <span>View pitch</span>
-              <input id="theaterPitch" type="range" min="4" max="68" value="28" step="0.1" />
+              <input id="theaterPitch" type="range" min="-68" max="68" value="28" step="0.1" />
             </label>
             <label>
               <span>Shell shade</span>
@@ -570,7 +620,7 @@
             <label><input id="showHorizon" type="checkbox" checked /> Horizon</label>
             <label><input id="showLabels" type="checkbox" checked /> Labels</label>
             <label><input id="showSourceCircle" type="checkbox" checked /> Source circle</label>
-            <label><input id="showZenith" type="checkbox" checked /> Zenith</label>
+            <label><input id="showZenith" type="checkbox" checked /> Center</label>
           </div>
         </div>
 
