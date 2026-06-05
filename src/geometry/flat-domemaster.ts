@@ -1,5 +1,8 @@
 import { directionFromPlateUv } from "../plates/plate-placement.js";
-import { HALF_PI, clamp, inverseMotionProjectionRadius, projectionRadiusForTheta } from "../projection.js";
+import { clamp } from "../projection.js";
+import { directionToFisheyeUv, fisheyeUvToDirection } from "./fisheye-projection.js";
+import { sourceProjectionProfileForMode } from "./source-projection.js";
+import type { SourceProjectionMode } from "./source-projection.js";
 import type { PreparedPlatePlacement } from "../plates/plate-placement.js";
 import type { Point2D, Vec3 } from "../projection.js";
 
@@ -16,6 +19,7 @@ export type FlatMapMetrics = { cx: number; cy: number; radius: number };
 export type FlatTransformOptions = {
   radiusScale?: number | string | null;
   rotationRadians?: number | string | null;
+  sourceProjectionMode?: SourceProjectionMode | null;
 };
 export type DomePoint = { radius: number; azimuth: number };
 export type SourceOffset = { dx: number; dy: number };
@@ -64,7 +68,7 @@ export function flatDisplayPointToDomeDirection(
   options: FlatTransformOptions = {},
 ): Vec3 | null {
   const offset = flatDisplayPointToSourceOffset(point, metrics, options);
-  return flatSourceOffsetToDomeDirection(offset.dx, offset.dy);
+  return flatSourceOffsetToDomeDirection(offset.dx, offset.dy, options.sourceProjectionMode || "zenith-180");
 }
 
 export function flatDisplayPointToSourceOffset(
@@ -83,20 +87,20 @@ export function flatDisplayPointToSourceOffset(
 export function flatSourceOffsetToDomePoint(dx: number, dy: number): DomePoint | null {
   const r = Math.hypot(dx, dy);
   if (r > 1.02) return null;
-  const theta = thetaFromFlatRadial(r);
   return {
-    radius: clamp(theta / HALF_PI, 0, 1),
+    radius: clamp(r, 0, 1),
     azimuth: normalizeDegrees((Math.atan2(dx, -dy) * 180) / Math.PI),
   };
 }
 
-export function flatSourceOffsetToDomeDirection(dx: number, dy: number): Vec3 | null {
+export function flatSourceOffsetToDomeDirection(
+  dx: number,
+  dy: number,
+  sourceProjectionMode: SourceProjectionMode = "zenith-180",
+): Vec3 | null {
   const r = Math.hypot(dx, dy);
   if (r > 1.02) return null;
-  const theta = thetaFromFlatRadial(r);
-  const azimuth = Math.atan2(dx, -dy);
-  const sinTheta = Math.sin(theta);
-  return [sinTheta * Math.sin(azimuth), Math.cos(theta), sinTheta * Math.cos(azimuth)];
+  return fisheyeUvToDirection(0.5 + dx * 0.5, 0.5 + dy * 0.5, sourceProjectionProfileForMode(sourceProjectionMode));
 }
 
 export function plateUvToFlatPoint(
@@ -106,10 +110,11 @@ export function plateUvToFlatPoint(
   cx: number,
   cy: number,
   radius: number,
+  sourceProjectionMode: SourceProjectionMode = "zenith-180",
 ): Point2D | null {
   const direction = directionFromPlateUv(placement, u, v);
   if (!direction) return null;
-  return domeDirectionToFlatPoint(direction, cx, cy, radius);
+  return domeDirectionToFlatPoint(direction, cx, cy, radius, sourceProjectionMode);
 }
 
 export function plateUvToDisplayFlatPoint(
@@ -120,19 +125,28 @@ export function plateUvToDisplayFlatPoint(
   cy: number,
   radius: number,
   rotationRadians: number | string | null = 0,
+  sourceProjectionMode: SourceProjectionMode = "zenith-180",
 ): Point2D | null {
-  return sourceFlatToDisplayFlatPoint(plateUvToFlatPoint(placement, u, v, cx, cy, radius), cx, cy, rotationRadians);
+  return sourceFlatToDisplayFlatPoint(
+    plateUvToFlatPoint(placement, u, v, cx, cy, radius, sourceProjectionMode),
+    cx,
+    cy,
+    rotationRadians,
+  );
 }
 
-export function domeDirectionToFlatPoint(direction: Vec3, cx: number, cy: number, radius: number): Point2D | null {
-  if (direction[1] < -0.0001) return null;
-  const theta = Math.acos(clamp(direction[1], 0, 1));
-  const r = projectionRadiusForTheta(theta);
-  if (r > 1.02) return null;
-  const azimuth = Math.atan2(direction[0], direction[2]);
+export function domeDirectionToFlatPoint(
+  direction: Vec3,
+  cx: number,
+  cy: number,
+  radius: number,
+  sourceProjectionMode: SourceProjectionMode = "zenith-180",
+): Point2D | null {
+  const uv = directionToFisheyeUv(direction, sourceProjectionProfileForMode(sourceProjectionMode));
+  if (!uv) return null;
   return {
-    x: cx + Math.sin(azimuth) * r * radius,
-    y: cy - Math.cos(azimuth) * r * radius,
+    x: cx + (uv.u - 0.5) * 2 * radius,
+    y: cy + (uv.v - 0.5) * 2 * radius,
   };
 }
 
@@ -186,10 +200,6 @@ function rotateFlatPoint(
     x: cx + dx * c - dy * s,
     y: cy + dx * s + dy * c,
   };
-}
-
-function thetaFromFlatRadial(radial: number): number {
-  return inverseMotionProjectionRadius(radial);
 }
 
 function normalizeDegrees(value: number): number {

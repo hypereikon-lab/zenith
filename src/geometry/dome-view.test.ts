@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { lookAtLH, normalize } from "../projection.js";
 import {
   physicalDomeDirectionFromSourceDirection,
+  domePointFromSourceDirection,
   sourceDirectionFromPhysicalDomeDirection,
   sourceDomeDirectionFromScreenPoint,
   sourceDomeDirectionToScreenPoint,
@@ -39,6 +40,44 @@ describe("dome view pointer projection", () => {
 
   test("does not project the hidden back side through the front dome surface", () => {
     expect(sourceDomeDirectionToScreenPoint([0, 0, -1], baseProjection)).toBeNull();
+  });
+
+  test("maps source points through zenith and nadir projection modes", () => {
+    expect(domePointFromSourceDirection([0, 1, 0], "zenith-180").radius).toBeCloseTo(0, 5);
+    expect(domePointFromSourceDirection([0, -1, 0], "nadir-270").radius).toBeCloseTo(0, 5);
+
+    const nadirHorizon = domePointFromSourceDirection([0, 0, 1], "nadir-270");
+    expect(nadirHorizon.radius).toBeCloseTo(2 / 3, 5);
+    expect(nadirHorizon.azimuth).toBeCloseTo(0, 5);
+  });
+
+  test("clips source directions outside the selected geometric projection", () => {
+    expect(sourceDomeDirectionToScreenPoint([0, 1, 0], { ...baseProjection, sourceProjectionMode: "nadir-270" })).toBeNull();
+    expect(sourceDomeDirectionToScreenPoint([0, -1, 0], { ...baseProjection, sourceProjectionMode: "zenith-180" })).toBeNull();
+  });
+
+  test("clips tilted dome views in source space instead of raw physical latitude", () => {
+    const source: Vec3 = [0, 0, -1];
+    const transform = {
+      sourceRotationRadians: 0,
+      domeTiltRadians: Math.PI / 6,
+      mirror: false,
+    };
+    const physical = physicalDomeDirectionFromSourceDirection(source, transform);
+    expect(physical[1]).toBeLessThan(0);
+
+    const projection: DomeViewProjection = {
+      ...baseProjection,
+      ...transform,
+      sourceProjectionMode: "zenith-180",
+      viewMatrix: lookAtLH([0, 0, 0], physical, [0, 1, 0]),
+    };
+
+    const screen = sourceDomeDirectionToScreenPoint(source, projection);
+    if (!screen) throw new Error("Expected tilted source horizon to project to screen");
+    expect(screen.x).toBeCloseTo(50, 6);
+    expect(screen.y).toBeCloseTo(50, 6);
+    expectVectorClose(sourceDomeDirectionFromScreenPoint(screen, projection), source);
   });
 
   test("supports inside-camera picking from the dome center", () => {

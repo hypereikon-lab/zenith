@@ -6,6 +6,7 @@ import {
   flatDisplayPointToDomePoint,
   sourceFlatToDisplayFlatPoint,
 } from "./flat-domemaster.js";
+import type { SourceProjectionMode } from "./source-projection.js";
 
 describe("flat domemaster coordinate spaces", () => {
   test("maps viewport client points into canvas-local CSS pixels", () => {
@@ -65,6 +66,22 @@ describe("flat domemaster coordinate spaces", () => {
     });
 
     expectVectorClose(roundTrip, sourceDirection);
+  });
+
+  test("places the flat horizon at the correct radius for every source projection mode", () => {
+    const modes: Array<[SourceProjectionMode, number]> = [
+      ["zenith-180", 1],
+      ["zenith-270", 2 / 3],
+      ["nadir-180", 1],
+      ["nadir-270", 2 / 3],
+    ];
+
+    for (const [mode, expectedRadius] of modes) {
+      const point = domeDirectionToFlatPoint([0, 0, 1], 50, 50, 40, mode);
+      expect(point).not.toBeNull();
+      const radius = Math.hypot(point!.x - 50, point!.y - 50) / 40;
+      expect(radius).toBeCloseTo(expectedRadius, 8);
+    }
   });
 });
 

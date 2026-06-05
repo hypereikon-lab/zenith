@@ -1,5 +1,4 @@
 import {
-  HALF_PI,
   clamp,
   dot,
   multiplyMat4,
@@ -8,6 +7,11 @@ import {
   perspectiveLH,
   scaleVec3,
 } from "../projection.js";
+import { directionToFisheyeUv } from "./fisheye-projection.js";
+import { physicalDirectionFromSourceDirection, sourceDirectionFromPhysicalDirection } from "./source-transform.js";
+import { sourceProjectionContainsDirection } from "./source-projection.js";
+import { sourceProjectionProfileForMode } from "./source-projection.js";
+import type { SourceProjectionMode } from "./source-projection.js";
 import type { Mat4, Point2D, Rect, Vec3 } from "../projection.js";
 
 const CUTAWAY_HIDDEN_X = -0.025;
@@ -20,6 +24,7 @@ export type DomeViewProjection = {
   sourceRotationRadians: number;
   domeTiltRadians: number;
   mirror: boolean;
+  sourceProjectionMode?: SourceProjectionMode;
   cutaway?: boolean;
 };
 
@@ -38,7 +43,7 @@ export function sourceDomePointFromScreenPoint(
   projection: DomeViewProjection,
 ): DomePoint | null {
   const direction = sourceDomeDirectionFromScreenPoint(point, projection);
-  return direction ? domePointFromSourceDirection(direction) : null;
+  return direction ? domePointFromSourceDirection(direction, projection.sourceProjectionMode || "zenith-180") : null;
 }
 
 export function sourceDomeDirectionToScreenPoint(
@@ -46,7 +51,7 @@ export function sourceDomeDirectionToScreenPoint(
   projection: DomeViewProjection,
 ): Point2D | null {
   const physical = physicalDomeDirectionFromSourceDirection(direction, projection);
-  if (physical[1] < -0.001) return null;
+  if (!physicalDirectionInProjectionRange(physical, projection)) return null;
   if (projection.cutaway && physical[0] < CUTAWAY_HIDDEN_X) return null;
 
   const aspect = projection.rect.width / Math.max(projection.rect.height, 0.000001);
@@ -69,11 +74,22 @@ export function sourceDomeDirectionToScreenPoint(
   return screenPoint;
 }
 
-export function domePointFromSourceDirection(direction: Vec3): DomePoint {
-  const theta = Math.acos(clamp(direction[1], 0, 1));
+export function domePointFromSourceDirection(
+  direction: Vec3,
+  sourceProjectionMode: SourceProjectionMode = "zenith-180",
+): DomePoint {
+  const uv = directionToFisheyeUv(direction, sourceProjectionProfileForMode(sourceProjectionMode));
+  if (!uv) {
+    return {
+      radius: 1,
+      azimuth: normalizeDegrees((Math.atan2(direction[0], direction[2]) * 180) / Math.PI),
+    };
+  }
+  const dx = (uv.u - 0.5) * 2;
+  const dy = (uv.v - 0.5) * 2;
   return {
-    radius: clamp(theta / HALF_PI, 0, 1),
-    azimuth: normalizeDegrees((Math.atan2(direction[0], direction[2]) * 180) / Math.PI),
+    radius: clamp(Math.hypot(dx, dy), 0, 1),
+    azimuth: normalizeDegrees((Math.atan2(dx, -dy) * 180) / Math.PI),
   };
 }
 
@@ -81,30 +97,14 @@ export function sourceDirectionFromPhysicalDomeDirection(
   physicalDirection: Vec3,
   projection: Pick<DomeViewProjection, "domeTiltRadians" | "mirror" | "sourceRotationRadians">,
 ): Vec3 {
-  const tilted = rotateX(normalize(physicalDirection), projection.domeTiltRadians);
-  const theta = Math.acos(clamp(tilted[1], 0, 1));
-  const sinTheta = Math.sin(theta);
-  let azimuth = Math.atan2(tilted[0], tilted[2]);
-  if (projection.mirror) {
-    azimuth = -azimuth;
-  }
-  azimuth += projection.sourceRotationRadians;
-  return normalize([sinTheta * Math.sin(azimuth), Math.cos(theta), sinTheta * Math.cos(azimuth)]);
+  return sourceDirectionFromPhysicalDirection(physicalDirection, projection);
 }
 
 export function physicalDomeDirectionFromSourceDirection(
   sourceDirection: Vec3,
   projection: Pick<DomeViewProjection, "domeTiltRadians" | "mirror" | "sourceRotationRadians">,
 ): Vec3 {
-  const source = normalize(sourceDirection);
-  const theta = Math.acos(clamp(source[1], 0, 1));
-  const sinTheta = Math.sin(theta);
-  let azimuth = Math.atan2(source[0], source[2]) - projection.sourceRotationRadians;
-  if (projection.mirror) {
-    azimuth = -azimuth;
-  }
-  const tilted: Vec3 = [sinTheta * Math.sin(azimuth), Math.cos(theta), sinTheta * Math.cos(azimuth)];
-  return normalize(rotateX(tilted, -projection.domeTiltRadians));
+  return physicalDirectionFromSourceDirection(sourceDirection, projection);
 }
 
 function physicalDomeDirectionFromScreenPoint(point: Point2D, projection: DomeViewProjection): Vec3 | null {
@@ -124,7 +124,7 @@ function physicalDomeDirectionFromScreenPoint(point: Point2D, projection: DomeVi
   candidates.sort((left, right) => left - right);
   for (const distance of candidates) {
     const hit = addVec3(ray.origin, scaleVec3(ray.direction, distance));
-    if (hit[1] < -0.001) continue;
+    if (!physicalDirectionInProjectionRange(hit, projection)) continue;
     if (projection.cutaway && hit[0] < CUTAWAY_HIDDEN_X) continue;
     return normalize(hit);
   }
@@ -159,10 +159,12 @@ function worldRayFromScreenPoint(
   return { origin, direction };
 }
 
-function rotateX(value: Vec3, angle: number): Vec3 {
-  const cosine = Math.cos(angle);
-  const sine = Math.sin(angle);
-  return [value[0], value[1] * cosine - value[2] * sine, value[1] * sine + value[2] * cosine];
+function physicalDirectionInProjectionRange(
+  direction: Vec3,
+  projection: Pick<DomeViewProjection, "sourceProjectionMode" | "domeTiltRadians" | "mirror" | "sourceRotationRadians">,
+): boolean {
+  const sourceDirection = sourceDirectionFromPhysicalDomeDirection(direction, projection);
+  return sourceProjectionContainsDirection(sourceDirection, projection.sourceProjectionMode || "zenith-180");
 }
 
 function pointInRect(point: Point2D, rect: Rect): boolean {
