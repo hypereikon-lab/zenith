@@ -4,6 +4,7 @@ import { clamp } from "../projection.js";
 import { requestRunwayInpaint, requestRunwayStatus } from "../runway/client.js";
 import { clearProgressButton, setProgressButton } from "../ui/progress-buttons.js";
 import { errorMessage } from "../utils/errors.js";
+import { createInpaintHandoffCanvases } from "./inpaint-handoff.js";
 import type { OperationToken } from "../operation-manager.js";
 import type { RunwayOutput, ScheduleWorkspaceAutosave, SetGpuState, ZenithState } from "../app/types.js";
 import type { ZenithControls } from "../ui/dom.js";
@@ -40,7 +41,7 @@ export function createInpaintController({
     setControlsEnabled: (enabled: boolean) => void;
     updateTransport: () => void;
   };
-  defaultInpaintPrompt: string;
+  defaultInpaintPrompt: () => string;
   actions: {
     commitPlateSketchSafely: () => Promise<void>;
     uploadCanvasAsSource: (canvas: HTMLCanvasElement, name: string) => void;
@@ -67,54 +68,13 @@ export function createInpaintController({
       await actions.commitPlateSketchSafely();
     }
     if (!state.plateCompositeCanvas || state.plateCompositeDirty) return null;
-    if (!state.inpaintWhiteCanvas || !state.inpaintMaskCanvas) {
-      const handoff = createInpaintHandoffCanvases(state.plateCompositeCanvas);
-      state.inpaintWhiteCanvas = handoff.white;
-      state.inpaintMaskCanvas = handoff.mask;
-    }
+    const handoff = createInpaintHandoffCanvases(state.plateCompositeCanvas, {
+      sourceProjectionMode: controls.sourceProjection.value,
+    });
+    state.inpaintWhiteCanvas = handoff.white;
+    state.inpaintMaskCanvas = handoff.mask;
     updateInpaintUiState();
     return state.inpaintWhiteCanvas;
-  }
-
-  function createInpaintHandoffCanvases(sourceCanvas: HTMLCanvasElement): {
-    white: HTMLCanvasElement;
-    mask: HTMLCanvasElement;
-  } {
-    const width = sourceCanvas.width;
-    const height = sourceCanvas.height;
-    const sourceContext = sourceCanvas.getContext("2d", { willReadFrequently: true });
-    const source = sourceContext.getImageData(0, 0, width, height);
-    const whiteCanvas = document.createElement("canvas");
-    const maskCanvas = document.createElement("canvas");
-    whiteCanvas.width = width;
-    whiteCanvas.height = height;
-    maskCanvas.width = width;
-    maskCanvas.height = height;
-
-    const whiteContext = whiteCanvas.getContext("2d", { willReadFrequently: true });
-    const maskContext = maskCanvas.getContext("2d", { willReadFrequently: true });
-    const whiteImage = whiteContext.createImageData(width, height);
-    const maskImage = maskContext.createImageData(width, height);
-    const src = source.data;
-    const dst = whiteImage.data;
-    const mask = maskImage.data;
-
-    for (let index = 0; index < src.length; index += 4) {
-      const alpha = src[index + 3] / 255;
-      const missing = 255 - src[index + 3];
-      dst[index] = Math.round(src[index] + 255 * (1 - alpha));
-      dst[index + 1] = Math.round(src[index + 1] + 255 * (1 - alpha));
-      dst[index + 2] = Math.round(src[index + 2] + 255 * (1 - alpha));
-      dst[index + 3] = 255;
-      mask[index] = missing;
-      mask[index + 1] = missing;
-      mask[index + 2] = missing;
-      mask[index + 3] = 255;
-    }
-
-    whiteContext.putImageData(whiteImage, 0, 0);
-    maskContext.putImageData(maskImage, 0, 0);
-    return { white: whiteCanvas, mask: maskCanvas };
   }
 
   function clearInpaintState() {
@@ -134,6 +94,8 @@ export function createInpaintController({
       state.plates.length,
       controls.plateFit.value,
       controls.plateFeather.value,
+      controls.sourceProjection.value,
+      controls.runwayPrompt.value.trim(),
     ].join("|");
   }
 
@@ -148,7 +110,7 @@ export function createInpaintController({
 
     try {
       const dataUrl = canvas.toDataURL("image/png");
-      const prompt = controls.runwayPrompt.value.trim() || defaultInpaintPrompt;
+      const prompt = controls.runwayPrompt.value.trim() || defaultInpaintPrompt();
       const quality = readInpaintQuality();
       const request = {
         imageDataUrl: dataUrl,
@@ -176,6 +138,7 @@ export function createInpaintController({
           quality,
           prompt,
           createdAt,
+          sourceProjectionMode: controls.sourceProjection.value,
         }));
       state.activeRunwayOutputIndex = 0;
       renderRunwayResults();

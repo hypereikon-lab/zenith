@@ -11,7 +11,8 @@ const INPAINT_RATIO = "1920:1920";
 
 type VersionControllerOptions = {
   storageKey: string;
-  defaultInpaintPrompt: string;
+  defaultInpaintPrompt: () => string;
+  normalizeInpaintPrompt?: (prompt: string) => string;
   state: ZenithState;
   controls: ZenithControls;
   elements: {
@@ -38,6 +39,7 @@ type VersionControllerOptions = {
 export function createVersionController({
   storageKey,
   defaultInpaintPrompt,
+  normalizeInpaintPrompt,
   state,
   controls,
   elements,
@@ -143,7 +145,8 @@ export function createVersionController({
     const generation = version.generation || {};
     controls.runwayQuality.value = generation.quality || DEFAULT_CONTROL_VALUES.runwayQuality;
     controls.runwayOutputCount.value = String(generation.outputCount || 1);
-    controls.runwayPrompt.value = generation.prompt || defaultInpaintPrompt;
+    const prompt = generation.prompt || defaultInpaintPrompt();
+    controls.runwayPrompt.value = normalizeInpaintPrompt ? normalizeInpaintPrompt(prompt) : prompt;
 
     actions.ensurePlatePlacements();
     actions.updatePlateSelect();
