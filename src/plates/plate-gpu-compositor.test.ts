@@ -26,6 +26,10 @@ describe("plate GPU compositor shader", () => {
     expect(plateCompositeShader).not.toContain("projection: vec4<f32>");
     expect(plateCompositeShader).not.toContain("inverseProjectionRadius");
     expect(plateCompositeShader).not.toContain("plate.projection");
-    expect(plateCompositeShader).toContain("let theta = clamp(radius, 0.0, 1.0) * HALF_PI");
+    expect(plateCompositeShader).toContain("sourceCenterTheta: vec4<f32>");
+    expect(plateCompositeShader).toContain("fn sourceDirectionFromUv");
+    expect(plateCompositeShader).toContain("let theta = clamp(radius, 0.0, 1.0) * max(plate.sourceCenterTheta.w, 0.0001)");
+    expect(plateCompositeShader).toContain("plate.sourceRight.xyz * local.x");
+    expect(plateCompositeShader).toContain("plate.sourceUp.xyz * -local.y");
   });
 });

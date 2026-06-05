@@ -1,7 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { physicalDomeDirectionFromSourceDirection, sourceDomeDirectionToScreenPoint } from "../geometry/dome-view.js";
+import { sourceCaveDirectionToScreenPoint } from "../geometry/cave-view.js";
 import { plateUvToFlatPoint, sourceFlatToDisplayFlatPoint } from "../geometry/flat-domemaster.js";
-import { preparePlatePlacement } from "../plates/plate-placement.js";
+import { directionFromPlateUv, preparePlatePlacement } from "../plates/plate-placement.js";
 import type { PlatePlacementInput } from "../plates/plate-placement.js";
 import { lookAtLH } from "../projection.js";
 import { createPointerToolController } from "./pointer-tools.js";
@@ -282,6 +283,159 @@ describe("pointer placement edit gate", () => {
     controller.handlePointerUp({ clientX: center.x + 7, clientY: center.y + 3, pointerId: 1 });
 
     expect(state.platePlacements[0].azimuth).not.toBe(initialAzimuth);
+  });
+
+  test("moves a plate from CAVE mode using the cube face ray mapping", () => {
+    const placement = {
+      azimuth: 0,
+      radius: 2 / 3,
+      scale: 0.42,
+      spin: 0,
+      opacity: 1,
+    };
+    const state = {
+      viewMode: "cave",
+      plates: [{ name: "plate.png", aspect: 1 }],
+      activePlateIndex: 0,
+      platePlacements: [placement],
+      pointer: { active: false, mode: null as null, x: 0, y: 0, placementDrag: null as null },
+      camera: {},
+    };
+    const controls = {
+      editPlacement: { checked: true },
+      activePlate: { value: "0" },
+      fov: { value: "90" },
+      radiusScale: { value: "1" },
+      rotation: { value: "0" },
+      domeTilt: { value: "0" },
+      mirror: { checked: false },
+      sourceProjection: { value: "nadir-270" },
+      theaterPitch: { value: "28" },
+      plateFit: { value: "contain" },
+    };
+    const viewMatrix = lookAtLH([0, 0, 6], [0, 0, 0], [0, 1, 0]);
+    const prepared = preparePlatePlacement(placement, state.plates[0], "nadir-270");
+    const center = sourceCaveDirectionToScreenPoint(prepared.center, {
+      rect: { x: 0, y: 0, width: 100, height: 100 },
+      viewMatrix,
+      fovDegrees: 90,
+      sourceRotationRadians: 0,
+      domeTiltRadians: 0,
+      mirror: false,
+      sourceProjectionMode: "nadir-270",
+    });
+    if (!center) throw new Error("Expected CAVE plate center to project");
+    const startCorner = sourceCaveDirectionToScreenPoint(directionFromPlateUv(prepared, 1, 0.5), {
+      rect: { x: 0, y: 0, width: 100, height: 100 },
+      viewMatrix,
+      fovDegrees: 90,
+      sourceRotationRadians: 0,
+      domeTiltRadians: 0,
+      mirror: false,
+      sourceProjectionMode: "nadir-270",
+    });
+    expect(startCorner).not.toBeNull();
+    const controller = createPointerToolController({
+      canvas: {
+        clientWidth: 100,
+        clientHeight: 100,
+        setPointerCapture() {},
+        releasePointerCapture() {},
+        classList: {
+          add() {},
+          remove() {},
+        },
+      },
+      state,
+      controls,
+      getCssLayout: () => ({
+        fullRect: { x: 0, y: 0, width: 100, height: 100 },
+      }),
+      activeDomeCamera: () => "orbit",
+      currentDomeViewMatrix: () => viewMatrix,
+      actions: {
+        ensurePlatePlacements() {},
+        updatePatchControlsFromActive() {},
+        updatePlateSelect() {},
+        schedulePlatePreview() {},
+        scheduleWorkspaceAutosave() {},
+      },
+    });
+
+    controller.handlePointerDown({ clientX: center.x, clientY: center.y, pointerId: 1 });
+    expect(state.pointer.mode).toBe("plate");
+    controller.handlePointerMove({ clientX: center.x + 8, clientY: center.y, pointerId: 1 });
+    controller.handlePointerUp({ clientX: center.x + 8, clientY: center.y, pointerId: 1 });
+
+    expect(state.platePlacements[0].azimuth).not.toBe(0);
+  });
+
+  test("dragging an empty CAVE surface rotates the view instead of the selected plate", () => {
+    const placement = {
+      azimuth: 0,
+      radius: 2 / 3,
+      scale: 0.32,
+      spin: 0,
+      opacity: 1,
+    };
+    const state = {
+      viewMode: "cave",
+      plates: [{ name: "plate.png", aspect: 1 }],
+      activePlateIndex: 0,
+      platePlacements: [placement],
+      pointer: { active: false, mode: null as null, x: 0, y: 0, placementDrag: null as null },
+      camera: { orbitYaw: 0, orbitPitch: 0 },
+    };
+    const controls = {
+      editPlacement: { checked: true },
+      activePlate: { value: "0" },
+      fov: { value: "90" },
+      radiusScale: { value: "1" },
+      rotation: { value: "0" },
+      domeTilt: { value: "0" },
+      mirror: { checked: false },
+      sourceProjection: { value: "nadir-270" },
+      theaterPitch: { value: "28" },
+      plateFit: { value: "contain" },
+    };
+    const viewMatrix = lookAtLH([0, 0, 6], [0, 0, 0], [0, 1, 0]);
+    const controller = createPointerToolController({
+      canvas: {
+        clientWidth: 100,
+        clientHeight: 100,
+        setPointerCapture() {},
+        releasePointerCapture() {},
+        classList: {
+          add() {},
+          remove() {},
+        },
+      },
+      state,
+      controls,
+      getCssLayout: () => ({
+        fullRect: { x: 0, y: 0, width: 100, height: 100 },
+      }),
+      activeDomeCamera: () => "orbit",
+      currentDomeViewMatrix: () => viewMatrix,
+      actions: {
+        ensurePlatePlacements() {},
+        updatePatchControlsFromActive() {},
+        updatePlateSelect() {},
+        schedulePlatePreview() {},
+        scheduleWorkspaceAutosave() {},
+      },
+    });
+
+    controller.handlePointerDown({ clientX: 70, clientY: 50, pointerId: 1 });
+    expect(state.pointer.mode).toBe("view");
+    controller.handlePointerMove({ clientX: 58, clientY: 62, pointerId: 1 });
+    controller.handlePointerUp({ clientX: 58, clientY: 62, pointerId: 1 });
+
+    expect(state.platePlacements[0].azimuth).toBe(0);
+    expect(state.platePlacements[0].radius).toBe(2 / 3);
+    expect(state.platePlacements[0].spin).toBe(0);
+    expect(state.camera.orbitYaw).not.toBe(0);
+    expect(state.camera.orbitPitch).not.toBe(0);
   });
 
   test("dragging empty dome rotates the selected plate", () => {

@@ -1,5 +1,7 @@
 import { DEFAULT_ACTIVE_PLATE_INDEX, DEFAULT_PLATE_PLACEMENTS } from "../app/default-profile.js";
+import { createInpaintHandoffCanvases } from "../inpaint/inpaint-handoff.js";
 import { downloadBlob } from "../media/canvas-utils.js";
+import { normalizeSourceProjectionMode } from "../geometry/source-projection.js";
 import { clamp } from "../projection.js";
 import { PLATE_CORNERS, normalizePlatePlacement } from "./plate-placement.js";
 import type { PlateSource, ScheduleWorkspaceAutosave, SetGpuState } from "../app/types.js";
@@ -41,6 +43,7 @@ type PlateControllerOptions = {
       append: (option: HTMLOptionElement) => void;
     };
     plateCornerMode: { value: string; disabled: boolean };
+    sourceProjection?: { value: string };
     patchAzimuth: { value: string; disabled: boolean };
     patchRadius: { value: string; disabled: boolean };
     patchSpin: { value: string; disabled: boolean };
@@ -115,7 +118,10 @@ export function createPlateController({
       await commitPlateSketchSafely();
     }
     if (state.plateCompositeCanvas) {
-      state.plateCompositeCanvas.toBlob((blob) => {
+      const handoff = createInpaintHandoffCanvases(state.plateCompositeCanvas, {
+        sourceProjectionMode: normalizeSourceProjectionMode(controls.sourceProjection?.value),
+      });
+      handoff.white.toBlob((blob) => {
         if (blob) downloadBlob(blob, `fulldome-plate-sketch-${Date.now()}.png`);
       }, "image/png");
     }
@@ -457,6 +463,7 @@ export function createPlateController({
       plateFeather: Number(controls.plateFeather.value),
       platePlacements: state.platePlacements,
       size: PLATE_COMPOSITE_SIZE,
+      sourceProjectionMode: normalizeSourceProjectionMode(controls.sourceProjection?.value),
     });
 
     state.plateCompositeTexture = texture;
@@ -492,6 +499,7 @@ export function createPlateController({
       plateFeather: Number(controls.plateFeather.value),
       platePlacements: state.platePlacements,
       size: PLATE_COMPOSITE_SIZE,
+      sourceProjectionMode: normalizeSourceProjectionMode(controls.sourceProjection?.value),
     });
     const canvas = await renderer.readTextureToCanvas(texture, PLATE_COMPOSITE_SIZE, PLATE_COMPOSITE_SIZE);
     state.plateCompositeTexture = texture;

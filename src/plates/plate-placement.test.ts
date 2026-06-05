@@ -10,6 +10,7 @@ import {
   plateUvToLocal,
   preparePlatePlacement,
 } from "./plate-placement.js";
+import { SOURCE_PROJECTION_MODES } from "../geometry/source-projection.js";
 
 describe("plate placement corner warp", () => {
   test("normalizes corner offsets with bounded defaults", () => {
@@ -93,6 +94,42 @@ describe("plate placement corner warp", () => {
       expect(uv).not.toBeNull();
       expect(uv?.x).toBeCloseTo(u, 5);
       expect(uv?.y).toBeCloseTo(v, 5);
+    }
+  });
+
+  test("round-trips plate directions in every source projection mode", () => {
+    for (const mode of SOURCE_PROJECTION_MODES) {
+      const placement = preparePlatePlacement(
+        {
+          azimuth: -38,
+          radius: 0.62,
+          scale: 0.82,
+          spin: 23,
+          cornerOffsets: {
+            nw: { x: 0.04, y: -0.03 },
+            ne: { x: -0.1, y: 0.08 },
+            se: { x: 0.06, y: -0.02 },
+            sw: { x: -0.03, y: 0.09 },
+          },
+        },
+        { aspect: 1.6 },
+        mode,
+      );
+
+      for (const [u, v] of [
+        [0.5, 0.5],
+        [0.18, 0.24],
+        [0.82, 0.76],
+      ]) {
+        const direction = directionFromPlateUv(placement, u, v);
+        const local = directionToPlateLocal(direction, placement);
+        expect(local).not.toBeNull();
+        const uv = plateLocalToWarpedUv(local!, placement);
+
+        expect(uv).not.toBeNull();
+        expect(uv?.x).toBeCloseTo(u, 5);
+        expect(uv?.y).toBeCloseTo(v, 5);
+      }
     }
   });
 

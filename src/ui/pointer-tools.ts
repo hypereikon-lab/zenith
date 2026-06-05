@@ -3,6 +3,7 @@ import {
   MIN_PLATE_SCALE,
   clonePlateCornerOffsets,
   cornerOffsetFromLocal,
+  directionFromPlateUv,
   directionToPlateLocal,
   normalizePlatePlacement,
   plateCornerLocal,
@@ -21,6 +22,12 @@ import {
   visiblePlateUvBounds,
 } from "../geometry/flat-domemaster.js";
 import type { DomePoint } from "../geometry/flat-domemaster.js";
+import {
+  sourceCaveDirectionFromScreenPoint,
+  sourceCaveDirectionToScreenPoint,
+  sourceCavePointFromScreenPoint,
+} from "../geometry/cave-view.js";
+import type { CaveViewProjection } from "../geometry/cave-view.js";
 import {
   sourceDomeDirectionFromScreenPoint,
   sourceDomeDirectionToScreenPoint,
@@ -41,12 +48,14 @@ import type { PreparedPlatePlacement } from "../plates/plate-placement.js";
 import type { Mat4, Point2D, Vec3 } from "../projection.js";
 import type { FlatLayout, FlatPointerMetrics } from "./pointer-geometry.js";
 import { flatMapMetricsFromClient } from "./pointer-geometry.js";
+import { normalizeSourceProjectionMode } from "../geometry/source-projection.js";
 
 const HANDLE_RADIUS = 13;
 const MOVE_DRAG_THRESHOLD = 3;
 const PLATE_HIT_LOCAL_PAD = 0.012;
+const CAVE_PLATE_HIT_UV_STEPS = 14;
 type PlateGeometryHandle = Point2D & ({ action: "scale"; corner: PlateCorner } | { action: "rotate" });
-type PlateGeometry = { center: Point2D; handles: PlateGeometryHandle[] };
+type PlateGeometry = { center: Point2D; handles: PlateGeometryHandle[]; outline: Point2D[] };
 type PlateHit = { index: number; handle: PlateHandleHit };
 type PointerCanvas = {
   clientWidth: number;
@@ -69,6 +78,7 @@ type PointerToolControls = {
   rotation?: ValueControl;
   domeTilt?: ValueControl;
   mirror?: CheckboxControl;
+  sourceProjection?: ValueControl;
   plateFit?: ValueControl;
   plateCornerMode?: ValueControl;
 };
@@ -133,14 +143,14 @@ export function createPointerToolController({
     const camera = activeDomeCamera();
     if (camera === "inside") {
       state.camera.insideYaw -= dx * 0.004;
-      state.camera.insidePitch = clamp(state.camera.insidePitch + dy * 0.0035, -0.28, 1.42);
+      state.camera.insidePitch = clamp(state.camera.insidePitch + dy * 0.0035, -1.42, 1.42);
     } else if (camera === "theater") {
       state.camera.theaterYaw -= dx * 0.004;
-      const nextPitch = clamp(Number(controls.theaterPitch.value) + dy * 0.045, 4, 68);
+      const nextPitch = clamp(Number(controls.theaterPitch.value) + dy * 0.045, -68, 68);
       controls.theaterPitch.value = String(nextPitch);
     } else {
       state.camera.orbitYaw -= dx * 0.004;
-      state.camera.orbitPitch = clamp(state.camera.orbitPitch + dy * 0.0035, -0.2, 1.28);
+      state.camera.orbitPitch = clamp(state.camera.orbitPitch + dy * 0.0035, -1.28, 1.28);
     }
   }
 
@@ -178,7 +188,10 @@ export function createPointerToolController({
     const metrics = clientToPlacementMetrics(event);
     if (!metrics) return false;
     const hit = hitTestPlatePlacement(event, metrics);
-    if (!hit) return tryStartEmptyDomeRotation(event, metrics);
+    if (!hit) {
+      if (state.viewMode !== "flat") return false;
+      return tryStartEmptyDomeRotation(event, metrics);
+    }
 
     state.activePlateIndex = hit.index;
     actions.updatePlateSelect?.();
@@ -230,7 +243,7 @@ export function createPointerToolController({
     }
     if (handle.action === "scale") {
       const direction = metrics.sourceDirectionAt(point);
-      const prepared = preparePlatePlacement(placement, activePlate());
+      const prepared = preparePlatePlacement(placement, activePlate(), sourceProjectionMode());
       const useWarpCorner =
         (event.altKey || event.shiftKey || controls.plateCornerMode?.value === "warp") && handle.corner;
       if (useWarpCorner && handle.corner) {
@@ -312,7 +325,7 @@ export function createPointerToolController({
   ): void {
     const direction = metrics.sourceDirectionAt(clientEventToCanvasPoint(event, canvas));
     if (!direction) return;
-    const prepared = preparePlatePlacement(placement, activePlate());
+    const prepared = preparePlatePlacement(placement, activePlate(), sourceProjectionMode());
     const local = directionToPlacementLocal(direction, prepared);
     if (!local) return;
     const startScale = clamp(Number(drag.startScale) || 0.5, MIN_PLATE_SCALE, MAX_PLATE_SCALE);
@@ -348,7 +361,11 @@ export function createPointerToolController({
   ): void {
     const direction = metrics.sourceDirectionAt(clientEventToCanvasPoint(event, canvas));
     if (!direction) return;
-    const prepared = preparePlatePlacement({ ...placement, cornerOffsets: drag.startCornerOffsets }, activePlate());
+    const prepared = preparePlatePlacement(
+      { ...placement, cornerOffsets: drag.startCornerOffsets },
+      activePlate(),
+      sourceProjectionMode(),
+    );
     const local = directionToPlacementLocal(direction, prepared);
     if (!local) return;
     const targetLocal = drag.startLocal
@@ -394,7 +411,7 @@ export function createPointerToolController({
     const point = clientEventToCanvasPoint(event, canvas);
     const direction = metrics.sourceDirectionAt(point);
     const handle = hitHandle(point, activeGeometry);
-    const hitsActiveBody = direction ? hitPlateBodyByDirection(direction, state.activePlateIndex) : false;
+    const hitsActiveBody = hitPlateBody(point, direction, state.activePlateIndex, metrics);
     if (handle && shouldPreferHandleHit(point, handle, activeGeometry, hitsActiveBody)) {
       return { index: state.activePlateIndex, handle };
     }
@@ -402,7 +419,7 @@ export function createPointerToolController({
     if (!direction) return null;
     const plateCount = actions.resolvedPlateCount?.() || state.platePlacements.length;
     for (let index = plateCount - 1; index >= 0; index -= 1) {
-      if (!hitPlateBodyByDirection(direction, index)) continue;
+      if (!hitPlateBody(point, direction, index, metrics)) continue;
       return { index, handle: { action: "move" } };
     }
     return null;
@@ -417,13 +434,26 @@ export function createPointerToolController({
     if (!hitsActiveBody || !geometry?.center) return true;
     const handleDistance = distance(point, handle);
     const centerDistance = distance(point, geometry.center);
+    if (centerDistance <= 8 && centerDistance <= handleDistance) return false;
     return handleDistance <= Math.max(4, centerDistance * 0.55);
+  }
+
+  function hitPlateBody(
+    point: Point2D,
+    direction: Vec3 | null,
+    index: number,
+    metrics: PlacementPointerMetrics,
+  ): boolean {
+    if (!direction) return false;
+    if (!hitPlateBodyByDirection(direction, index)) return false;
+    if (state.viewMode !== "cave") return true;
+    return hitCavePlateBodyByProjectedMesh(point, index, metrics);
   }
 
   function hitPlateBodyByDirection(direction: Vec3, index: number): boolean {
     const placement = state.platePlacements[index];
     if (!placement) return false;
-    const prepared = preparePlatePlacement(placement, state.plates[index]);
+    const prepared = preparePlatePlacement(placement, state.plates[index], sourceProjectionMode());
     const local = directionToPlacementLocal(direction, prepared);
     if (!local) return false;
     const bounds = visiblePlateUvBounds(prepared, controls.plateFit?.value);
@@ -435,6 +465,38 @@ export function createPointerToolController({
       uv.y >= bounds.minV - PLATE_HIT_LOCAL_PAD &&
       uv.y <= bounds.maxV + PLATE_HIT_LOCAL_PAD
     );
+  }
+
+  function hitCavePlateBodyByProjectedMesh(point: Point2D, index: number, metrics: PlacementPointerMetrics): boolean {
+    const placement = state.platePlacements[index];
+    if (!placement) return false;
+    const prepared = preparePlatePlacement(placement, state.plates[index], sourceProjectionMode());
+    const bounds = visiblePlateUvBounds(prepared, controls.plateFit?.value);
+    const steps = CAVE_PLATE_HIT_UV_STEPS;
+    for (let row = 0; row < steps; row += 1) {
+      const v0 = lerp(bounds.minV, bounds.maxV, row / steps);
+      const v1 = lerp(bounds.minV, bounds.maxV, (row + 1) / steps);
+      for (let column = 0; column < steps; column += 1) {
+        const u0 = lerp(bounds.minU, bounds.maxU, column / steps);
+        const u1 = lerp(bounds.minU, bounds.maxU, (column + 1) / steps);
+        const p00 = projectPlateUvToScreen(prepared, u0, v0, metrics);
+        const p10 = projectPlateUvToScreen(prepared, u1, v0, metrics);
+        const p01 = projectPlateUvToScreen(prepared, u0, v1, metrics);
+        const p11 = projectPlateUvToScreen(prepared, u1, v1, metrics);
+        if (p00 && p10 && p11 && pointInTriangle(point, p00, p10, p11)) return true;
+        if (p00 && p11 && p01 && pointInTriangle(point, p00, p11, p01)) return true;
+      }
+    }
+    return false;
+  }
+
+  function projectPlateUvToScreen(
+    placement: PreparedPlatePlacement,
+    u: number,
+    v: number,
+    metrics: PlacementPointerMetrics,
+  ): Point2D | null {
+    return metrics.projectSourceDirection(directionFromPlateUv(placement, u, v));
   }
 
   function hitHandle(point: Point2D, geometry: PlateGeometry | null): PlateGeometryHandle | null {
@@ -450,7 +512,7 @@ export function createPointerToolController({
   function placementGeometry(index: number, metrics: PlacementPointerMetrics): PlateGeometry | null {
     const placement = state.platePlacements[index];
     if (!placement) return null;
-    const prepared = preparePlatePlacement(placement, state.plates[index]);
+    const prepared = preparePlatePlacement(placement, state.plates[index], sourceProjectionMode());
     const bounds = visiblePlateUvBounds(prepared, controls.plateFit?.value);
     const controlsGeometry = projectPlateScreenControls(prepared, bounds, metrics);
     if (!controlsGeometry) return null;
@@ -461,6 +523,7 @@ export function createPointerToolController({
     return {
       center: controlsGeometry.center,
       handles,
+      outline: controlsGeometry.outline,
     };
   }
 
@@ -475,6 +538,7 @@ export function createPointerToolController({
     const layout = getCssLayout(canvas.clientWidth, canvas.clientHeight);
     const flatMetrics = flatMapMetricsFromClient(point, layout);
     if (flatMetrics) return createFlatPlacementMetrics(flatMetrics);
+    if (state.viewMode === "cave") return createCavePlacementMetrics(point, layout);
     return createDomePlacementMetrics(point, layout);
   }
 
@@ -488,6 +552,7 @@ export function createPointerToolController({
     return flatDisplayPointToDomePoint(point, metrics, {
       radiusScale: controls.radiusScale?.value ?? 1,
       rotationRadians: flatRotationRadians(),
+      sourceProjectionMode: sourceProjectionMode(),
     });
   }
 
@@ -495,6 +560,7 @@ export function createPointerToolController({
     return flatDisplayPointToDomeDirection(point, metrics, {
       radiusScale: controls.radiusScale?.value ?? 1,
       rotationRadians: flatRotationRadians(),
+      sourceProjectionMode: sourceProjectionMode(),
     });
   }
 
@@ -505,7 +571,7 @@ export function createPointerToolController({
       projectSourceDirection: (direction) => {
         const radius = flatMapRadius(metrics, controls.radiusScale?.value ?? 1);
         return sourceFlatToDisplayFlatPoint(
-          domeDirectionToFlatPoint(direction, metrics.cx, metrics.cy, radius),
+          domeDirectionToFlatPoint(direction, metrics.cx, metrics.cy, radius, sourceProjectionMode()),
           metrics.cx,
           metrics.cy,
           flatRotationRadians(),
@@ -526,6 +592,17 @@ export function createPointerToolController({
     };
   }
 
+  function createCavePlacementMetrics(point: Point2D, layout: FlatLayout): PlacementPointerMetrics | null {
+    const projection = caveViewProjection(layout);
+    if (!projection || !sourceCaveDirectionFromScreenPoint(point, projection)) return null;
+    return {
+      sourceDirectionAt: (screenPoint) => sourceCaveDirectionFromScreenPoint(screenPoint, projection),
+      sourcePointAt: (screenPoint) => sourceCavePointFromScreenPoint(screenPoint, projection),
+      projectSourceDirection: (direction) => sourceCaveDirectionToScreenPoint(direction, projection),
+      rect: projection.rect,
+    };
+  }
+
   function domeViewProjection(layout: FlatLayout): DomeViewProjection | null {
     const rect = layout.domeRect || layout.domePane || (state.viewMode !== "flat" ? layout.fullRect : null);
     const viewMatrix = currentDomeViewMatrix?.();
@@ -537,8 +614,28 @@ export function createPointerToolController({
       sourceRotationRadians: flatRotationRadians(),
       domeTiltRadians: ((Number(controls.domeTilt?.value) || 0) * Math.PI) / 180,
       mirror: Boolean(controls.mirror?.checked),
+      sourceProjectionMode: sourceProjectionMode(),
       cutaway: state.viewMode === "cutaway",
     };
+  }
+
+  function caveViewProjection(layout: FlatLayout): CaveViewProjection | null {
+    const rect = layout.fullRect || layout.domeRect || layout.domePane;
+    const viewMatrix = currentDomeViewMatrix?.();
+    if (!rect || !viewMatrix) return null;
+    return {
+      rect,
+      viewMatrix,
+      fovDegrees: Number(controls.fov.value) || 92,
+      sourceRotationRadians: flatRotationRadians(),
+      domeTiltRadians: ((Number(controls.domeTilt?.value) || 0) * Math.PI) / 180,
+      mirror: Boolean(controls.mirror?.checked),
+      sourceProjectionMode: sourceProjectionMode(),
+    };
+  }
+
+  function sourceProjectionMode() {
+    return normalizeSourceProjectionMode(controls.sourceProjection?.value);
   }
 
   function directionToPlacementLocal(direction: Vec3, placement: PreparedPlatePlacement): Point2D | null {
@@ -555,6 +652,25 @@ export function createPointerToolController({
 
   function distance(a: Point2D, b: Point2D): number {
     return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  function pointInTriangle(point: Point2D, a: Point2D, b: Point2D, c: Point2D): boolean {
+    const area = triangleSignedArea(a, b, c);
+    if (Math.abs(area) < 0.00001) return false;
+    const ab = triangleSignedArea(point, a, b);
+    const bc = triangleSignedArea(point, b, c);
+    const ca = triangleSignedArea(point, c, a);
+    const hasNegative = ab < -0.00001 || bc < -0.00001 || ca < -0.00001;
+    const hasPositive = ab > 0.00001 || bc > 0.00001 || ca > 0.00001;
+    return !(hasNegative && hasPositive);
+  }
+
+  function triangleSignedArea(a: Point2D, b: Point2D, c: Point2D): number {
+    return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  }
+
+  function lerp(a: number, b: number, t: number): number {
+    return a + (b - a) * t;
   }
 
   function normalizeDegrees(value: number): number {

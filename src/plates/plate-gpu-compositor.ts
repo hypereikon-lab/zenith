@@ -1,8 +1,10 @@
 import { preparePlatePlacement } from "./plate-placement.js";
+import { sourceProjectionProfileForMode } from "../geometry/source-projection.js";
 import type { PlatePlacementInput } from "./plate-placement.js";
+import type { SourceProjectionMode } from "../geometry/source-projection.js";
 
 const OUTPUT_FORMAT = "rgba8unorm";
-const UNIFORM_FLOATS = 32;
+const UNIFORM_FLOATS = 44;
 const UNIFORM_BYTES = UNIFORM_FLOATS * 4;
 type PlateImage = {
   canvas: HTMLCanvasElement | OffscreenCanvas;
@@ -26,6 +28,7 @@ export type PlateRenderOptions = {
   plateFeather: number | string;
   platePlacements: PlatePlacementInput[];
   size: number;
+  sourceProjectionMode?: SourceProjectionMode;
 };
 type PlacementUniformOptions = {
   placement: PlatePlacementInput;
@@ -33,6 +36,7 @@ type PlacementUniformOptions = {
   plateFit: string;
   plateFeather: number | string;
   outputSize: number;
+  sourceProjectionMode: SourceProjectionMode;
 };
 
 export const plateCompositeShader = /* wgsl */ `
@@ -45,6 +49,9 @@ struct PlateUniforms {
   flags: vec4<f32>,
   warpX: vec4<f32>,
   warpY: vec4<f32>,
+  sourceCenterTheta: vec4<f32>,
+  sourceRight: vec4<f32>,
+  sourceUp: vec4<f32>,
 };
 
 struct VertexOut {
@@ -55,8 +62,6 @@ struct VertexOut {
 @group(0) @binding(0) var<uniform> plate: PlateUniforms;
 @group(0) @binding(1) var plateSampler: sampler;
 @group(0) @binding(2) var plateTexture: texture_2d<f32>;
-
-const HALF_PI: f32 = 1.5707963267948966;
 
 @vertex
 fn vertexMain(@builtin(vertex_index) index: u32) -> VertexOut {
@@ -73,6 +78,19 @@ fn vertexMain(@builtin(vertex_index) index: u32) -> VertexOut {
   out.position = vec4<f32>(position, 0.0, 1.0);
   out.uv = vec2<f32>(position.x * 0.5 + 0.5, 0.5 - position.y * 0.5);
   return out;
+}
+
+fn sourceDirectionFromUv(uv: vec2<f32>) -> vec3<f32> {
+  let domeRadiusUv = max(plate.flags.z, 0.000001);
+  let domePoint = (uv - vec2<f32>(0.5)) / domeRadiusUv;
+  let radius = length(domePoint);
+  let theta = clamp(radius, 0.0, 1.0) * max(plate.sourceCenterTheta.w, 0.0001);
+  var tangent = vec3<f32>(0.0);
+  if (radius > 0.000001) {
+    let local = domePoint / radius;
+    tangent = normalize(plate.sourceRight.xyz * local.x + plate.sourceUp.xyz * -local.y);
+  }
+  return normalize(plate.sourceCenterTheta.xyz * cos(theta) + tangent * sin(theta));
 }
 
 fn mapDirectionToLocal(direction: vec3<f32>) -> vec2<f32> {
@@ -184,10 +202,7 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
     return vec4<f32>(0.0, 0.0, 0.0, 1.0);
   }
 
-  let theta = clamp(radius, 0.0, 1.0) * HALF_PI;
-  let azimuth = atan2(domePoint.x, -domePoint.y);
-  let sinTheta = sin(theta);
-  let direction = vec3<f32>(sinTheta * sin(azimuth), cos(theta), sinTheta * cos(azimuth));
+  let direction = sourceDirectionFromUv(in.uv);
   let local = mapDirectionToLocal(direction);
   let rawUv = warpedLocalToUv(local);
   if (rawUv.x != rawUv.x || rawUv.y != rawUv.y) {
@@ -282,7 +297,15 @@ export class PlateGpuCompositor {
     });
   }
 
-  render({ plates, plateCount, plateFit, plateFeather, platePlacements, size }: PlateRenderOptions): GPUTexture {
+  render({
+    plates,
+    plateCount,
+    plateFit,
+    plateFeather,
+    platePlacements,
+    size,
+    sourceProjectionMode = "zenith-180",
+  }: PlateRenderOptions): GPUTexture {
     const outputSize = Math.max(1, Math.round(size || 2048));
     this.ensureOutputTexture(outputSize);
 
@@ -317,6 +340,7 @@ export class PlateGpuCompositor {
           plateFit,
           plateFeather,
           outputSize,
+          sourceProjectionMode,
         }),
       );
       pass.setBindGroup(0, this.bindGroupFor(texture, buffer));
@@ -396,8 +420,10 @@ function placementUniformData({
   plateFit,
   plateFeather,
   outputSize,
+  sourceProjectionMode,
 }: PlacementUniformOptions): Float32Array {
-  const prepared = preparePlatePlacement(placement, plate);
+  const prepared = preparePlatePlacement(placement, plate, sourceProjectionMode);
+  const projection = sourceProjectionProfileForMode(sourceProjectionMode, outputSize, outputSize);
   const data = new Float32Array(UNIFORM_FLOATS);
   data.set(prepared.center, 0);
   data.set(prepared.right, 4);
@@ -421,6 +447,10 @@ function placementUniformData({
   data[29] = prepared.cornerOffsets.ne.y;
   data[30] = prepared.cornerOffsets.se.y;
   data[31] = prepared.cornerOffsets.sw.y;
+  data.set(projection.centerAxis, 32);
+  data[35] = (projection.fieldOfViewDegrees * 0.5 * Math.PI) / 180;
+  data.set(projection.imageRightAxis, 36);
+  data.set(projection.imageUpAxis, 40);
   return data;
 }
 

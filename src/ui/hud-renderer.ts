@@ -4,14 +4,19 @@ import {
   sourceFlatToDisplayFlatPoint,
   visiblePlateUvBounds,
 } from "../geometry/flat-domemaster.js";
+import { sourceCaveDirectionFromScreenPoint, sourceCaveDirectionToScreenPoint } from "../geometry/cave-view.js";
+import type { CaveViewProjection } from "../geometry/cave-view.js";
 import { sourceDomeDirectionFromScreenPoint, sourceDomeDirectionToScreenPoint } from "../geometry/dome-view.js";
 import type { DomeViewProjection } from "../geometry/dome-view.js";
 import { projectPlateScreenControls } from "../geometry/plate-screen-controls.js";
+import type { PlateScreenProjector } from "../geometry/plate-screen-controls.js";
+import { sourceProjectionCenterLabel } from "../geometry/source-projection.js";
+import type { SourceProjectionMode } from "../geometry/source-projection.js";
 import type { PlateSource, ViewMode, WorkspaceId } from "../app/types.js";
 import type { CssLayout, Rect } from "../graphics/render-layout.js";
 import type { PlatePlacementInput, PreparedPlatePlacement } from "../plates/plate-placement.js";
 import { directionFromPlateUv, preparePlatePlacement } from "../plates/plate-placement.js";
-import { TAU, lerp, multiplyMat4Vec4 } from "../projection.js";
+import { TAU, lerp, multiplyMat4, multiplyMat4Vec4, perspectiveLH } from "../projection.js";
 import type { Mat4, Point2D, Vec3 } from "../projection.js";
 
 export type HudOptions = {
@@ -26,6 +31,7 @@ export type HudOptions = {
   showLabels: boolean;
   showSourceCircle: boolean;
   showZenith: boolean;
+  sourceProjectionMode: SourceProjectionMode;
   radiusScale: number;
   flatRotationRadians: number;
   domeTiltRadians: number;
@@ -51,13 +57,16 @@ export function drawZenithHud(ctx: CanvasRenderingContext2D | null, options: Hud
 
   if (viewMode === "split") {
     drawDivider(ctx, layout.splitX, height);
-    drawPaneLabel(ctx, layout.flatPane, "Flat domemaster");
-    drawPaneLabel(ctx, layout.domePane, "Projected dome");
+    drawPaneLabel(ctx, layout.flatPane, `Flat ${options.sourceProjectionMode.replace("-", " ")}`);
+    drawPaneLabel(ctx, layout.domePane, "Projected source");
     drawFlatHud(ctx, layout.flatRect, options);
     drawDomeHud(ctx, layout.domePane, options);
   } else if (viewMode === "flat") {
-    drawPaneLabel(ctx, layout.fullRect, "Flat domemaster");
+    drawPaneLabel(ctx, layout.fullRect, `Flat ${options.sourceProjectionMode.replace("-", " ")}`);
     drawFlatHud(ctx, layout.flatRect, options);
+  } else if (viewMode === "cave") {
+    drawPaneLabel(ctx, layout.fullRect, options.viewLabel);
+    drawCaveHud(ctx, layout.fullRect, options);
   } else {
     drawPaneLabel(ctx, layout.fullRect, options.viewLabel);
     drawDomeHud(ctx, layout.fullRect, options);
@@ -136,14 +145,18 @@ function drawPlatePlacementHud(
   ctx.textBaseline = "middle";
   for (let index = 0; index < plateCount; index += 1) {
     if (!options.platePlacements[index]) continue;
-    const placement = preparePlatePlacement(options.platePlacements[index], options.plates?.[index]);
+    const placement = preparePlatePlacement(
+      options.platePlacements[index],
+      options.plates?.[index],
+      options.sourceProjectionMode,
+    );
     const active = index === options.activePlateIndex;
     ctx.strokeStyle = active ? "rgba(180, 255, 225, 0.92)" : "rgba(210, 247, 255, 0.42)";
     ctx.fillStyle = active ? "rgba(180, 255, 225, 0.96)" : "rgba(230, 244, 248, 0.72)";
     const bounds = visiblePlateUvBounds(placement, options.plateFit);
     drawPlacementOutline(ctx, placement, bounds, cx, cy, radius, flatRotation, options);
     const center = sourceFlatToDisplayFlatPoint(
-      domeDirectionToFlatPoint(placement.center, cx, cy, radius),
+      domeDirectionToFlatPoint(placement.center, cx, cy, radius, options.sourceProjectionMode),
       cx,
       cy,
       flatRotation,
@@ -185,7 +198,16 @@ function drawPlacementOutline(
       const t = step / segments;
       const u = lerp(edge[0], edge[2], t);
       const v = lerp(edge[1], edge[3], t);
-      const point = plateUvToDisplayFlatPoint(placement, u, v, cx, cy, radius, flatRotation);
+      const point = plateUvToDisplayFlatPoint(
+        placement,
+        u,
+        v,
+        cx,
+        cy,
+        radius,
+        flatRotation,
+        options.sourceProjectionMode,
+      );
       if (!point) {
         started = false;
         continue;
@@ -218,11 +240,29 @@ function drawPlacementHandles(
     [bounds.minU, bounds.maxV],
   ];
   const points = handleUvs
-    .map(([u, v]) => plateUvToDisplayFlatPoint(placement, u, v, cx, cy, radius, flatRotation))
+    .map(([u, v]) => plateUvToDisplayFlatPoint(placement, u, v, cx, cy, radius, flatRotation, options.sourceProjectionMode))
     .filter((point): point is Point2D => Boolean(point));
   const centerU = (bounds.minU + bounds.maxU) * 0.5;
-  const top = plateUvToDisplayFlatPoint(placement, centerU, bounds.minV, cx, cy, radius, flatRotation);
-  const rotate = plateUvToDisplayFlatPoint(placement, centerU, bounds.minV - 0.18, cx, cy, radius, flatRotation);
+  const top = plateUvToDisplayFlatPoint(
+    placement,
+    centerU,
+    bounds.minV,
+    cx,
+    cy,
+    radius,
+    flatRotation,
+    options.sourceProjectionMode,
+  );
+  const rotate = plateUvToDisplayFlatPoint(
+    placement,
+    centerU,
+    bounds.minV - 0.18,
+    cx,
+    cy,
+    radius,
+    flatRotation,
+    options.sourceProjectionMode,
+  );
 
   ctx.save();
   ctx.lineWidth = 1.5;
@@ -265,7 +305,7 @@ function drawFlatDirectionLabel(
   radius: number,
   options: HudOptions,
 ): void {
-  const sourcePoint = domeDirectionToFlatPoint(direction, cx, cy, radius);
+  const sourcePoint = domeDirectionToFlatPoint(direction, cx, cy, radius, options.sourceProjectionMode);
   const displayPoint = sourceFlatToDisplayFlatPoint(sourcePoint, cx, cy, options.flatRotationRadians);
   if (!displayPoint) return;
   const dx = displayPoint.x - cx;
@@ -285,11 +325,20 @@ function drawDomeHud(ctx: CanvasRenderingContext2D, rect: Rect, options: HudOpti
     domeTiltRadians: options.domeTiltRadians,
     mirror: options.mirror,
     cutaway: options.viewMode === "cutaway",
+    sourceProjectionMode: options.sourceProjectionMode,
   };
 
   const showPatchHud = shouldShowPatchHud(options);
   if (showPatchHud) {
-    drawDomePlacementHud(ctx, domeProjection, options);
+    drawSourcePlacementHud(
+      ctx,
+      {
+        projectSourceDirection: (direction) => sourceDomeDirectionToScreenPoint(direction, domeProjection),
+        sourceDirectionAt: (point) => sourceDomeDirectionFromScreenPoint(point, domeProjection),
+        rect: domeProjection.rect,
+      },
+      options,
+    );
   }
 
   if (options.showLabels) {
@@ -300,7 +349,7 @@ function drawDomeHud(ctx: CanvasRenderingContext2D, rect: Rect, options: HudOpti
       ["W", [-1, 0, 0]],
     ];
     if (options.showZenith) {
-      points.push(["Z", [0, 1, 0]]);
+      points.push([sourceProjectionCenterLabel(options.sourceProjectionMode).slice(0, 1), centerDirection(options.sourceProjectionMode)]);
     }
     ctx.save();
     ctx.fillStyle = "rgba(230, 244, 248, 0.82)";
@@ -315,9 +364,55 @@ function drawDomeHud(ctx: CanvasRenderingContext2D, rect: Rect, options: HudOpti
   }
 }
 
-function drawDomePlacementHud(
+function drawCaveHud(ctx: CanvasRenderingContext2D, rect: Rect, options: HudOptions): void {
+  if (!options.domeViewMatrix) return;
+  const caveProjection: CaveViewProjection = {
+    rect,
+    viewMatrix: options.domeViewMatrix,
+    fovDegrees: options.fovDegrees,
+    sourceRotationRadians: options.flatRotationRadians,
+    domeTiltRadians: options.domeTiltRadians,
+    mirror: options.mirror,
+    sourceProjectionMode: options.sourceProjectionMode,
+  };
+  if (shouldShowPatchHud(options)) {
+    drawSourcePlacementHud(
+      ctx,
+      {
+        projectSourceDirection: (direction) => sourceCaveDirectionToScreenPoint(direction, caveProjection),
+        sourceDirectionAt: (point) => sourceCaveDirectionFromScreenPoint(point, caveProjection),
+        rect,
+      },
+      options,
+    );
+  }
+  if (!options.showLabels) return;
+  const aspect = rect.width / rect.height;
+  const projection = perspectiveLH((options.fovDegrees * Math.PI) / 180, aspect, 0.01, 20);
+  const mvp = multiplyMat4(projection, options.domeViewMatrix);
+  const labels: Array<[string, Vec3]> = [
+    ["Front", [0, 0, 2]],
+    ["Right", [2, 0, 0]],
+    ["Back", [0, 0, -2]],
+    ["Left", [-2, 0, 0]],
+    ["Floor", [0, -2, 0]],
+  ];
+
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.fillStyle = "rgba(230, 244, 248, 0.84)";
+  for (const [label, point] of labels) {
+    const projected = projectPoint(mvp, point, rect);
+    if (projected) {
+      drawTextAt(ctx, label, projected.x, projected.y);
+    }
+  }
+  ctx.restore();
+}
+
+function drawSourcePlacementHud(
   ctx: CanvasRenderingContext2D,
-  projection: DomeViewProjection,
+  projector: PlateScreenProjector,
   options: HudOptions,
 ): void {
   const plateCount = Math.max(1, options.plateCount);
@@ -327,13 +422,17 @@ function drawDomePlacementHud(
   ctx.textBaseline = "middle";
   for (let index = 0; index < plateCount; index += 1) {
     if (!options.platePlacements[index]) continue;
-    const placement = preparePlatePlacement(options.platePlacements[index], options.plates?.[index]);
+    const placement = preparePlatePlacement(
+      options.platePlacements[index],
+      options.plates?.[index],
+      options.sourceProjectionMode,
+    );
     const active = index === options.activePlateIndex;
     ctx.strokeStyle = active ? "rgba(180, 255, 225, 0.92)" : "rgba(210, 247, 255, 0.42)";
     ctx.fillStyle = active ? "rgba(180, 255, 225, 0.96)" : "rgba(230, 244, 248, 0.72)";
     const bounds = visiblePlateUvBounds(placement, options.plateFit);
-    drawDomePlacementOutline(ctx, placement, bounds, projection);
-    const center = sourceDomeDirectionToScreenPoint(placement.center, projection);
+    drawSourcePlacementOutline(ctx, placement, bounds, projector);
+    const center = projector.projectSourceDirection(placement.center);
     if (center) {
       ctx.beginPath();
       ctx.arc(center.x, center.y, active ? 4.5 : 3, 0, TAU);
@@ -341,17 +440,17 @@ function drawDomePlacementHud(
       drawTextAt(ctx, String(index + 1), center.x, center.y - 13);
     }
     if (active && options.editPlacement) {
-      drawDomePlacementHandles(ctx, placement, bounds, projection);
+      drawSourcePlacementHandles(ctx, placement, bounds, projector);
     }
   }
   ctx.restore();
 }
 
-function drawDomePlacementOutline(
+function drawSourcePlacementOutline(
   ctx: CanvasRenderingContext2D,
   placement: PreparedPlatePlacement,
   bounds: { minU: number; minV: number; maxU: number; maxV: number },
-  projection: DomeViewProjection,
+  projector: PlateScreenProjector,
 ): void {
   const segments = 12;
   ctx.beginPath();
@@ -367,7 +466,7 @@ function drawDomePlacementOutline(
       const t = step / segments;
       const u = lerp(edge[0], edge[2], t);
       const v = lerp(edge[1], edge[3], t);
-      const point = sourceDomeDirectionToScreenPoint(directionFromPlateUv(placement, u, v), projection);
+      const point = projector.projectSourceDirection(directionFromPlateUv(placement, u, v));
       if (!point) {
         started = false;
         continue;
@@ -383,17 +482,13 @@ function drawDomePlacementOutline(
   ctx.stroke();
 }
 
-function drawDomePlacementHandles(
+function drawSourcePlacementHandles(
   ctx: CanvasRenderingContext2D,
   placement: PreparedPlatePlacement,
   bounds: { minU: number; minV: number; maxU: number; maxV: number },
-  projection: DomeViewProjection,
+  projector: PlateScreenProjector,
 ): void {
-  const controls = projectPlateScreenControls(placement, bounds, {
-    projectSourceDirection: (direction) => sourceDomeDirectionToScreenPoint(direction, projection),
-    sourceDirectionAt: (point) => sourceDomeDirectionFromScreenPoint(point, projection),
-    rect: projection.rect,
-  });
+  const controls = projectPlateScreenControls(placement, bounds, projector);
   if (!controls) return;
 
   ctx.save();
@@ -444,6 +539,10 @@ function drawCompass(ctx: CanvasRenderingContext2D, width: number, height: numbe
 
 function shouldShowPatchHud(options: HudOptions): boolean {
   return options.platesLength >= 1 && (options.activeWorkspace === "create" || options.editPlacement);
+}
+
+function centerDirection(sourceProjectionMode: SourceProjectionMode): Vec3 {
+  return sourceProjectionMode.startsWith("nadir") ? [0, -1, 0] : [0, 1, 0];
 }
 
 function drawTextAt(ctx: CanvasRenderingContext2D, text: string, x: number, y: number): void {

@@ -1,4 +1,7 @@
-import { HALF_PI, clamp, dot, normalize } from "../projection.js";
+import { clamp, dot, normalize } from "../projection.js";
+import { fisheyeHalfAngleRadians } from "../geometry/fisheye-projection.js";
+import { sourceProjectionProfileForMode } from "../geometry/source-projection.js";
+import type { SourceProjectionMode } from "../geometry/source-projection.js";
 import type { Vec3 } from "../projection.js";
 
 export type PlateLike = { aspect?: number | string | null };
@@ -83,19 +86,37 @@ export function normalizePlatePlacement(placement: PlatePlacementInput = {}, pla
 export function preparePlatePlacement(
   placement: PlatePlacementInput | NormalizedPlatePlacement,
   plate: PlateLike | null = null,
+  sourceProjectionMode: SourceProjectionMode = "zenith-180",
 ): PreparedPlatePlacement {
   const normalized = normalizePlatePlacement(placement, plate);
   const aspect = plateAspect(plate, placement);
   const azimuth = (normalized.azimuth * Math.PI) / 180;
-  const theta = normalized.radius * HALF_PI;
-  const sinTheta = Math.sin(theta);
   const sinAzimuth = Math.sin(azimuth);
   const cosAzimuth = Math.cos(azimuth);
   const spin = (normalized.spin * Math.PI) / 180;
   const dimensions = plateMapDimensions(normalized, plate);
-  const center: Vec3 = [sinTheta * sinAzimuth, Math.cos(theta), sinTheta * cosAzimuth];
-  const right: Vec3 = [cosAzimuth, 0, -sinAzimuth];
-  const down: Vec3 = [Math.cos(theta) * sinAzimuth, -sinTheta, Math.cos(theta) * cosAzimuth];
+  const projection = sourceProjectionProfileForMode(sourceProjectionMode);
+  const theta = normalized.radius * fisheyeHalfAngleRadians(projection);
+  const radialTangent = normalize([
+    projection.imageRightAxis[0] * sinAzimuth + projection.imageUpAxis[0] * cosAzimuth,
+    projection.imageRightAxis[1] * sinAzimuth + projection.imageUpAxis[1] * cosAzimuth,
+    projection.imageRightAxis[2] * sinAzimuth + projection.imageUpAxis[2] * cosAzimuth,
+  ]);
+  const center: Vec3 = normalize([
+    projection.centerAxis[0] * Math.cos(theta) + radialTangent[0] * Math.sin(theta),
+    projection.centerAxis[1] * Math.cos(theta) + radialTangent[1] * Math.sin(theta),
+    projection.centerAxis[2] * Math.cos(theta) + radialTangent[2] * Math.sin(theta),
+  ]);
+  const right: Vec3 = normalize([
+    projection.imageRightAxis[0] * cosAzimuth - projection.imageUpAxis[0] * sinAzimuth,
+    projection.imageRightAxis[1] * cosAzimuth - projection.imageUpAxis[1] * sinAzimuth,
+    projection.imageRightAxis[2] * cosAzimuth - projection.imageUpAxis[2] * sinAzimuth,
+  ]);
+  const down: Vec3 = normalize([
+    -projection.centerAxis[0] * Math.sin(theta) + radialTangent[0] * Math.cos(theta),
+    -projection.centerAxis[1] * Math.sin(theta) + radialTangent[1] * Math.cos(theta),
+    -projection.centerAxis[2] * Math.sin(theta) + radialTangent[2] * Math.cos(theta),
+  ]);
 
   return {
     ...normalized,

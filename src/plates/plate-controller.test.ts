@@ -1,11 +1,18 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { downloadBlob } from "../media/canvas-utils.js";
 import { normalizePlatePlacement } from "./plate-placement.js";
 import { createPlateController } from "./plate-controller.js";
 import type { PlateRenderOptions } from "./plate-gpu-compositor.js";
 
+vi.mock("../media/canvas-utils.js", () => ({
+  downloadBlob: vi.fn(),
+}));
+
 describe("plate controller edit gate", () => {
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.mocked(downloadBlob).mockClear();
   });
 
   test("disables placement controls until edit placement is checked", () => {
@@ -117,6 +124,26 @@ describe("plate controller edit gate", () => {
     expect(calls.renderPlateComposite).toBe(0);
     expect(calls.lastRenderOptions).toBeNull();
   });
+
+  test("exports the same guide-backed plate handoff used for inpaint", async () => {
+    vi.stubGlobal("document", {
+      createElement: (tagName: string) => {
+        if (tagName !== "canvas") throw new Error(`Unexpected element: ${tagName}`);
+        return new FakeCanvas();
+      },
+    });
+    const { controller, state, controls } = buildPlateControllerHarness();
+    const pixels = new Uint8ClampedArray(100 * 100 * 4);
+    state.plateCompositeCanvas = new FakeCanvas(100, 100, pixels, true) as unknown as HTMLCanvasElement;
+    controls.sourceProjection.value = "zenith-180";
+
+    await controller.exportPlateMapImage();
+
+    expect(downloadBlob).toHaveBeenCalledOnce();
+    expect(FakeCanvas.lastToBlobPixel(50, 50)).toEqual([0, 255, 0, 255]);
+    expect(FakeCanvas.lastToBlobPixel(0, 0)).toEqual([0, 0, 0, 255]);
+    expect(FakeCanvas.lastToBlobPixel(50, 25)).toEqual([0, 0, 0, 255]);
+  });
 });
 
 function buildPlateControllerHarness() {
@@ -146,6 +173,7 @@ function buildPlateControllerHarness() {
   const controls = {
     plateCount: control("auto"),
     plateFit: control("contain"),
+    sourceProjection: control("zenith-180"),
     editPlacement: checkbox(false),
     activePlate: control("0"),
     plateCornerMode: control("scale"),
@@ -237,6 +265,67 @@ function canvasStub() {
       callback(new Blob());
     },
   };
+}
+
+type FakeImageData = {
+  width: number;
+  height: number;
+  data: Uint8ClampedArray;
+};
+
+class FakeCanvas {
+  static lastToBlobPixels: Uint8ClampedArray | null = null;
+  static lastToBlobWidth = 0;
+
+  width: number;
+  height: number;
+  pixels: Uint8ClampedArray;
+  throwOnToBlob: boolean;
+
+  constructor(width = 0, height = 0, pixels: Uint8ClampedArray = new Uint8ClampedArray(), throwOnToBlob = false) {
+    this.width = width;
+    this.height = height;
+    this.pixels = new Uint8ClampedArray(pixels);
+    this.throwOnToBlob = throwOnToBlob;
+  }
+
+  static lastToBlobPixel(x: number, y: number): [number, number, number, number] {
+    if (!FakeCanvas.lastToBlobPixels) throw new Error("No fake canvas was exported.");
+    const index = (y * FakeCanvas.lastToBlobWidth + x) * 4;
+    return [
+      FakeCanvas.lastToBlobPixels[index],
+      FakeCanvas.lastToBlobPixels[index + 1],
+      FakeCanvas.lastToBlobPixels[index + 2],
+      FakeCanvas.lastToBlobPixels[index + 3],
+    ];
+  }
+
+  getContext() {
+    return {
+      getImageData: (_x: number, _y: number, width: number, height: number): FakeImageData => ({
+        width,
+        height,
+        data: new Uint8ClampedArray(this.pixels),
+      }),
+      createImageData: (width: number, height: number): FakeImageData => ({
+        width,
+        height,
+        data: new Uint8ClampedArray(width * height * 4),
+      }),
+      putImageData: (image: FakeImageData) => {
+        this.width = image.width;
+        this.height = image.height;
+        this.pixels = new Uint8ClampedArray(image.data);
+      },
+    };
+  }
+
+  toBlob(callback: BlobCallback) {
+    if (this.throwOnToBlob) throw new Error("Export used the raw plate composite instead of the inpaint handoff.");
+    FakeCanvas.lastToBlobPixels = new Uint8ClampedArray(this.pixels);
+    FakeCanvas.lastToBlobWidth = this.width;
+    callback(new Blob());
+  }
 }
 
 function videoStub() {
