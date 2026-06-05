@@ -1,7 +1,12 @@
 import { multiplyMat4, perspectiveLH, translationScaleMat4 } from "../projection.js";
-import { buildDomeGeometry, buildRoomGeometry } from "./geometry.js";
+import {
+  normalizeSourceProjectionMode,
+  sourceProjectionGeometryRange,
+  sourceProjectionProfileForMode,
+} from "../geometry/source-projection.js";
+import { buildCaveRoomGeometry, buildDomeGeometry, buildRoomGeometry } from "./geometry.js";
 import { getCssLayout as buildCssLayout, getRenderLayout as buildRenderLayout } from "./render-layout.js";
-import { domeShaderCode, flatShaderCode, roomShaderCode } from "./shaders.js";
+import { caveShaderCode, domeShaderCode, flatShaderCode, roomShaderCode } from "./shaders.js";
 import { renderCopyTextureUsage } from "./texture-usage.js";
 import { SourceTextureController } from "../media/source-texture.js";
 import { PlateGpuCompositor } from "../plates/plate-gpu-compositor.js";
@@ -62,10 +67,14 @@ export function createDomeRenderer({
   let depthTexture: GPUTexture;
   let domePipeline: GPURenderPipeline;
   let flatPipeline: GPURenderPipeline;
+  let cavePipeline: GPURenderPipeline;
   let roomPipeline: GPURenderPipeline;
   let vertexBuffer: GPUBuffer;
   let indexBuffer: GPUBuffer;
   let indexCount = 0;
+  let caveVertexBuffer: GPUBuffer;
+  let caveIndexBuffer: GPUBuffer;
+  let caveIndexCount = 0;
   let floorVertexBuffer: GPUBuffer;
   let floorIndexBuffer: GPUBuffer;
   let floorIndexCount = 0;
@@ -119,6 +128,7 @@ export function createDomeRenderer({
 
     createPipelines();
     createDomeGeometry();
+    createCaveGeometry();
     createRoomGeometry();
     createUniforms();
   }
@@ -206,6 +216,39 @@ export function createDomeRenderer({
       },
     });
 
+    const caveModule = device.createShaderModule({ code: caveShaderCode });
+    cavePipeline = device.createRenderPipeline({
+      layout: pipelineLayout,
+      vertex: {
+        module: caveModule,
+        entryPoint: "vertexMain",
+        buffers: [
+          {
+            arrayStride: 24,
+            attributes: [
+              { shaderLocation: 0, offset: 0, format: "float32x3" },
+              { shaderLocation: 1, offset: 12, format: "float32x2" },
+              { shaderLocation: 2, offset: 20, format: "float32" },
+            ],
+          },
+        ],
+      },
+      fragment: {
+        module: caveModule,
+        entryPoint: "fragmentMain",
+        targets: [{ format: presentationFormat }],
+      },
+      primitive: {
+        topology: "triangle-list",
+        cullMode: "none",
+      },
+      depthStencil: {
+        depthWriteEnabled: true,
+        depthCompare: "less",
+        format: "depth24plus",
+      },
+    });
+
     const roomModule = device.createShaderModule({ code: roomShaderCode });
     roomPipeline = device.createRenderPipeline({
       layout: device.createPipelineLayout({ bindGroupLayouts: [roomBindGroupLayout] }),
@@ -238,7 +281,8 @@ export function createDomeRenderer({
 
   function createDomeGeometry() {
     const quality = Number(controls.meshQuality.value);
-    const { vertices, indices } = buildDomeGeometry(quality);
+    const range = sourceProjectionGeometryRange(sourceProjectionMode());
+    const { vertices, indices } = buildDomeGeometry(quality, range.thetaStart, range.thetaEnd);
 
     if (vertexBuffer) vertexBuffer.destroy();
     if (indexBuffer) indexBuffer.destroy();
@@ -255,6 +299,26 @@ export function createDomeRenderer({
     });
     device.queue.writeBuffer(indexBuffer, 0, indices);
     indexCount = indices.length;
+  }
+
+  function createCaveGeometry() {
+    const { vertices, indices } = buildCaveRoomGeometry();
+
+    if (caveVertexBuffer) caveVertexBuffer.destroy();
+    if (caveIndexBuffer) caveIndexBuffer.destroy();
+
+    caveVertexBuffer = device.createBuffer({
+      size: vertices.byteLength,
+      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    });
+    device.queue.writeBuffer(caveVertexBuffer, 0, vertices);
+
+    caveIndexBuffer = device.createBuffer({
+      size: indices.byteLength,
+      usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+    });
+    device.queue.writeBuffer(caveIndexBuffer, 0, indices);
+    caveIndexCount = indices.length;
   }
 
   function createRoomGeometry() {
@@ -276,7 +340,7 @@ export function createDomeRenderer({
 
   function createUniforms() {
     uniformBuffer = device.createBuffer({
-      size: 128,
+      size: 176,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
     roomUniformBuffer = device.createBuffer({
@@ -547,8 +611,10 @@ export function createDomeRenderer({
     } else if (state.viewMode === "split") {
       drawFlat(pass, layout.flatRect);
       drawDome(pass, layout.domeRect);
+    } else if (state.viewMode === "cave") {
+      drawCave(pass, layout.fullRect);
     } else {
-      if (state.viewMode === "theater") {
+      if (state.viewMode === "theater" && !isNadirSourceProjection()) {
         writeRoomUniforms(layout.fullRect);
         drawRoom(pass, layout.fullRect);
         writeUniforms(layout.fullRect, false);
@@ -571,6 +637,15 @@ export function createDomeRenderer({
     pass.setVertexBuffer(0, vertexBuffer);
     pass.setIndexBuffer(indexBuffer, "uint32");
     pass.drawIndexed(indexCount);
+  }
+
+  function drawCave(pass: GPURenderPassEncoder, rect: Rect): void {
+    setViewport(pass, rect);
+    pass.setPipeline(cavePipeline);
+    pass.setBindGroup(0, sourceTexture.getBindGroup());
+    pass.setVertexBuffer(0, caveVertexBuffer);
+    pass.setIndexBuffer(caveIndexBuffer, "uint32");
+    pass.drawIndexed(caveIndexCount);
   }
 
   function drawRoom(pass: GPURenderPassEncoder, rect: Rect): void {
@@ -605,15 +680,12 @@ export function createDomeRenderer({
     const mvp = multiplyMat4(projection, view);
 
     const { width: sourceWidth, height: sourceHeight } = effectiveSourceSize();
-    const minSourceSide = Math.min(sourceWidth, sourceHeight);
-    const radiusScale = Number(controls.radiusScale.value);
-    const fisheyeScaleX = ((minSourceSide * 0.5) / sourceWidth) * radiusScale;
-    const fisheyeScaleY = ((minSourceSide * 0.5) / sourceHeight) * radiusScale;
+    const profile = sourceProjectionProfileForMode(sourceProjectionMode(), sourceWidth, sourceHeight, controls.radiusScale.value);
 
-    const data = new Float32Array(32);
+    const data = new Float32Array(44);
     data.set(mvp, 0);
-    data[16] = fisheyeScaleX;
-    data[17] = fisheyeScaleY;
+    data[16] = profile.fisheyeScaleX;
+    data[17] = profile.fisheyeScaleY;
     data[18] = (Number(controls.rotation.value) * Math.PI) / 180;
     data[19] = Number(controls.exposure.value);
     data[20] = Number(controls.overlayOpacity.value);
@@ -626,7 +698,19 @@ export function createDomeRenderer({
     data[27] = controls.showZenith.checked ? 1 : 0;
     data[28] = controls.showSourceCircle.checked ? 1 : 0;
     data[29] = Number(controls.shellShade.value);
+    data.set(profile.centerAxis, 32);
+    data[35] = (profile.fieldOfViewDegrees * 0.5 * Math.PI) / 180;
+    data.set(profile.imageRightAxis, 36);
+    data.set(profile.imageUpAxis, 40);
     device.queue.writeBuffer(uniformBuffer, 0, data);
+  }
+
+  function sourceProjectionMode() {
+    return normalizeSourceProjectionMode(controls.sourceProjection.value);
+  }
+
+  function isNadirSourceProjection(): boolean {
+    return sourceProjectionMode().startsWith("nadir");
   }
 
   function writeRoomUniforms(viewport: Rect): void {
