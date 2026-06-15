@@ -1,4 +1,5 @@
 {
+  "extends": "./.svelte-kit/tsconfig.json",
   "compilerOptions": {
     "module": "ESNext",
     "moduleResolution": "Bundler",
@@ -11,5 +12,5 @@
     "target": "ES2022",
     "types": ["vitest/globals", "node", "@webgpu/types"]
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.svelte", "vite.config.ts"]
 }

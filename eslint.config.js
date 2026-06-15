@@ -11,7 +11,7 @@ const webGpuGlobals = {
 
 export default [
   {
-    ignores: ["dist/**", "node_modules/**", ".tmp-chrome-capture-profile/**", "*.log"],
+    ignores: ["dist/**", "build/**", ".svelte-kit/**", "node_modules/**", ".tmp-chrome-capture-profile/**", "*.log"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

@@ -144,17 +144,20 @@ const MODEL_CONFIG = {
   gemini_image3_pro: {
     ratio: "2048:2048",
     maxPrompt: 5500,
+    maxReferences: 14,
     outputCount: true,
   },
   gpt_image_2: {
     ratio: "1920:1920",
     maxPrompt: 32000,
+    maxReferences: 16,
     outputCount: true,
     quality: true,
   },
 };
 
 let vite;
+let svelteKitHandler;
 const server = createHttpServer(async (req, res) => {
   try {
     const url = new URL(req.url || "/", `http://${req.headers.host || `${HOST}:${PORT}`}`);
@@ -200,21 +203,31 @@ const server = createHttpServer(async (req, res) => {
       const payload = await readJsonBody(req);
       return streamCodexSeedanceImagePrompt(res, payload);
     }
-    vite.middlewares(req, res);
+    if (vite) {
+      return vite.middlewares(req, res);
+    }
+    if (svelteKitHandler) {
+      return svelteKitHandler(req, res);
+    }
+    sendJson(res, 500, { error: "SvelteKit handler is not initialized." });
   } catch (error) {
     console.error(error);
     sendJson(res, error.status || 500, { error: error.message || "Server error" });
   }
 });
 
-vite = await createViteServer({
-  appType: "spa",
-  server: {
-    middlewareMode: true,
-    host: HOST,
-    hmr: { server },
-  },
-});
+if (process.env.NODE_ENV === "production" && existsSync(resolve("build", "handler.js"))) {
+  ({ handler: svelteKitHandler } = await import("./build/handler.js"));
+} else {
+  vite = await createViteServer({
+    appType: "custom",
+    server: {
+      middlewareMode: true,
+      host: HOST,
+      hmr: { server },
+    },
+  });
+}
 
 server.listen(PORT, HOST, () => {
   console.log(`Fulldome viewer: http://${HOST}:${PORT}/`);
@@ -314,7 +327,7 @@ async function createRunwayInpaint(payload, onProgress = () => {}, options = {})
     throw httpError(401, "Set RUNWAYML_API_SECRET before using Runway inpaint.");
   }
 
-  const model = INPAINT_MODEL;
+  const model = sanitizeChoice(payload.model, Object.keys(MODEL_CONFIG), INPAINT_MODEL);
   const config = MODEL_CONFIG[model];
   if (!config) {
     throw httpError(400, `Unsupported Runway image model: ${model}`);
@@ -342,14 +355,39 @@ async function createRunwayInpaint(payload, onProgress = () => {}, options = {})
       })
     : null;
   const promptText = clampPrompt(String(payload.prompt || ""), config.maxPrompt);
+  const sourceImageTag = sanitizeReferenceTag(payload.sourceImageTag, "source");
+  const referenceImageTag = sanitizeReferenceTag(payload.referenceImageTag, "plate_sketch");
+  const referenceImages = [
+    ...(sourceReferenceUri ? [{ uri: sourceReferenceUri, tag: sourceImageTag }] : []),
+    { uri: referenceUri, tag: referenceImageTag },
+  ];
+  const extraReferenceImages = Array.isArray(payload.extraReferenceImages) ? payload.extraReferenceImages : [];
+  for (let index = 0; index < extraReferenceImages.length && referenceImages.length < config.maxReferences; index += 1) {
+    const extra = extraReferenceImages[index];
+    if (!extra || typeof extra !== "object") continue;
+    const tag = sanitizeReferenceTag(extra.tag, `ref${index + 1}`);
+    if (typeof extra.uri === "string" && extra.uri.trim()) {
+      referenceImages.push({ uri: extra.uri.trim(), tag });
+      continue;
+    }
+    const extraImageDataUrl = String(extra.imageDataUrl || extra.dataUri || "");
+    if (!extraImageDataUrl) continue;
+    const extraImage = parseImageDataUrl(extraImageDataUrl);
+    const extraReferenceUri = await uploadEphemeralFile({
+      apiKey,
+      filename: safeMediaFilename(extra.filename, `fulldome-extra-reference-${Date.now()}-${index + 1}.png`),
+      buffer: extraImage.buffer,
+      mime: extraImage.mime,
+      onProgress,
+      signal: options.signal,
+    });
+    referenceImages.push({ uri: extraReferenceUri, tag });
+  }
   const body = {
     model,
     promptText,
     ratio: sanitizeRatio(payload.ratio, config.ratio),
-    referenceImages: [
-      ...(sourceReferenceUri ? [{ uri: sourceReferenceUri, tag: "SourceFrame" }] : []),
-      { uri: referenceUri, tag: "PlateSketch" },
-    ],
+    referenceImages,
   };
 
   if (config.outputCount) {
@@ -407,7 +445,7 @@ async function createRunwayDepthMap(payload, onProgress = () => {}, options = {}
     model,
     promptText,
     ratio: sanitizeRatio(payload.ratio, config.ratio),
-    referenceImages: [{ uri: referenceUri, tag: "SourceFrame" }],
+    referenceImages: [{ uri: referenceUri, tag: "source" }],
   };
 
   if (config.outputCount) {
@@ -453,6 +491,7 @@ async function createRunwaySeedanceVideo(payload, onProgress = () => {}, options
     throw httpError(413, "Seedance video-to-video input must be 32 MB or smaller.");
   }
   const sourceImage = payload.imageDataUrl ? parseImageDataUrl(payload.imageDataUrl) : null;
+  const finalImage = payload.finalImageDataUrl ? parseImageDataUrl(payload.finalImageDataUrl) : null;
 
   const promptText = clampPrompt(String(payload.prompt || DEFAULT_SEEDANCE_PROMPT), SEEDANCE_PROMPT_MAX);
   const filename = safeMediaFilename(payload.filename, "fulldome-depth-motion.mp4");
@@ -474,12 +513,22 @@ async function createRunwaySeedanceVideo(payload, onProgress = () => {}, options
         signal: options.signal,
       })
     : null;
+  const finalPromptImage = finalImage
+    ? await uploadEphemeralFile({
+        apiKey,
+        filename: safeMediaFilename(payload.finalFilename, "fulldome-seedance-final.png"),
+        buffer: finalImage.buffer,
+        mime: finalImage.mime,
+        onProgress,
+        signal: options.signal,
+      })
+    : null;
 
   const body = promptImage
     ? {
         model: SEEDANCE_MODEL,
         promptText,
-        references: [{ uri: promptImage }],
+        references: [{ uri: promptImage }, ...(finalPromptImage ? [{ uri: finalPromptImage }] : [])],
         referenceVideos: [{ type: "video", uri: promptVideo }],
         ratio: sanitizeSeedanceRatio(payload.ratio),
         duration: clampSeedanceDuration(payload.duration),
@@ -517,7 +566,11 @@ async function createRunwaySeedanceVideo(payload, onProgress = () => {}, options
     model: SEEDANCE_MODEL,
     promptText,
     inputBytes: buffer.length,
-    referenceMode: promptImage ? "source-image-and-motion-video" : "motion-video-only",
+    referenceMode: finalPromptImage
+      ? "source-final-and-motion-video"
+      : promptImage
+        ? "source-image-and-motion-video"
+        : "motion-video-only",
     ratio: body.ratio,
     duration: body.duration,
     outputs,
@@ -1269,6 +1322,11 @@ function clampSeedanceDuration(value) {
 
 function sanitizeChoice(value, choices, fallback) {
   return choices.includes(value) ? value : fallback;
+}
+
+function sanitizeReferenceTag(value, fallback) {
+  const tag = String(value || "").trim();
+  return /^[a-z][a-z0-9_]{2,15}$/.test(tag) ? tag : fallback;
 }
 
 function clampInt(value, min, max) {

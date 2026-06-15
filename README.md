@@ -21,7 +21,7 @@ Zenith reframes the pipeline as image-to-space-to-motion instead of blind prompt
 
 ## Codex Prompt Planning
 
-Zenith can use Codex as a local prompt planner for Seedance handoffs. The app sends the current domemaster image, depth/motion context, and the repo-local prompt packs to `server.mjs`, then streams back a structured Seedance prompt, diagnosis, variants, negative terms, and practical warnings.
+Zenith can use Codex as a local prompt planner for Seedance handoffs. The SvelteKit app sends the current domemaster image, depth/motion context, and the repo-local prompt packs to `server.mjs`, then streams back a structured Seedance prompt, diagnosis, variants, negative terms, and practical warnings.
 
 The prompt packs live in:
 
@@ -30,14 +30,16 @@ The prompt packs live in:
 
 ## Run Locally
 
-```powershell
+```sh
 npm install
-Copy-Item .env.example .env.local
+cp .env.example .env.local
 # Fill RUNWAYML_API_SECRET in .env.local
 npm run dev
 ```
 
-Open the printed local URL, usually `http://127.0.0.1:5173/`.
+On Windows PowerShell, use `Copy-Item .env.example .env.local` instead of `cp`.
+
+Open the printed local URL, usually `http://127.0.0.1:5173/`. The custom server keeps the Runway/Codex API routes and serves the SvelteKit workbench.
 
 ## Environment
 
@@ -51,7 +53,7 @@ Do not expose `.env.local` or any API keys in browser code. The app keeps Runway
 
 ## Useful Commands
 
-```powershell
+```sh
 npm test
 npm run build
 npm run lint
@@ -60,13 +62,16 @@ npm run lint
 ## Project Structure
 
 - `server.mjs`: local server, Runway API routes, streaming progress, uploads, depth/inpaint/Seedance handoffs, Codex prompt planning.
+- `src/routes`: SvelteKit client-only shell for the fulldome workbench.
+- `src/app`: pipeline state, artifact DAG, command bridge, defaults, and view state.
+- `src/lanes`: Svelte lane components for Source, Sketch, Repair, Depth, Motion, Bridge, Video, and Deliver.
+- `src/artifacts`: artifact graph nodes, dependencies, and status logic.
 - `src/graphics`: WebGPU/WebGL-style dome rendering, projection geometry, shaders, view cameras.
 - `src/plates`: image plate loading, spherical placement, plate-map baking.
 - `src/inpaint`: Runway inpaint handoff and generated-image selection.
 - `src/sketch`: depth maps, WebGPU depth reprojection, MP4 motion export, Seedance handoff.
 - `src/media`: media loading, canvas helpers, WebCodecs/Mediabunny export helpers.
-- `src/workspace`: local autosave, versions, import/export snapshots.
-- `src/ui`: DOM wiring, HUD rendering, pointer tools, progress buttons.
+- `src/ui`: Svelte UI pieces, DOM actions, HUD rendering, pointer tools, progress buttons.
 - `docs/seedance_prompt_pack`: prompt-planning context for repairing 2.5D/depth-warp motion plates with Seedance.
 - `docs/seedance_image_prompt_pack`: prompt-planning context for direct Seedance image-to-video from a still dome image.
 - `docs/default-depth-motion-config.json`: the default dome placement, inpaint, depth-motion, and Seedance settings captured from the current working profile.

@@ -1,8 +1,12 @@
 import { clamp } from "../projection.js";
 
+export type TextContentSink = {
+  textContent: string | null;
+};
+
 export function setProgressButton(
   button: HTMLButtonElement,
-  readout: HTMLElement | null | undefined,
+  readout: TextContentSink | null | undefined,
   stage: string,
   progress: number,
 ): void {

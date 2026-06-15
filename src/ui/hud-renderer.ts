@@ -4,9 +4,9 @@ import {
   sourceFlatToDisplayFlatPoint,
   visiblePlateUvBounds,
 } from "../geometry/flat-domemaster.js";
-import { sourceCaveDirectionFromScreenPoint, sourceCaveDirectionToScreenPoint } from "../geometry/cave-view.js";
+import { sourceCaveDirectionToScreenPoint } from "../geometry/cave-view.js";
 import type { CaveViewProjection } from "../geometry/cave-view.js";
-import { sourceDomeDirectionFromScreenPoint, sourceDomeDirectionToScreenPoint } from "../geometry/dome-view.js";
+import { sourceDomeDirectionToScreenPoint } from "../geometry/dome-view.js";
 import type { DomeViewProjection } from "../geometry/dome-view.js";
 import { projectPlateScreenControls } from "../geometry/plate-screen-controls.js";
 import type { PlateScreenProjector } from "../geometry/plate-screen-controls.js";
@@ -334,8 +334,7 @@ function drawDomeHud(ctx: CanvasRenderingContext2D, rect: Rect, options: HudOpti
       ctx,
       {
         projectSourceDirection: (direction) => sourceDomeDirectionToScreenPoint(direction, domeProjection),
-        sourceDirectionAt: (point) => sourceDomeDirectionFromScreenPoint(point, domeProjection),
-        rect: domeProjection.rect,
+        projectPlateUv: (placement, u, v) => sourceDomeDirectionToScreenPoint(directionFromPlateUv(placement, u, v), domeProjection),
       },
       options,
     );
@@ -380,8 +379,7 @@ function drawCaveHud(ctx: CanvasRenderingContext2D, rect: Rect, options: HudOpti
       ctx,
       {
         projectSourceDirection: (direction) => sourceCaveDirectionToScreenPoint(direction, caveProjection),
-        sourceDirectionAt: (point) => sourceCaveDirectionFromScreenPoint(point, caveProjection),
-        rect,
+        projectPlateUv: (placement, u, v) => sourceCaveDirectionToScreenPoint(directionFromPlateUv(placement, u, v), caveProjection),
       },
       options,
     );
@@ -466,7 +464,7 @@ function drawSourcePlacementOutline(
       const t = step / segments;
       const u = lerp(edge[0], edge[2], t);
       const v = lerp(edge[1], edge[3], t);
-      const point = projector.projectSourceDirection(directionFromPlateUv(placement, u, v));
+      const point = projector.projectPlateUv(placement, u, v);
       if (!point) {
         started = false;
         continue;
@@ -538,7 +536,7 @@ function drawCompass(ctx: CanvasRenderingContext2D, width: number, height: numbe
 }
 
 function shouldShowPatchHud(options: HudOptions): boolean {
-  return options.platesLength >= 1 && (options.activeWorkspace === "create" || options.editPlacement);
+  return options.platesLength >= 1 && (options.activeWorkspace === "sketch" || options.editPlacement);
 }
 
 function centerDirection(sourceProjectionMode: SourceProjectionMode): Vec3 {
