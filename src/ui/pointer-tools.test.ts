@@ -309,12 +309,12 @@ describe("pointer placement edit gate", () => {
       rotation: { value: "0" },
       domeTilt: { value: "0" },
       mirror: { checked: false },
-      sourceProjection: { value: "nadir-270" },
+      sourceProjection: { value: "cave-270" },
       theaterPitch: { value: "28" },
       plateFit: { value: "contain" },
     };
     const viewMatrix = lookAtLH([0, 0, 6], [0, 0, 0], [0, 1, 0]);
-    const prepared = preparePlatePlacement(placement, state.plates[0], "nadir-270");
+    const prepared = preparePlatePlacement(placement, state.plates[0], "cave-270");
     const center = sourceCaveDirectionToScreenPoint(prepared.center, {
       rect: { x: 0, y: 0, width: 100, height: 100 },
       viewMatrix,
@@ -322,7 +322,7 @@ describe("pointer placement edit gate", () => {
       sourceRotationRadians: 0,
       domeTiltRadians: 0,
       mirror: false,
-      sourceProjectionMode: "nadir-270",
+      sourceProjectionMode: "cave-270",
     });
     if (!center) throw new Error("Expected CAVE plate center to project");
     const startCorner = sourceCaveDirectionToScreenPoint(directionFromPlateUv(prepared, 1, 0.5), {
@@ -332,7 +332,7 @@ describe("pointer placement edit gate", () => {
       sourceRotationRadians: 0,
       domeTiltRadians: 0,
       mirror: false,
-      sourceProjectionMode: "nadir-270",
+      sourceProjectionMode: "cave-270",
     });
     expect(startCorner).not.toBeNull();
     const controller = createPointerToolController({
@@ -394,7 +394,7 @@ describe("pointer placement edit gate", () => {
       rotation: { value: "0" },
       domeTilt: { value: "0" },
       mirror: { checked: false },
-      sourceProjection: { value: "nadir-270" },
+      sourceProjection: { value: "cave-270" },
       theaterPitch: { value: "28" },
       plateFit: { value: "contain" },
     };

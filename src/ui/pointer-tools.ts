@@ -49,14 +49,27 @@ import type { Mat4, Point2D, Vec3 } from "../projection.js";
 import type { FlatLayout, FlatPointerMetrics } from "./pointer-geometry.js";
 import { flatMapMetricsFromClient } from "./pointer-geometry.js";
 import { normalizeSourceProjectionMode } from "../geometry/source-projection.js";
+import {
+  eulerDegreesFromQuaternion,
+  normalizeCameraRigPose,
+  orbitCameraAroundPivotArcball,
+  quaternionFromEulerDegrees,
+  quaternionFromLookAt,
+  rotateCameraArcball,
+} from "../geometry/camera-rig.js";
+import type { CameraRigPose } from "../geometry/camera-rig.js";
 
 const HANDLE_RADIUS = 13;
 const MOVE_DRAG_THRESHOLD = 3;
 const PLATE_HIT_LOCAL_PAD = 0.012;
 const CAVE_PLATE_HIT_UV_STEPS = 14;
+const RAD_TO_DEG = 180 / Math.PI;
+const DEG_TO_RAD = Math.PI / 180;
 type PlateGeometryHandle = Point2D & ({ action: "scale"; corner: PlateCorner } | { action: "rotate" });
 type PlateGeometry = { center: Point2D; handles: PlateGeometryHandle[]; outline: Point2D[] };
 type PlateHit = { index: number; handle: PlateHandleHit };
+type LegacyViewCameraMode = "inside" | "orbit";
+type LegacyViewCameraPose = CameraRigPose<LegacyViewCameraMode>;
 type PointerCanvas = {
   clientWidth: number;
   clientHeight: number;
@@ -74,6 +87,8 @@ type PointerToolControls = {
   activePlate: ValueControl;
   fov: ValueControl;
   theaterPitch: ValueControl;
+  theaterEyeDrop?: ValueControl;
+  theaterSeatBack?: ValueControl;
   radiusScale?: ValueControl;
   rotation?: ValueControl;
   domeTilt?: ValueControl;
@@ -111,6 +126,7 @@ type PlacementPointerMetrics = {
   sourceDirectionAt: (point: Point2D) => Vec3 | null;
   sourcePointAt: (point: Point2D) => DomePoint | null;
   projectSourceDirection: (direction: Vec3) => Point2D | null;
+  projectPlateUv: (placement: PreparedPlatePlacement, u: number, v: number) => Point2D | null;
   rect?: { x: number; y: number; width: number; height: number } | null;
 };
 
@@ -135,22 +151,18 @@ export function createPointerToolController({
       updatePlacementDrag(event);
       return;
     }
-    const dx = event.clientX - state.pointer.x;
-    const dy = event.clientY - state.pointer.y;
+    const previousClient = { x: state.pointer.x, y: state.pointer.y };
+    const currentClient = { x: event.clientX, y: event.clientY };
     state.pointer.x = event.clientX;
     state.pointer.y = event.clientY;
 
     const camera = activeDomeCamera();
     if (camera === "inside") {
-      state.camera.insideYaw -= dx * 0.004;
-      state.camera.insidePitch = clamp(state.camera.insidePitch + dy * 0.0035, -1.42, 1.42);
+      updateInsideCameraDrag(previousClient, currentClient);
     } else if (camera === "theater") {
-      state.camera.theaterYaw -= dx * 0.004;
-      const nextPitch = clamp(Number(controls.theaterPitch.value) + dy * 0.045, -68, 68);
-      controls.theaterPitch.value = String(nextPitch);
+      updateTheaterCameraDrag(previousClient, currentClient);
     } else {
-      state.camera.orbitYaw -= dx * 0.004;
-      state.camera.orbitPitch = clamp(state.camera.orbitPitch + dy * 0.0035, -1.28, 1.28);
+      updateOrbitCameraDrag(previousClient, currentClient);
     }
   }
 
@@ -179,6 +191,43 @@ export function createPointerToolController({
       state.camera.orbitDistance = clamp(state.camera.orbitDistance + event.deltaY * 0.002, 1.45, 5.6);
     }
     actions.scheduleWorkspaceAutosave("camera", 350);
+  }
+
+  function updateInsideCameraDrag(previousClient: Point2D, currentClient: Point2D): void {
+    const frame = cameraDragFrame();
+    const next = rotateCameraArcball(
+      insideCameraPose(),
+      pointRelativeToRect(clientPointToCanvasPoint(previousClient), frame.rect),
+      pointRelativeToRect(clientPointToCanvasPoint(currentClient), frame.rect),
+      frame.rect,
+    );
+    const euler = eulerDegreesFromQuaternion(next.orientation);
+    state.camera.insideYaw = euler.yawDegrees * DEG_TO_RAD;
+    state.camera.insidePitch = clamp(euler.pitchDegrees * DEG_TO_RAD, -1.42, 1.42);
+  }
+
+  function updateTheaterCameraDrag(previousClient: Point2D, currentClient: Point2D): void {
+    const frame = cameraDragFrame();
+    const next = rotateCameraArcball(
+      theaterCameraPose(),
+      pointRelativeToRect(clientPointToCanvasPoint(previousClient), frame.rect),
+      pointRelativeToRect(clientPointToCanvasPoint(currentClient), frame.rect),
+      frame.rect,
+    );
+    const euler = eulerDegreesFromQuaternion(next.orientation);
+    state.camera.theaterYaw = euler.yawDegrees * DEG_TO_RAD;
+    controls.theaterPitch.value = String(clamp(euler.pitchDegrees, -68, 68));
+  }
+
+  function updateOrbitCameraDrag(previousClient: Point2D, currentClient: Point2D): void {
+    const frame = cameraDragFrame();
+    const next = orbitCameraAroundPivotArcball(
+      orbitCameraPose(),
+      pointRelativeToRect(clientPointToCanvasPoint(previousClient), frame.rect),
+      pointRelativeToRect(clientPointToCanvasPoint(currentClient), frame.rect),
+      frame.rect,
+    );
+    syncOrbitCameraFromPose(next);
   }
 
   function tryStartPlatePlacementDrag(event: PointerLike): boolean {
@@ -496,7 +545,7 @@ export function createPointerToolController({
     v: number,
     metrics: PlacementPointerMetrics,
   ): Point2D | null {
-    return metrics.projectSourceDirection(directionFromPlateUv(placement, u, v));
+    return metrics.projectPlateUv(placement, u, v);
   }
 
   function hitHandle(point: Point2D, geometry: PlateGeometry | null): PlateGeometryHandle | null {
@@ -533,6 +582,93 @@ export function createPointerToolController({
     return metrics.sourcePointAt(clientEventToCanvasPoint(event, canvas));
   }
 
+  function clientPointToCanvasPoint(point: Point2D): Point2D {
+    return clientEventToCanvasPoint({ clientX: point.x, clientY: point.y }, canvas);
+  }
+
+  function cameraDragFrame(): { rect: { x: number; y: number; width: number; height: number } } {
+    const layout = getCssLayout(canvas.clientWidth, canvas.clientHeight);
+    const rect = state.viewMode === "cave"
+      ? layout.fullRect || layout.domeRect || layout.domePane
+      : layout.domeRect || layout.domePane || layout.fullRect;
+    return {
+      rect: rect || { x: 0, y: 0, width: canvas.clientWidth, height: canvas.clientHeight },
+    };
+  }
+
+  function pointRelativeToRect(point: Point2D, rect: { x: number; y: number; width: number; height: number }): Point2D {
+    return {
+      x: point.x - rect.x,
+      y: point.y - rect.y,
+    };
+  }
+
+  function insideCameraPose(): LegacyViewCameraPose {
+    return normalizeCameraRigPose<LegacyViewCameraMode>({
+      position: [0, 0, 0],
+      orientation: quaternionFromEulerDegrees(
+        (Number(state.camera.insideYaw) || 0) * RAD_TO_DEG,
+        (Number(state.camera.insidePitch) || 0) * RAD_TO_DEG,
+        0,
+      ),
+      fovDegrees: Number(controls.fov.value) || 92,
+      mode: "inside",
+    });
+  }
+
+  function theaterCameraPose(): LegacyViewCameraPose {
+    const eyeDrop = Number(controls.theaterEyeDrop?.value) || 0.34;
+    const seatBack = Number(controls.theaterSeatBack?.value) || 0.58;
+    return normalizeCameraRigPose<LegacyViewCameraMode>({
+      position: [0, -eyeDrop, -seatBack],
+      orientation: quaternionFromEulerDegrees(
+        (Number(state.camera.theaterYaw) || 0) * RAD_TO_DEG,
+        Number(controls.theaterPitch.value) || 0,
+        0,
+      ),
+      fovDegrees: Number(controls.fov.value) || 92,
+      mode: "inside",
+    });
+  }
+
+  function orbitCameraPose(): LegacyViewCameraPose {
+    const target = orbitCameraTarget();
+    const yaw = Number(state.camera.orbitYaw) || 0;
+    const pitch = Number(state.camera.orbitPitch) || 0;
+    const distance = Math.max(0.05, Number(state.camera.orbitDistance) || 3);
+    const position: Vec3 = [
+      target[0] + distance * Math.cos(pitch) * Math.sin(yaw),
+      target[1] + distance * Math.sin(pitch),
+      target[2] + distance * Math.cos(pitch) * Math.cos(yaw),
+    ];
+    return normalizeCameraRigPose<LegacyViewCameraMode>({
+      position,
+      orientation: quaternionFromLookAt(position, target),
+      pivot: target,
+      fovDegrees: Number(controls.fov.value) || 92,
+      mode: "orbit",
+    });
+  }
+
+  function syncOrbitCameraFromPose(pose: LegacyViewCameraPose): void {
+    const target = pose.pivot || orbitCameraTarget();
+    const offset: Vec3 = [
+      pose.position[0] - target[0],
+      pose.position[1] - target[1],
+      pose.position[2] - target[2],
+    ];
+    const distance = Math.hypot(offset[0], offset[1], offset[2]);
+    if (!Number.isFinite(distance) || distance <= 0.000001) return;
+    state.camera.orbitDistance = distance;
+    state.camera.orbitPitch = Math.asin(clamp(offset[1] / distance, -1, 1));
+    state.camera.orbitYaw = Math.atan2(offset[0], offset[2]);
+  }
+
+  function orbitCameraTarget(): Vec3 {
+    if (state.viewMode === "cave") return [0, 0, 0];
+    return sourceProjectionMode().startsWith("nadir") ? [0, -0.42, 0] : [0, 0.42, 0];
+  }
+
   function clientToPlacementMetrics(event: PointerLike | WheelLike): PlacementPointerMetrics | null {
     const point = clientEventToCanvasPoint(event, canvas);
     const layout = getCssLayout(canvas.clientWidth, canvas.clientHeight);
@@ -565,18 +701,20 @@ export function createPointerToolController({
   }
 
   function createFlatPlacementMetrics(metrics: FlatPointerMetrics): PlacementPointerMetrics {
+    const projectSourceDirection = (direction: Vec3) => {
+      const radius = flatMapRadius(metrics, controls.radiusScale?.value ?? 1);
+      return sourceFlatToDisplayFlatPoint(
+        domeDirectionToFlatPoint(direction, metrics.cx, metrics.cy, radius, sourceProjectionMode()),
+        metrics.cx,
+        metrics.cy,
+        flatRotationRadians(),
+      );
+    };
     return {
       sourceDirectionAt: (point) => screenToDomeDirection(point, metrics),
       sourcePointAt: (point) => screenToFlatDomePoint(point, metrics),
-      projectSourceDirection: (direction) => {
-        const radius = flatMapRadius(metrics, controls.radiusScale?.value ?? 1);
-        return sourceFlatToDisplayFlatPoint(
-          domeDirectionToFlatPoint(direction, metrics.cx, metrics.cy, radius, sourceProjectionMode()),
-          metrics.cx,
-          metrics.cy,
-          flatRotationRadians(),
-        );
-      },
+      projectSourceDirection,
+      projectPlateUv: (placement, u, v) => projectSourceDirection(directionFromPlateUv(placement, u, v)),
       rect: metrics.rect,
     };
   }
@@ -588,6 +726,7 @@ export function createPointerToolController({
       sourceDirectionAt: (screenPoint) => sourceDomeDirectionFromScreenPoint(screenPoint, projection),
       sourcePointAt: (screenPoint) => sourceDomePointFromScreenPoint(screenPoint, projection),
       projectSourceDirection: (direction) => sourceDomeDirectionToScreenPoint(direction, projection),
+      projectPlateUv: (placement, u, v) => sourceDomeDirectionToScreenPoint(directionFromPlateUv(placement, u, v), projection),
       rect: projection.rect,
     };
   }
@@ -599,6 +738,7 @@ export function createPointerToolController({
       sourceDirectionAt: (screenPoint) => sourceCaveDirectionFromScreenPoint(screenPoint, projection),
       sourcePointAt: (screenPoint) => sourceCavePointFromScreenPoint(screenPoint, projection),
       projectSourceDirection: (direction) => sourceCaveDirectionToScreenPoint(direction, projection),
+      projectPlateUv: (placement, u, v) => sourceCaveDirectionToScreenPoint(directionFromPlateUv(placement, u, v), projection),
       rect: projection.rect,
     };
   }
