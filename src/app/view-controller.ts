@@ -1,6 +1,7 @@
 import { downloadBlob } from "../media/canvas-utils.js";
 import { normalizeSourceProjectionMode, sourceProjectionLabel } from "../geometry/source-projection.js";
 import type { ScheduleWorkspaceAutosave, ViewMode, ZenithState } from "./types.js";
+import type { PipelineReadouts } from "./pipeline-state.svelte.js";
 import type { SourceProjectionMode } from "../geometry/source-projection.js";
 import type { ZenithControls } from "../ui/dom.js";
 
@@ -9,16 +10,16 @@ type ViewControllerOptions = {
   controls: ZenithControls;
   elements: {
     viewButtons: HTMLButtonElement[];
-    viewReadout: HTMLElement;
   };
   viewLabels: Record<string, string>;
   actions: {
+    setReadouts: (readouts: Partial<PipelineReadouts>) => void;
     scheduleWorkspaceAutosave: ScheduleWorkspaceAutosave;
   };
 };
 
 export function createViewController({ state, controls, elements, viewLabels, actions }: ViewControllerOptions) {
-  const { viewButtons, viewReadout } = elements;
+  const { viewButtons } = elements;
   const allowedModes = new Set(Object.keys(viewLabels));
 
   function setViewMode(mode: string): void {
@@ -35,7 +36,7 @@ export function createViewController({ state, controls, elements, viewLabels, ac
 
   function updateUiState() {
     updateViewButtonLabels();
-    viewReadout.textContent = currentViewLabel();
+    actions.setReadouts({ view: currentViewLabel() });
   }
 
   function currentViewLabel(): string {
@@ -43,20 +44,21 @@ export function createViewController({ state, controls, elements, viewLabels, ac
   }
 
   function viewLabelForMode(mode: string): string {
-    const nadir = isNadirProjection();
-    if (mode === "inside") return nadir ? "Nadir POV" : viewLabels.inside;
+    const lower = isLowerCenteredProjection();
+    const caveProfile = isCaveProjection();
+    if (mode === "inside") return caveProfile ? "CAVE POV" : lower ? "Nadir POV" : viewLabels.inside;
     if (mode === "theater") return viewLabels.theater;
-    if (mode === "orbit") return nadir ? "Lower orbit" : viewLabels.orbit;
-    if (mode === "flat") return nadir ? "Flat nadir map" : viewLabels.flat;
-    if (mode === "split") return nadir ? "Flat + lower projection" : viewLabels.split;
-    if (mode === "cave") return nadir ? "CAVE from nadir map" : "CAVE projection preview";
+    if (mode === "orbit") return lower ? "Lower orbit" : viewLabels.orbit;
+    if (mode === "flat") return caveProfile ? "CAVE source map" : lower ? "Flat nadir map" : viewLabels.flat;
+    if (mode === "split") return caveProfile ? "CAVE source + room" : lower ? "Flat + lower projection" : viewLabels.split;
+    if (mode === "cave") return caveProfile ? "CAVE room" : "CAVE projection preview";
     return viewLabels[mode] || mode;
   }
 
   function updateViewButtonLabels(): void {
-    const labels: Record<string, string> = isNadirProjection()
+    const labels: Record<string, string> = isLowerCenteredProjection()
       ? {
-          inside: "Nadir",
+          inside: isCaveProjection() ? "CAVE" : "Nadir",
           theater: "Theater",
           orbit: "Lower orbit",
           flat: "Flat",
@@ -79,7 +81,7 @@ export function createViewController({ state, controls, elements, viewLabels, ac
 
   function lookAtPreset(preset: "zenith" | "nadir" | "north" | "horizon" | string): void {
     if (preset === "zenith") {
-      if (sourceProjectionMode().startsWith("nadir")) {
+      if (isLowerCenteredProjection()) {
         lookAtNadir();
       } else {
         lookAtZenith();
@@ -90,7 +92,7 @@ export function createViewController({ state, controls, elements, viewLabels, ac
       state.camera.insideYaw = 0;
       state.camera.theaterYaw = 0;
       state.camera.orbitYaw = 0;
-      if (isNadirProjection()) {
+      if (isLowerCenteredProjection()) {
         state.camera.insidePitch = -0.06;
         controls.theaterPitch.value = "-8";
         state.camera.orbitPitch = -0.18;
@@ -140,16 +142,21 @@ export function createViewController({ state, controls, elements, viewLabels, ac
     return normalizeSourceProjectionMode(controls.sourceProjection.value);
   }
 
-  function isNadirProjection(): boolean {
-    return sourceProjectionMode().startsWith("nadir");
+  function isCaveProjection(): boolean {
+    return sourceProjectionMode() === "cave-270";
+  }
+
+  function isLowerCenteredProjection(): boolean {
+    const mode = sourceProjectionMode();
+    return mode.startsWith("nadir") || mode === "cave-270";
   }
 
   function projectionVerticalSign(): 1 | -1 {
-    return isNadirProjection() ? -1 : 1;
+    return isLowerCenteredProjection() ? -1 : 1;
   }
 
-  function withProjectionSign(value: number, fallback: number, sign: 1 | -1): number {
-    const magnitude = Math.abs(Number.isFinite(value) && value !== 0 ? value : fallback);
+  function withProjectionSign(value: number, defaultValue: number, sign: 1 | -1): number {
+    const magnitude = Math.abs(Number.isFinite(value) && value !== 0 ? value : defaultValue);
     return magnitude * sign;
   }
 

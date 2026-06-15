@@ -44,15 +44,15 @@ describe("dome view pointer projection", () => {
 
   test("maps source points through zenith and nadir projection modes", () => {
     expect(domePointFromSourceDirection([0, 1, 0], "zenith-180").radius).toBeCloseTo(0, 5);
-    expect(domePointFromSourceDirection([0, -1, 0], "nadir-270").radius).toBeCloseTo(0, 5);
+    expect(domePointFromSourceDirection([0, -1, 0], "cave-270").radius).toBeCloseTo(0, 5);
 
-    const nadirHorizon = domePointFromSourceDirection([0, 0, 1], "nadir-270");
+    const nadirHorizon = domePointFromSourceDirection([0, 0, 1], "cave-270");
     expect(nadirHorizon.radius).toBeCloseTo(2 / 3, 5);
     expect(nadirHorizon.azimuth).toBeCloseTo(0, 5);
   });
 
   test("clips source directions outside the selected geometric projection", () => {
-    expect(sourceDomeDirectionToScreenPoint([0, 1, 0], { ...baseProjection, sourceProjectionMode: "nadir-270" })).toBeNull();
+    expect(sourceDomeDirectionToScreenPoint([0, 1, 0], { ...baseProjection, sourceProjectionMode: "cave-270" })).toBeNull();
     expect(sourceDomeDirectionToScreenPoint([0, -1, 0], { ...baseProjection, sourceProjectionMode: "zenith-180" })).toBeNull();
   });
 

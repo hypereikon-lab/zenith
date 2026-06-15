@@ -16,6 +16,8 @@ struct Uniforms {
   showZenith: f32,
   showSourceCircle: f32,
   shellShade: f32,
+  sourceCarrierSplit: f32,
+  sourceCarrierHorizon: f32,
   sourceCenterTheta: vec4<f32>,
   sourceRight: vec4<f32>,
   sourceUp: vec4<f32>,
@@ -69,6 +71,21 @@ fn physicalDirectionFromSource(sourceDir: vec3<f32>) -> vec3<f32> {
   return normalize(rotateX(tilted, -uniforms.domeTilt));
 }
 
+fn physicalRadiusToCarrierRadius(physicalRadius: f32, thetaMax: f32) -> f32 {
+  let split = clamp(uniforms.sourceCarrierSplit, 0.18, 0.72);
+  let horizon = clamp(HALF_PI / max(thetaMax, 0.0001), 0.0001, 1.0);
+  let semanticPhysical = clamp(horizon * 0.5, 0.0001, max(horizon - 0.0001, 0.0001));
+  let carrierHorizon = select(1.0, clamp(uniforms.sourceCarrierHorizon, split + 0.0001, 0.9999), horizon < 0.999);
+  let radius = clamp(physicalRadius, 0.0, 1.0);
+  if (radius <= semanticPhysical) {
+    return (radius / max(semanticPhysical, 0.0001)) * split;
+  }
+  if (radius <= horizon) {
+    return split + ((radius - semanticPhysical) / max(horizon - semanticPhysical, 0.0001)) * (carrierHorizon - split);
+  }
+  return carrierHorizon + ((radius - horizon) / max(1.0 - horizon, 0.0001)) * (1.0 - carrierHorizon);
+}
+
 @vertex
 fn vertexMain(@location(0) position: vec3<f32>) -> VertexOut {
   let physical = physicalDirectionFromSource(position);
@@ -83,7 +100,8 @@ fn sourceSample(sourceDir: vec3<f32>) -> vec3<f32> {
   let thetaMax = max(uniforms.sourceCenterTheta.w, 0.0001);
   let centerDot = clamp(dot(sourceDir, center), -1.0, 1.0);
   let theta = acos(centerDot);
-  let radial = theta / thetaMax;
+  let physicalRadial = theta / thetaMax;
+  let radial = physicalRadiusToCarrierRadius(physicalRadial, thetaMax);
   var local = vec2<f32>(0.0, 0.0);
   if (theta > 0.000001) {
     let tangent = normalize(sourceDir - center * centerDot);
@@ -91,7 +109,7 @@ fn sourceSample(sourceDir: vec3<f32>) -> vec3<f32> {
   }
   let uv = vec2<f32>(0.5, 0.5) +
     vec2<f32>(local.x * uniforms.fisheyeScale.x, -local.y * uniforms.fisheyeScale.y) * radial;
-  return vec3<f32>(uv, select(0.0, 1.0, radial <= 1.0001));
+  return vec3<f32>(uv, select(0.0, 1.0, physicalRadial <= 1.0001));
 }
 
 @fragment
@@ -143,6 +161,8 @@ struct Uniforms {
   showZenith: f32,
   showSourceCircle: f32,
   shellShade: f32,
+  sourceCarrierSplit: f32,
+  sourceCarrierHorizon: f32,
   sourceCenterTheta: vec4<f32>,
   sourceRight: vec4<f32>,
   sourceUp: vec4<f32>,
@@ -192,8 +212,52 @@ fn lineAt(value: f32, interval: f32, widthFactor: f32) -> f32 {
   return 1.0 - smoothstep(0.0, width, dist);
 }
 
+fn caveCarrierRho(uv: vec2<f32>) -> f32 {
+  let local = abs((uv - vec2<f32>(0.5)) * 2.0);
+  return max(local.x, local.y);
+}
+
+fn caveCarrierRayAngle(uv: vec2<f32>) -> f32 {
+  let local = (uv - vec2<f32>(0.5)) * vec2<f32>(2.0, -2.0);
+  return atan2(local.x, local.y);
+}
+
+fn carrierRadiusToPhysicalRadius(carrierRadius: f32, thetaMax: f32) -> f32 {
+  let split = clamp(uniforms.sourceCarrierSplit, 0.18, 0.72);
+  let horizon = clamp(HALF_PI / max(thetaMax, 0.0001), 0.0001, 1.0);
+  let semanticPhysical = clamp(horizon * 0.5, 0.0001, max(horizon - 0.0001, 0.0001));
+  let carrierHorizon = select(1.0, clamp(uniforms.sourceCarrierHorizon, split + 0.0001, 0.9999), horizon < 0.999);
+  let radius = clamp(carrierRadius, 0.0, 1.0);
+  if (radius <= split) {
+    return (radius / max(split, 0.0001)) * semanticPhysical;
+  }
+  if (radius <= carrierHorizon) {
+    return semanticPhysical + ((radius - split) / max(carrierHorizon - split, 0.0001)) * (horizon - semanticPhysical);
+  }
+  return horizon + ((radius - carrierHorizon) / max(1.0 - carrierHorizon, 0.0001)) * (1.0 - horizon);
+}
+
 @fragment
 fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
+  if (uniforms.sourceCenterTheta.w < 0.0) {
+    let sampledColor = textureSample(domeTexture, domeSampler, in.uv).rgb * uniforms.exposure;
+    var color = sampledColor;
+    let rho = caveCarrierRho(in.uv);
+    let floorBand = abs(uniforms.sourceCenterTheta.w);
+    let horizonBand = clamp(uniforms.sourceCarrierHorizon, floorBand + 0.0001, 0.9999);
+    let rayAngle = caveCarrierRayAngle(in.uv);
+    let center = (1.0 - smoothstep(0.0, 0.018 + fwidth(rho) * 2.0, rho)) * uniforms.showZenith;
+    let floorSeam = (1.0 - smoothstep(0.002, 0.012 + fwidth(rho) * 2.0, abs(rho - floorBand))) * uniforms.showHorizon;
+    let eyeHorizon = (1.0 - smoothstep(0.002, 0.012 + fwidth(rho) * 2.0, abs(rho - horizonBand))) * uniforms.showHorizon;
+    let boundary = (1.0 - smoothstep(0.002, 0.012 + fwidth(rho) * 2.0, abs(rho - 1.0))) * uniforms.showSourceCircle;
+    let wallMask = smoothstep(floorBand + 0.015, floorBand + 0.055, rho);
+    let rings = lineAt(rho, 0.125, 1.35) * wallMask * uniforms.showRings * 0.44;
+    let spokes = lineAt(rayAngle, PI / 12.0, 1.35) * wallMask * uniforms.showSpokes * 0.42;
+    let overlay = clamp(max(max(max(max(max(center, floorSeam), eyeHorizon), boundary), rings), spokes) * uniforms.overlayOpacity, 0.0, 0.82);
+    color = mix(color, vec3<f32>(0.78, 0.96, 1.0), overlay);
+    return vec4<f32>(color, 1.0);
+  }
+
   let fisheyeScale = max(uniforms.fisheyeScale, vec2<f32>(0.0001));
   let normalized = (in.uv - vec2<f32>(0.5, 0.5)) / fisheyeScale;
   let radius = length(normalized);
@@ -202,7 +266,8 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
   let sampleUv = vec2<f32>(0.5, 0.5) + rotatedSample * fisheyeScale;
   let sampledColor = textureSample(domeTexture, domeSampler, sampleUv).rgb * uniforms.exposure;
   var color = select(sampledColor, vec3<f32>(0.0, 0.0, 0.0), radius > 1.0);
-  let theta = clamp(radius, 0.0, 1.0) * max(uniforms.sourceCenterTheta.w, 0.0001);
+  let theta = carrierRadiusToPhysicalRadius(radius, max(uniforms.sourceCenterTheta.w, 0.0001)) *
+    max(uniforms.sourceCenterTheta.w, 0.0001);
   let angle = atan2(normalized.x, -normalized.y) + uniforms.rotation;
 
   let ring = lineAt(theta, PI / 12.0, 1.4) * insideMask * uniforms.showRings;
@@ -231,6 +296,8 @@ struct Uniforms {
   showZenith: f32,
   showSourceCircle: f32,
   shellShade: f32,
+  sourceCarrierSplit: f32,
+  sourceCarrierHorizon: f32,
   sourceCenterTheta: vec4<f32>,
   sourceRight: vec4<f32>,
   sourceUp: vec4<f32>,
@@ -290,12 +357,184 @@ fn sourceDirectionFromPhysical(physicalDir: vec3<f32>) -> vec3<f32> {
   return normalize(vec3<f32>(sinTheta * sin(azimuth), cos(theta), sinTheta * cos(azimuth)));
 }
 
+fn physicalRadiusToCarrierRadius(physicalRadius: f32, thetaMax: f32) -> f32 {
+  let split = clamp(uniforms.sourceCarrierSplit, 0.18, 0.72);
+  let horizon = clamp(HALF_PI / max(thetaMax, 0.0001), 0.0001, 1.0);
+  let semanticPhysical = clamp(horizon * 0.5, 0.0001, max(horizon - 0.0001, 0.0001));
+  let carrierHorizon = select(1.0, clamp(uniforms.sourceCarrierHorizon, split + 0.0001, 0.9999), horizon < 0.999);
+  let radius = clamp(physicalRadius, 0.0, 1.0);
+  if (radius <= semanticPhysical) {
+    return (radius / max(semanticPhysical, 0.0001)) * split;
+  }
+  if (radius <= horizon) {
+    return split + ((radius - semanticPhysical) / max(horizon - semanticPhysical, 0.0001)) * (carrierHorizon - split);
+  }
+  return carrierHorizon + ((radius - horizon) / max(1.0 - horizon, 0.0001)) * (1.0 - carrierHorizon);
+}
+
+fn caveWallPointFromPerimeterAngle(angle: f32) -> vec2<f32> {
+  let halfWidth = 2.0;
+  let halfDepth = 2.0;
+  let perimeter = 16.0;
+  let raw = (angle / (2.0 * PI)) * perimeter + halfWidth;
+  let wrapped = raw - floor(raw / perimeter) * perimeter;
+  if (wrapped <= 4.0) {
+    return vec2<f32>(wrapped - halfWidth, halfDepth);
+  }
+  if (wrapped <= 8.0) {
+    return vec2<f32>(halfWidth, halfDepth - (wrapped - 4.0));
+  }
+  if (wrapped <= 12.0) {
+    return vec2<f32>(halfWidth - (wrapped - 8.0), -halfDepth);
+  }
+  return vec2<f32>(-halfWidth, -halfDepth + (wrapped - 12.0));
+}
+
+fn caveFloorBoundaryPointForRay(xz: vec2<f32>) -> vec2<f32> {
+  let halfSize = vec2<f32>(2.0, 2.0);
+  let scaleX = select(999999.0, halfSize.x / abs(xz.x), abs(xz.x) > 0.000001);
+  let scaleZ = select(999999.0, halfSize.y / abs(xz.y), abs(xz.y) > 0.000001);
+  return xz * min(scaleX, scaleZ);
+}
+
+fn caveWallPerimeterAngleFromBoundary(boundary: vec2<f32>) -> f32 {
+  let halfWidth = 2.0;
+  let halfDepth = 2.0;
+  var distance = 0.0;
+  if (abs(boundary.y - halfDepth) <= 0.0001) {
+    distance = boundary.x + halfWidth;
+  } else if (abs(boundary.x - halfWidth) <= 0.0001) {
+    distance = 4.0 + (halfDepth - boundary.y);
+  } else if (abs(boundary.y + halfDepth) <= 0.0001) {
+    distance = 8.0 + (halfWidth - boundary.x);
+  } else {
+    distance = 12.0 + (boundary.y + halfDepth);
+  }
+  return ((distance - halfWidth) / 16.0) * 2.0 * PI;
+}
+
+fn caveFloorContinuityDirection(point: vec3<f32>) -> vec3<f32> {
+  let distance = length(point.xz);
+  if (distance <= 0.000001) {
+    return vec3<f32>(0.0, -1.0, 0.0);
+  }
+  let boundary = caveFloorBoundaryPointForRay(point.xz);
+  let angle = caveWallPerimeterAngleFromBoundary(boundary);
+  let boundaryDistance = max(length(boundary), 0.000001);
+  let boundaryElevation = atan2(-2.0, boundaryDistance);
+  let radiusFraction = clamp(distance / boundaryDistance, 0.0, 1.0);
+  let elevation = -HALF_PI + radiusFraction * (boundaryElevation + HALF_PI);
+  let cosElevation = cos(elevation);
+  return normalize(vec3<f32>(sin(angle) * cosElevation, sin(elevation), cos(angle) * cosElevation));
+}
+
+fn caveSurfacePointFromContinuityDirection(direction: vec3<f32>) -> vec3<f32> {
+  let dir = normalize(direction);
+  let bottom = -2.0;
+  let top = 2.0;
+  let angle = atan2(dir.x, dir.z);
+  let wallPoint = caveWallPointFromPerimeterAngle(angle);
+  let horizontalDistance = max(length(wallPoint), 0.000001);
+  let horizontalLength = max(length(dir.xz), 0.000001);
+  let elevation = atan2(dir.y, horizontalLength);
+  let boundaryElevation = atan2(bottom, horizontalDistance);
+  if (elevation >= boundaryElevation - 0.0001) {
+    let y = clamp(horizontalDistance * (dir.y / horizontalLength), bottom, top);
+    return vec3<f32>(wallPoint.x, y, wallPoint.y);
+  }
+  let denominator = max(boundaryElevation + HALF_PI, 0.000001);
+  let radiusFraction = clamp((elevation + HALF_PI) / denominator, 0.0, 1.0);
+  return vec3<f32>(wallPoint.x * radiusFraction, bottom, wallPoint.y * radiusFraction);
+}
+
+fn caveWallPerimeterFractionFromPoint(point: vec3<f32>) -> f32 {
+  let halfWidth = 2.0;
+  let halfDepth = 2.0;
+  var distance = 0.0;
+  if (abs(point.z - halfDepth) <= 0.0001) {
+    distance = point.x + halfWidth;
+  } else if (abs(point.x - halfWidth) <= 0.0001) {
+    distance = 4.0 + (halfDepth - point.z);
+  } else if (abs(point.z + halfDepth) <= 0.0001) {
+    distance = 8.0 + (halfWidth - point.x);
+  } else {
+    distance = 12.0 + (point.z + halfDepth);
+  }
+  return clamp(distance / 16.0, 0.0, 1.0);
+}
+
+fn rectangleBoundaryPoint(fraction: f32) -> vec2<f32> {
+  let distance = fract(fraction) * 8.0;
+  if (distance <= 2.0) {
+    return vec2<f32>(distance - 1.0, 1.0);
+  }
+  if (distance <= 4.0) {
+    return vec2<f32>(1.0, 1.0 - (distance - 2.0));
+  }
+  if (distance <= 6.0) {
+    return vec2<f32>(1.0 - (distance - 4.0), -1.0);
+  }
+  return vec2<f32>(-1.0, -1.0 + (distance - 6.0));
+}
+
+fn caveCarrierUvFromSurfacePoint(point: vec3<f32>) -> vec2<f32> {
+  let floorBand = abs(uniforms.sourceCenterTheta.w);
+  let horizonBand = clamp(uniforms.sourceCarrierHorizon, floorBand + 0.0001, 0.9999);
+  let bottom = -2.0;
+  var rho = floorBand;
+  var perimeterFraction = 0.125;
+  if (abs(point.y - bottom) <= 0.0001) {
+    let distance = length(point.xz);
+    if (distance <= 0.000001) {
+      return vec2<f32>(0.5);
+    }
+    let boundary = caveFloorBoundaryPointForRay(point.xz);
+    perimeterFraction = caveWallPerimeterAngleFromBoundary(boundary) / (2.0 * PI) + 0.125;
+    let boundaryDistance = max(length(boundary), 0.000001);
+    rho = floorBand * clamp(distance / boundaryDistance, 0.0, 1.0);
+  } else {
+    perimeterFraction = caveWallPerimeterFractionFromPoint(point);
+    let wallT = clamp((point.y - bottom) / 4.0, 0.0, 1.0);
+    if (wallT <= 0.5) {
+      rho = floorBand + (wallT / 0.5) * (horizonBand - floorBand);
+    } else {
+      rho = horizonBand + ((wallT - 0.5) / 0.5) * (1.0 - horizonBand);
+    }
+  }
+  let boundaryPoint = rectangleBoundaryPoint(perimeterFraction);
+  return vec2<f32>(0.5 + boundaryPoint.x * rho * 0.5, 0.5 - boundaryPoint.y * rho * 0.5);
+}
+
+fn caveCarrierSourceSample(sourceDir: vec3<f32>) -> vec3<f32> {
+  let point = caveSurfacePointFromContinuityDirection(sourceDir);
+  let uv = caveCarrierUvFromSurfacePoint(point);
+  return vec3<f32>(uv, 1.0);
+}
+
+fn continuityPhysicalDirectionFromCavePoint(point: vec3<f32>, faceUv: vec2<f32>, face: f32) -> vec3<f32> {
+  if (face > 3.5) {
+    return caveFloorContinuityDirection(point);
+  }
+  let faceIndex = clamp(floor(face + 0.5), 0.0, 3.0);
+  let perimeterU = (faceIndex + clamp(faceUv.x, 0.0, 1.0)) * 0.25;
+  let angle = (perimeterU - 0.125) * 2.0 * PI;
+  let horizontalDistance = max(length(point.xz), 0.000001);
+  let elevation = atan2(point.y, horizontalDistance);
+  let cosElevation = cos(elevation);
+  return normalize(vec3<f32>(sin(angle) * cosElevation, sin(elevation), cos(angle) * cosElevation));
+}
+
 fn sourceSample(sourceDir: vec3<f32>) -> vec3<f32> {
+  if (uniforms.sourceCenterTheta.w < 0.0) {
+    return caveCarrierSourceSample(sourceDir);
+  }
+
   let center = normalize(uniforms.sourceCenterTheta.xyz);
   let thetaMax = max(uniforms.sourceCenterTheta.w, 0.0001);
   let centerDot = clamp(dot(sourceDir, center), -1.0, 1.0);
   let theta = acos(centerDot);
-  let radial = theta / thetaMax;
+  let physicalRadial = theta / thetaMax;
+  let radial = physicalRadiusToCarrierRadius(physicalRadial, thetaMax);
   var local = vec2<f32>(0.0, 0.0);
   if (theta > 0.000001) {
     let tangent = normalize(sourceDir - center * centerDot);
@@ -303,13 +542,13 @@ fn sourceSample(sourceDir: vec3<f32>) -> vec3<f32> {
   }
   let uv = vec2<f32>(0.5, 0.5) +
     vec2<f32>(local.x * uniforms.fisheyeScale.x, -local.y * uniforms.fisheyeScale.y) * radial;
-  return vec3<f32>(uv, select(0.0, 1.0, radial <= 1.0001));
+  return vec3<f32>(uv, select(0.0, 1.0, physicalRadial <= 1.0001));
 }
 
 @fragment
 fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
-  let physicalDir = normalize(in.world);
-  let sourceDir = sourceDirectionFromPhysical(physicalDir);
+  let continuityPhysicalDir = continuityPhysicalDirectionFromCavePoint(in.world, in.faceUv, in.face);
+  let sourceDir = sourceDirectionFromPhysical(continuityPhysicalDir);
   let sample = sourceSample(sourceDir);
   let sampledColor = textureSample(domeTexture, domeSampler, clamp(sample.xy, vec2<f32>(0.0), vec2<f32>(1.0))).rgb *
     uniforms.exposure;

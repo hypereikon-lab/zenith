@@ -29,7 +29,7 @@ describe("general equidistant fisheye projection", () => {
     }
   });
 
-  test("round-trips arbitrary nadir 270 directions through uv", () => {
+  test("round-trips arbitrary CAVE 270 directions through uv", () => {
     const nadir270 = createFisheyeProjectionProfile({
       width: 1024,
       height: 1024,
@@ -52,7 +52,7 @@ describe("general equidistant fisheye projection", () => {
     }
   });
 
-  test("rejects directions outside a nadir 270 source", () => {
+  test("rejects directions outside a CAVE 270 source", () => {
     const nadir270 = createFisheyeProjectionProfile({
       width: 1024,
       height: 1024,
@@ -63,7 +63,7 @@ describe("general equidistant fisheye projection", () => {
     expect(directionToFisheyeUv([0, 1, 0], nadir270)).toBeNull();
   });
 
-  test("places the horizon two thirds out from the center in nadir 270", () => {
+  test("places the horizon two thirds out from the center in CAVE 270", () => {
     const nadir270 = createFisheyeProjectionProfile({
       width: 1024,
       height: 1024,

@@ -1,5 +1,15 @@
 import { preparePlatePlacement } from "./plate-placement.js";
-import { sourceProjectionProfileForMode } from "../geometry/source-projection.js";
+import {
+  CAVE_HANDOFF_GUIDE,
+  caveGuideLineWidthForSize,
+} from "../geometry/cave-handoff-guide.js";
+import { DOME_HANDOFF_GUIDE, normalizeDomeGuideSemanticSplit } from "../geometry/dome-handoff-guide.js";
+import {
+  sourceProjectionHorizonRadius,
+  sourceProjectionProfileForMode,
+  sourceProjectionShaderTheta,
+} from "../geometry/source-projection.js";
+import { sourceGuideCarrierHorizonRadius } from "../geometry/source-guide-semantics.js";
 import type { PlatePlacementInput } from "./plate-placement.js";
 import type { SourceProjectionMode } from "../geometry/source-projection.js";
 
@@ -29,6 +39,9 @@ export type PlateRenderOptions = {
   platePlacements: PlatePlacementInput[];
   size: number;
   sourceProjectionMode?: SourceProjectionMode;
+  guideMode?: "transparent" | "inpaint-handoff";
+  domeGuideSemanticSplit?: number | string | null;
+  domeGuideHorizonSplit?: number | string | null;
 };
 type PlacementUniformOptions = {
   placement: PlatePlacementInput;
@@ -37,7 +50,17 @@ type PlacementUniformOptions = {
   plateFeather: number | string;
   outputSize: number;
   sourceProjectionMode: SourceProjectionMode;
+  domeGuideSemanticSplit?: number | string | null;
+  domeGuideHorizonSplit?: number | string | null;
 };
+
+function wgslFloat(value: number): string {
+  return value.toFixed(10).replace(/0+$/, "").replace(/\.$/, ".0");
+}
+
+function wgslVec3Rgb(rgb: readonly [number, number, number]): string {
+  return `vec3<f32>(${rgb.map((channel) => wgslFloat(channel / 255)).join(", ")})`;
+}
 
 export const plateCompositeShader = /* wgsl */ `
 struct PlateUniforms {
@@ -63,6 +86,9 @@ struct VertexOut {
 @group(0) @binding(1) var plateSampler: sampler;
 @group(0) @binding(2) var plateTexture: texture_2d<f32>;
 
+const PI: f32 = 3.141592653589793;
+const HALF_PI: f32 = 1.5707963267948966;
+
 @vertex
 fn vertexMain(@builtin(vertex_index) index: u32) -> VertexOut {
   var positions = array<vec2<f32>, 6>(
@@ -80,11 +106,117 @@ fn vertexMain(@builtin(vertex_index) index: u32) -> VertexOut {
   return out;
 }
 
+fn caveWallPointFromPerimeterFraction(fraction: f32) -> vec2<f32> {
+  let distance = fract(fraction) * 16.0;
+  if (distance <= 4.0) {
+    return vec2<f32>(distance - 2.0, 2.0);
+  }
+  if (distance <= 8.0) {
+    return vec2<f32>(2.0, 2.0 - (distance - 4.0));
+  }
+  if (distance <= 12.0) {
+    return vec2<f32>(2.0 - (distance - 8.0), -2.0);
+  }
+  return vec2<f32>(-2.0, -2.0 + (distance - 12.0));
+}
+
+fn rectangleBoundaryFractionFromUv(uv: vec2<f32>) -> f32 {
+  let local = (uv - vec2<f32>(0.5)) * vec2<f32>(2.0, -2.0);
+  let rho = max(abs(local.x), abs(local.y));
+  if (rho <= 0.000001) {
+    return 0.125;
+  }
+  let boundary = local / rho;
+  var distance = 0.0;
+  if (abs(boundary.y - 1.0) <= 0.0001) {
+    distance = boundary.x + 1.0;
+  } else if (abs(boundary.x - 1.0) <= 0.0001) {
+    distance = 2.0 + (1.0 - boundary.y);
+  } else if (abs(boundary.y + 1.0) <= 0.0001) {
+    distance = 4.0 + (1.0 - boundary.x);
+  } else {
+    distance = 6.0 + (boundary.y + 1.0);
+  }
+  return fract(distance / 8.0);
+}
+
+fn caveContinuityDirectionFromSurfacePoint(point: vec3<f32>) -> vec3<f32> {
+  let bottom = -2.0;
+  if (abs(point.y - bottom) <= 0.0001) {
+    let distance = length(point.xz);
+    if (distance <= 0.000001) {
+      return vec3<f32>(0.0, -1.0, 0.0);
+    }
+    let halfSize = vec2<f32>(2.0, 2.0);
+    let scaleX = select(999999.0, halfSize.x / abs(point.x), abs(point.x) > 0.000001);
+    let scaleZ = select(999999.0, halfSize.y / abs(point.z), abs(point.z) > 0.000001);
+    let boundary = point.xz * min(scaleX, scaleZ);
+    let perimeterFraction = rectangleBoundaryFractionFromUv(vec2<f32>(
+      0.5 + select(0.0, boundary.x / max(abs(boundary.x), abs(boundary.y)) * 0.5, distance > 0.000001),
+      0.5 - select(0.0, boundary.y / max(abs(boundary.x), abs(boundary.y)) * 0.5, distance > 0.000001)
+    ));
+    let angle = (perimeterFraction - 0.125) * 2.0 * PI;
+    let boundaryDistance = max(length(boundary), 0.000001);
+    let boundaryElevation = atan2(-2.0, boundaryDistance);
+    let radiusFraction = clamp(distance / boundaryDistance, 0.0, 1.0);
+    let elevation = -HALF_PI + radiusFraction * (boundaryElevation + HALF_PI);
+    let cosElevation = cos(elevation);
+    return normalize(vec3<f32>(sin(angle) * cosElevation, sin(elevation), cos(angle) * cosElevation));
+  }
+  let perimeterFraction = rectangleBoundaryFractionFromUv(vec2<f32>(0.5 + point.x / 4.0, 0.5 - point.z / 4.0));
+  let angle = (perimeterFraction - 0.125) * 2.0 * PI;
+  let horizontalDistance = max(length(point.xz), 0.000001);
+  let elevation = atan2(point.y, horizontalDistance);
+  let cosElevation = cos(elevation);
+  return normalize(vec3<f32>(sin(angle) * cosElevation, sin(elevation), cos(angle) * cosElevation));
+}
+
+fn caveCarrierSourceDirectionFromUv(uv: vec2<f32>) -> vec3<f32> {
+  let local = (uv - vec2<f32>(0.5)) * vec2<f32>(2.0, -2.0);
+  let rho = max(abs(local.x), abs(local.y));
+  if (rho <= 0.000001) {
+    return vec3<f32>(0.0, -1.0, 0.0);
+  }
+  let perimeterFraction = rectangleBoundaryFractionFromUv(uv);
+  let wallBase = caveWallPointFromPerimeterFraction(perimeterFraction);
+  let floorBand = abs(plate.sourceCenterTheta.w);
+  let horizonBand = clamp(plate.sourceRight.w, floorBand + 0.0001, 0.9999);
+  if (rho <= floorBand + 0.000001) {
+    let floorT = clamp(rho / max(floorBand, 0.000001), 0.0, 1.0);
+    return caveContinuityDirectionFromSurfacePoint(vec3<f32>(wallBase.x * floorT, -2.0, wallBase.y * floorT));
+  }
+  let wallT = select(
+    clamp((rho - floorBand) / max(horizonBand - floorBand, 0.000001), 0.0, 1.0) * 0.5,
+    0.5 + clamp((rho - horizonBand) / max(1.0 - horizonBand, 0.000001), 0.0, 1.0) * 0.5,
+    rho > horizonBand
+  );
+  return caveContinuityDirectionFromSurfacePoint(vec3<f32>(wallBase.x, -2.0 + 4.0 * wallT, wallBase.y));
+}
+
 fn sourceDirectionFromUv(uv: vec2<f32>) -> vec3<f32> {
+  if (plate.sourceCenterTheta.w < 0.0) {
+    return caveCarrierSourceDirectionFromUv(uv);
+  }
+
   let domeRadiusUv = max(plate.flags.z, 0.000001);
   let domePoint = (uv - vec2<f32>(0.5)) / domeRadiusUv;
   let radius = length(domePoint);
-  let theta = clamp(radius, 0.0, 1.0) * max(plate.sourceCenterTheta.w, 0.0001);
+  let thetaMax = max(plate.sourceCenterTheta.w, 0.0001);
+  let split = clamp(plate.flags.w, 0.18, 0.72);
+  let horizon = clamp(HALF_PI / thetaMax, 0.0001, 1.0);
+  let semanticPhysical = clamp(horizon * 0.5, 0.0001, max(horizon - 0.0001, 0.0001));
+  let carrierHorizon = select(1.0, clamp(plate.sourceRight.w, split + 0.0001, 0.9999), horizon < 0.999);
+  var physicalRadius = clamp(radius, 0.0, 1.0);
+  if (physicalRadius <= split) {
+    physicalRadius = (physicalRadius / max(split, 0.0001)) * semanticPhysical;
+  } else if (physicalRadius <= carrierHorizon) {
+    physicalRadius = semanticPhysical +
+      ((physicalRadius - split) / max(carrierHorizon - split, 0.0001)) * (horizon - semanticPhysical);
+  } else {
+    physicalRadius = horizon +
+      ((physicalRadius - carrierHorizon) / max(1.0 - carrierHorizon, 0.0001)) * (1.0 - horizon);
+  }
+  let theta = physicalRadius * thetaMax;
   var tangent = vec3<f32>(0.0);
   if (radius > 0.000001) {
     let local = domePoint / radius;
@@ -198,7 +330,7 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
   let domeRadiusUv = max(plate.flags.z, 0.000001);
   let domePoint = (in.uv - vec2<f32>(0.5)) / domeRadiusUv;
   let radius = length(domePoint);
-  if (radius > 1.0) {
+  if (plate.sourceCenterTheta.w >= 0.0 && radius > 1.0) {
     return vec4<f32>(0.0, 0.0, 0.0, 1.0);
   }
 
@@ -229,6 +361,130 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
 }
 `;
 
+export const plateGuideShader = /* wgsl */ `
+struct GuideUniforms {
+  values: vec4<f32>,
+  semantics: vec4<f32>,
+};
+
+struct VertexOut {
+  @builtin(position) position: vec4<f32>,
+  @location(0) uv: vec2<f32>,
+};
+
+@group(0) @binding(0) var<uniform> guide: GuideUniforms;
+
+@vertex
+fn vertexMain(@builtin(vertex_index) index: u32) -> VertexOut {
+  var positions = array<vec2<f32>, 6>(
+    vec2<f32>(-1.0, -1.0),
+    vec2<f32>(1.0, -1.0),
+    vec2<f32>(-1.0, 1.0),
+    vec2<f32>(-1.0, 1.0),
+    vec2<f32>(1.0, -1.0),
+    vec2<f32>(1.0, 1.0)
+  );
+  let position = positions[index];
+  var out: VertexOut;
+  out.position = vec4<f32>(position, 0.0, 1.0);
+  out.uv = vec2<f32>(position.x * 0.5 + 0.5, 0.5 - position.y * 0.5);
+  return out;
+}
+
+fn radialGuideLine(radius: f32, targetRadius: f32, width: f32) -> f32 {
+  return 1.0 - smoothstep(0.0, width, abs(radius - targetRadius));
+}
+
+fn spokeGuideLine(local: vec2<f32>, radiusPixels: f32, interval: f32, lineWidthPixels: f32) -> f32 {
+  let radius = length(local);
+  if (radius <= 0.000001) {
+    return 0.0;
+  }
+  let angle = atan2(local.x, -local.y);
+  let wrapped = abs(fract(angle / interval + 0.5) - 0.5) * interval;
+  let arcPixels = wrapped * radius * radiusPixels;
+  return 1.0 - smoothstep(0.0, lineWidthPixels, arcPixels);
+}
+
+@fragment
+fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
+  let domeRadiusUv = max(guide.values.x, 0.000001);
+  let thetaMax = max(guide.values.y, 0.000001);
+  let lineWidthTheta = max(guide.values.z, 0.000001);
+  let horizonRadius = abs(guide.values.w);
+  if (guide.values.x < 0.0) {
+    let local = (in.uv - vec2<f32>(0.5)) * vec2<f32>(2.0, -2.0);
+    let rho = max(abs(local.x), abs(local.y));
+    let caveLineWidth = max(abs(guide.values.y), 0.0015);
+    let caveRadiusPixels = max(abs(guide.values.z), 1.0);
+    let floorBand = guide.values.w;
+    let horizonBand = clamp(guide.semantics.y, floorBand + 0.0001, 0.9999);
+    let wallColor = select(
+      ${wgslVec3Rgb(CAVE_HANDOFF_GUIDE.colors.lowerWall)},
+      ${wgslVec3Rgb(CAVE_HANDOFF_GUIDE.colors.upperWall)},
+      rho > horizonBand
+    );
+    var guideBackground = wallColor;
+    if (rho <= floorBand) {
+      guideBackground = ${wgslVec3Rgb(CAVE_HANDOFF_GUIDE.colors.floor)};
+    }
+    let wallRingA = radialGuideLine(rho, mix(floorBand, horizonBand, 0.5), caveLineWidth);
+    let wallRingB = radialGuideLine(rho, mix(horizonBand, 1.0, 0.5), caveLineWidth);
+    let horizon = radialGuideLine(rho, horizonBand, caveLineWidth * ${wgslFloat(CAVE_HANDOFF_GUIDE.line.horizonWidthMultiplier)});
+    let ring = max(wallRingA, wallRingB);
+    let seam = radialGuideLine(rho, floorBand, caveLineWidth * ${wgslFloat(CAVE_HANDOFF_GUIDE.line.seamWidthMultiplier)});
+    let boundary = radialGuideLine(rho, 1.0, caveLineWidth * ${wgslFloat(CAVE_HANDOFF_GUIDE.line.boundaryWidthMultiplier)});
+    let wallMask = smoothstep(floorBand + ${wgslFloat(CAVE_HANDOFF_GUIDE.line.wallMaskStartOffset)}, floorBand + ${wgslFloat(CAVE_HANDOFF_GUIDE.line.wallMaskEndOffset)}, rho);
+    let wallGrid = spokeGuideLine(local, caveRadiusPixels, ${wgslFloat(CAVE_HANDOFF_GUIDE.wallRayIntervalRadians)}, ${wgslFloat(CAVE_HANDOFF_GUIDE.wallRayLineWidthPixels)}) * wallMask * ${wgslFloat(CAVE_HANDOFF_GUIDE.wallRayOpacity)};
+    let line = clamp(max(max(max(max(ring, seam), horizon), boundary), wallGrid), 0.0, 1.0);
+    let background = mix(guideBackground, vec3<f32>(0.0), line);
+    return vec4<f32>(background, 1.0);
+  }
+
+  let local = (in.uv - vec2<f32>(0.5)) / domeRadiusUv;
+  let radius = length(local);
+  if (radius > 1.0) {
+    return vec4<f32>(0.0, 0.0, 0.0, 1.0);
+  }
+
+  let radiusPixels = thetaMax * 1.45 / max(lineWidthTheta, 0.000001);
+  let skyGuideColor = ${wgslVec3Rgb(DOME_HANDOFF_GUIDE.colors.sky)};
+  let horizonGuideColor = ${wgslVec3Rgb(DOME_HANDOFF_GUIDE.colors.horizon)};
+  let floorGuideColor = ${wgslVec3Rgb(DOME_HANDOFF_GUIDE.colors.floor)};
+  let isNadir = guide.values.w < 0.0;
+  let semanticSplit = clamp(guide.semantics.x, 0.18, 0.72);
+  let carrierHorizon = clamp(guide.semantics.y, semanticSplit + 0.0001, 0.9999);
+  let radiusLineWidth = max(1.5 / max(radiusPixels, 1.0), 0.0012);
+  var outerGuideEnd = 1.0;
+  if (horizonRadius < 0.999 && !isNadir) {
+    outerGuideEnd = clamp(carrierHorizon, semanticSplit + 0.04, 0.98);
+  }
+  var ring = radialGuideLine(radius, semanticSplit, radiusLineWidth * 1.15);
+  ring = max(ring, radialGuideLine(radius, mix(semanticSplit, outerGuideEnd, 0.5), radiusLineWidth));
+  var horizon = 0.0;
+  if (horizonRadius < 0.999 && !isNadir) {
+    horizon = radialGuideLine(radius, carrierHorizon, radiusLineWidth * 1.4);
+    ring = max(ring, radialGuideLine(radius, mix(carrierHorizon, 1.0, 0.5), radiusLineWidth));
+  }
+  let spokeMask = smoothstep(semanticSplit + 0.015, semanticSplit + 0.055, radius);
+  let spoke = spokeGuideLine(local, radiusPixels, ${wgslFloat(Math.PI / 6)}, 1.25) * spokeMask;
+  let sourceCircle = radialGuideLine(radius, 1.0, max(radiusLineWidth * 1.08, 0.0032));
+  let line = clamp(max(max(max(ring, spoke), horizon), sourceCircle), 0.0, 1.0);
+  let semanticTransition = ${wgslFloat(DOME_HANDOFF_GUIDE.semanticTransitionWidth)};
+  let horizonAmount = smoothstep(semanticSplit - semanticTransition, semanticSplit + semanticTransition, radius);
+  let belowHorizonAmount = smoothstep(carrierHorizon - semanticTransition, carrierHorizon + semanticTransition, radius);
+  var guideBackground = mix(mix(skyGuideColor, horizonGuideColor, horizonAmount), floorGuideColor, belowHorizonAmount);
+  if (horizonRadius >= 0.999) {
+    guideBackground = mix(skyGuideColor, horizonGuideColor, horizonAmount);
+  }
+  if (isNadir) {
+    guideBackground = mix(floorGuideColor, horizonGuideColor, horizonAmount);
+  }
+  let background = mix(guideBackground, vec3<f32>(0.0), line);
+  return vec4<f32>(background, 1.0);
+}
+`;
+
 export class PlateGpuCompositor {
   private device: GPUDevice;
   private sampler: GPUSampler;
@@ -236,8 +492,11 @@ export class PlateGpuCompositor {
   private outputSize = 0;
   private plateTextures = new WeakMap<PlateImage, PlateTextureCache>();
   private uniformBuffers: GPUBuffer[] = [];
+  private guideUniformBuffer: GPUBuffer;
   private bindGroupLayout: GPUBindGroupLayout;
   private pipeline: GPURenderPipeline;
+  private guideBindGroupLayout: GPUBindGroupLayout;
+  private guidePipeline: GPURenderPipeline;
 
   constructor({ device, sampler }: PlateGpuCompositorOptions) {
     this.device = device;
@@ -295,6 +554,36 @@ export class PlateGpuCompositor {
         topology: "triangle-list",
       },
     });
+
+    this.guideBindGroupLayout = device.createBindGroupLayout({
+      entries: [
+        {
+          binding: 0,
+          visibility: GPUShaderStage.FRAGMENT,
+          buffer: { type: "uniform" },
+        },
+      ],
+    });
+    this.guideUniformBuffer = device.createBuffer({
+      size: 32,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+    const guideModule = device.createShaderModule({ code: plateGuideShader });
+    this.guidePipeline = device.createRenderPipeline({
+      layout: device.createPipelineLayout({ bindGroupLayouts: [this.guideBindGroupLayout] }),
+      vertex: {
+        module: guideModule,
+        entryPoint: "vertexMain",
+      },
+      fragment: {
+        module: guideModule,
+        entryPoint: "fragmentMain",
+        targets: [{ format: OUTPUT_FORMAT }],
+      },
+      primitive: {
+        topology: "triangle-list",
+      },
+    });
   }
 
   render({
@@ -305,9 +594,19 @@ export class PlateGpuCompositor {
     platePlacements,
     size,
     sourceProjectionMode = "zenith-180",
+    guideMode = "transparent",
+    domeGuideSemanticSplit = DOME_HANDOFF_GUIDE.defaultSemanticSplit,
+    domeGuideHorizonSplit,
   }: PlateRenderOptions): GPUTexture {
     const outputSize = Math.max(1, Math.round(size || 2048));
     this.ensureOutputTexture(outputSize);
+    if (guideMode === "inpaint-handoff") {
+      this.device.queue.writeBuffer(
+        this.guideUniformBuffer,
+        0,
+        guideUniformData(outputSize, sourceProjectionMode, domeGuideSemanticSplit, domeGuideHorizonSplit),
+      );
+    }
 
     const encoder = this.device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
@@ -320,6 +619,11 @@ export class PlateGpuCompositor {
         },
       ],
     });
+    if (guideMode === "inpaint-handoff") {
+      pass.setPipeline(this.guidePipeline);
+      pass.setBindGroup(0, this.guideBindGroup());
+      pass.draw(6);
+    }
     pass.setPipeline(this.pipeline);
     pass.setViewport(0, 0, outputSize, outputSize, 0, 1);
     pass.setScissorRect(0, 0, outputSize, outputSize);
@@ -341,6 +645,8 @@ export class PlateGpuCompositor {
           plateFeather,
           outputSize,
           sourceProjectionMode,
+          domeGuideSemanticSplit,
+          domeGuideHorizonSplit,
         }),
       );
       pass.setBindGroup(0, this.bindGroupFor(texture, buffer));
@@ -412,6 +718,13 @@ export class PlateGpuCompositor {
       ],
     });
   }
+
+  guideBindGroup(): GPUBindGroup {
+    return this.device.createBindGroup({
+      layout: this.guideBindGroupLayout,
+      entries: [{ binding: 0, resource: { buffer: this.guideUniformBuffer } }],
+    });
+  }
 }
 
 function placementUniformData({
@@ -421,8 +734,16 @@ function placementUniformData({
   plateFeather,
   outputSize,
   sourceProjectionMode,
+  domeGuideSemanticSplit,
+  domeGuideHorizonSplit,
 }: PlacementUniformOptions): Float32Array {
-  const prepared = preparePlatePlacement(placement, plate, sourceProjectionMode);
+  const prepared = preparePlatePlacement(
+    placement,
+    plate,
+    sourceProjectionMode,
+    domeGuideSemanticSplit,
+    domeGuideHorizonSplit,
+  );
   const projection = sourceProjectionProfileForMode(sourceProjectionMode, outputSize, outputSize);
   const data = new Float32Array(UNIFORM_FLOATS);
   data.set(prepared.center, 0);
@@ -439,6 +760,7 @@ function placementUniformData({
   data[20] = prepared.flipX ? 1 : 0;
   data[21] = prepared.flipY ? 1 : 0;
   data[22] = Math.max(0.001, (outputSize * 0.5 - 2) / outputSize);
+  data[23] = normalizeDomeGuideSemanticSplit(domeGuideSemanticSplit);
   data[24] = prepared.cornerOffsets.nw.x;
   data[25] = prepared.cornerOffsets.ne.x;
   data[26] = prepared.cornerOffsets.se.x;
@@ -448,8 +770,9 @@ function placementUniformData({
   data[30] = prepared.cornerOffsets.se.y;
   data[31] = prepared.cornerOffsets.sw.y;
   data.set(projection.centerAxis, 32);
-  data[35] = (projection.fieldOfViewDegrees * 0.5 * Math.PI) / 180;
+  data[35] = sourceProjectionShaderTheta(sourceProjectionMode, projection.fieldOfViewDegrees, domeGuideSemanticSplit);
   data.set(projection.imageRightAxis, 36);
+  data[39] = sourceGuideCarrierHorizonRadius(sourceProjectionMode, data[23], domeGuideHorizonSplit);
   data.set(projection.imageUpAxis, 40);
   return data;
 }
@@ -458,4 +781,42 @@ function plateFitMode(value: string): number {
   if (value === "cover") return 1;
   if (value === "stretch") return 2;
   return 0;
+}
+
+function guideUniformData(
+  outputSize: number,
+  sourceProjectionMode: SourceProjectionMode,
+  domeGuideSemanticSplit: number | string | null | undefined,
+  domeGuideHorizonSplit?: number | string | null,
+): Float32Array {
+  const split = normalizeDomeGuideSemanticSplit(domeGuideSemanticSplit);
+  const carrierHorizon = sourceGuideCarrierHorizonRadius(sourceProjectionMode, split, domeGuideHorizonSplit);
+  if (sourceProjectionMode === "cave-270") {
+    const normalizedLineWidth = caveGuideLineWidthForSize(outputSize);
+    return new Float32Array([
+      -1,
+      normalizedLineWidth,
+      outputSize * 0.5,
+      sourceProjectionHorizonRadius(sourceProjectionMode, split, carrierHorizon),
+      split,
+      carrierHorizon,
+      0,
+      0,
+    ]);
+  }
+  const projection = sourceProjectionProfileForMode(sourceProjectionMode, outputSize, outputSize);
+  const domeRadiusUv = Math.max(0.001, (outputSize * 0.5 - 2) / outputSize);
+  const thetaMax = (projection.fieldOfViewDegrees * 0.5 * Math.PI) / 180;
+  const thetaPerPixel = thetaMax / Math.max(outputSize * domeRadiusUv, 1);
+  const horizonRadius = (Math.PI * 0.5) / Math.max(thetaMax, 0.000001);
+  return new Float32Array([
+    domeRadiusUv,
+    thetaMax,
+    thetaPerPixel * 1.45,
+    sourceProjectionMode === "nadir-180" ? -horizonRadius : horizonRadius,
+    split,
+    carrierHorizon,
+    0,
+    0,
+  ]);
 }

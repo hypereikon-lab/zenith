@@ -12,7 +12,7 @@ describe("plate projection center compensation", () => {
       { azimuth: 130, radius: 0.2, spin: -140, scale: 0.3 },
     ];
 
-    const compensated = compensatePlateSpinsForProjectionCenterChange(placements, "zenith-270", "nadir-270");
+    const compensated = compensatePlateSpinsForProjectionCenterChange(placements, "zenith-230", "cave-270");
 
     expect(compensated.map((placement) => placement.spin)).toEqual([-180, -145, 40]);
     expect(compensated.map((placement) => placement.azimuth)).toEqual([12, -80, 130]);
@@ -20,11 +20,11 @@ describe("plate projection center compensation", () => {
   });
 
   test("does not rotate plate spins for 180/270 changes with the same center", () => {
-    expect(shouldCompensateProjectionCenterChange("zenith-180", "zenith-270")).toBe(false);
-    expect(shouldCompensateProjectionCenterChange("nadir-270", "nadir-180")).toBe(false);
+    expect(shouldCompensateProjectionCenterChange("zenith-180", "zenith-230")).toBe(false);
+    expect(shouldCompensateProjectionCenterChange("cave-270", "nadir-180")).toBe(false);
 
     const placements = [{ azimuth: 0, radius: 0.5, spin: 27 }];
-    const compensated = compensatePlateSpinsForProjectionCenterChange(placements, "nadir-270", "nadir-180");
+    const compensated = compensatePlateSpinsForProjectionCenterChange(placements, "cave-270", "nadir-180");
 
     expect(compensated).toEqual(placements);
     expect(compensated).not.toBe(placements);

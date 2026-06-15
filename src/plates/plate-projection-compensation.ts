@@ -1,4 +1,4 @@
-import { normalizeSourceProjectionMode } from "../geometry/source-projection.js";
+import { normalizeSourceProjectionMode, sourceProjectionCenterLabel } from "../geometry/source-projection.js";
 import type { SourceProjectionMode } from "../geometry/source-projection.js";
 import type { PlatePlacementInput } from "./plate-placement.js";
 
@@ -24,7 +24,7 @@ export function compensatePlateSpinsForProjectionCenterChange<T extends PlatePla
 }
 
 function projectionCenter(mode: SourceProjectionMode | string | null | undefined): "zenith" | "nadir" {
-  return normalizeSourceProjectionMode(mode).startsWith("nadir") ? "nadir" : "zenith";
+  return sourceProjectionCenterLabel(normalizeSourceProjectionMode(mode)).toLowerCase() as "zenith" | "nadir";
 }
 
 function normalizeDegrees(value: number): number {

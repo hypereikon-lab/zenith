@@ -20,6 +20,12 @@ describe("depth WebGPU reprojection preview", () => {
     expect(depthReprojectionShaderCode).toContain("dot(in.splatLocal, in.splatLocal)");
   });
 
+  test("includes an engine-level green empty-dome background pass", () => {
+    expect(depthReprojectionShaderCode).toContain("backgroundVertexMain");
+    expect(depthReprojectionShaderCode).toContain("backgroundFragmentMain");
+    expect(depthReprojectionShaderCode).toContain("vec4<f32>(0.0, 1.0, 0.0, 1.0)");
+  });
+
   test("packs tight base-pass uniforms in vec4-aligned order", () => {
     const uniforms = buildDepthPreviewUniformArray({
       profile: {

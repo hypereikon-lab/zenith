@@ -1,15 +1,33 @@
-import { normalizeSourceProjectionMode, sourceProjectionProfileForMode } from "../geometry/source-projection.js";
+import {
+  normalizeSourceProjectionMode,
+  sourceProjectionHorizonRadius,
+  sourceProjectionProfileForMode,
+} from "../geometry/source-projection.js";
+import {
+  CAVE_HANDOFF_GUIDE,
+  caveGuideFloorBands,
+  caveGuideHorizonBand,
+  caveGuideLineWidthForSize,
+  caveGuideWallBands,
+  caveGuideWallColor,
+} from "../geometry/cave-handoff-guide.js";
+import {
+  domeGuideBackgroundColor,
+  domeGuideScaffold,
+  normalizeDomeGuideSemanticSplit,
+} from "../geometry/dome-handoff-guide.js";
 import { clamp } from "../projection.js";
 import type { SourceProjectionMode } from "../geometry/source-projection.js";
 
-const GUIDE_INTERVAL_RADIANS = Math.PI / 12;
-const GUIDE_BACKGROUND_COLOR: [number, number, number] = [0, 255, 0];
+const GUIDE_INTERVAL_RADIANS = Math.PI / 6;
 const GUIDE_LINE_COLOR: [number, number, number] = [0, 0, 0];
 const OUTSIDE_PROJECTION_COLOR: [number, number, number] = [0, 0, 0];
-const BLACK_LINE_THRESHOLD = 0.52;
+const BLACK_LINE_THRESHOLD = CAVE_HANDOFF_GUIDE.line.blackThreshold;
 
 export type InpaintHandoffOptions = {
   sourceProjectionMode?: SourceProjectionMode | string | null;
+  domeGuideSemanticSplit?: number | string | null;
+  domeGuideHorizonSplit?: number | string | null;
 };
 
 export function createInpaintHandoffCanvases(
@@ -41,6 +59,8 @@ export function createInpaintHandoffCanvases(
     width,
     height,
     normalizeSourceProjectionMode(options.sourceProjectionMode),
+    normalizeDomeGuideSemanticSplit(options.domeGuideSemanticSplit),
+    options.domeGuideHorizonSplit,
   );
 
   for (let index = 0; index < src.length; index += 4) {
@@ -70,15 +90,21 @@ function createProjectionGuideSampler(
   width: number,
   height: number,
   sourceProjectionMode: SourceProjectionMode,
+  domeGuideSemanticSplit: number,
+  domeGuideHorizonSplit?: number | string | null,
 ): (x: number, y: number) => { color: [number, number, number]; insideProjection: boolean } {
+  if (sourceProjectionMode === "cave-270") {
+    return createCaveContinuityGuideSampler(width, height, domeGuideSemanticSplit, domeGuideHorizonSplit);
+  }
+
   const profile = sourceProjectionProfileForMode(sourceProjectionMode, width, height);
   const centerX = width * 0.5;
   const centerY = height * 0.5;
   const radiusPixels = Math.min(width * profile.fisheyeScaleX, height * profile.fisheyeScaleY);
   const thetaMax = (profile.fieldOfViewDegrees * 0.5 * Math.PI) / 180;
-  const thetaPerPixel = thetaMax / Math.max(radiusPixels, 1);
-  const lineWidthTheta = thetaPerPixel * 1.45;
+  const radiusLineWidth = 1.5 / Math.max(radiusPixels, 1);
   const horizonRadius = Math.PI * 0.5 / Math.max(thetaMax, 0.000001);
+  const scaffold = domeGuideScaffold(sourceProjectionMode, horizonRadius, domeGuideSemanticSplit, domeGuideHorizonSplit);
 
   return (x: number, y: number) => {
     const localX = (x + 0.5 - centerX) / Math.max(radiusPixels, 1);
@@ -88,36 +114,110 @@ function createProjectionGuideSampler(
       return { color: OUTSIDE_PROJECTION_COLOR, insideProjection: false };
     }
 
-    const theta = radius * thetaMax;
-    const ring =
-      guideLine(theta, GUIDE_INTERVAL_RADIANS, lineWidthTheta) * smoothstep(0.025, 0.08, radius);
-    const horizon = radialGuideLine(radius, horizonRadius, 1.5 / Math.max(radiusPixels, 1));
+    const ring = maxGuideLines(scaffold.ringRadii.map((ringRadius) => radialGuideLine(radius, ringRadius, radiusLineWidth)));
+    const horizon =
+      sourceProjectionMode === "zenith-230"
+        ? radialGuideLine(radius, horizonRadius, radiusLineWidth * 1.4)
+        : 0;
     const sourceCircle = radialGuideLine(radius, 1, 1.6 / Math.max(radiusPixels, 1));
-    const spoke = spokeGuideLine(localX, localY, radiusPixels) * smoothstep(0.035, 0.12, radius);
+    const spoke =
+      spokeGuideLine(localX, localY, radiusPixels) *
+      smoothstep(scaffold.spokeStartRadius + 0.015, scaffold.spokeStartRadius + 0.055, radius);
     const line = clamp(Math.max(ring, spoke, horizon, sourceCircle), 0, 1);
+    const guideBackground = domeGuideBackgroundColor(
+      sourceProjectionMode,
+      radius,
+      horizonRadius,
+      domeGuideSemanticSplit,
+      domeGuideHorizonSplit,
+    );
     const color = line >= BLACK_LINE_THRESHOLD
       ? GUIDE_LINE_COLOR
-      : mixGuideColors(GUIDE_BACKGROUND_COLOR, GUIDE_LINE_COLOR, line);
+      : mixGuideColors(guideBackground, GUIDE_LINE_COLOR, line);
     return { color, insideProjection: true };
   };
 }
 
-function guideLine(value: number, interval: number, width: number): number {
-  const wrapped = Math.abs((((value / interval + 0.5) % 1) + 1) % 1 - 0.5) * interval;
-  return 1 - smoothstep(0, width, wrapped);
+function createCaveContinuityGuideSampler(
+  width: number,
+  height: number,
+  domeGuideSemanticSplit: number,
+  domeGuideHorizonSplit?: number | string | null,
+): (x: number, y: number) => { color: [number, number, number]; insideProjection: boolean } {
+  const centerX = width * 0.5;
+  const centerY = height * 0.5;
+  const halfWidth = Math.max(width * 0.5, 1);
+  const halfHeight = Math.max(height * 0.5, 1);
+  const minSide = Math.max(Math.min(width, height), 1);
+  const lineWidth = caveGuideLineWidthForSize(minSide);
+  const floorBand = sourceProjectionHorizonRadius("cave-270", domeGuideSemanticSplit, domeGuideHorizonSplit);
+  const floorBands = caveGuideFloorBands(floorBand);
+  const wallBands = caveGuideWallBands(floorBand, domeGuideHorizonSplit);
+  const horizonBand = caveGuideHorizonBand(floorBand, domeGuideHorizonSplit);
+
+  return (x: number, y: number) => {
+    const localX = (x + 0.5 - centerX) / halfWidth;
+    const localY = (centerY - y - 0.5) / halfHeight;
+    const rho = Math.max(Math.abs(localX), Math.abs(localY));
+    const wallT = clamp(
+      rho <= horizonBand
+        ? ((rho - floorBand) / Math.max(horizonBand - floorBand, 0.000001)) * 0.5
+        : 0.5 + ((rho - horizonBand) / Math.max(1 - horizonBand, 0.000001)) * 0.5,
+      0,
+      1,
+    );
+    const wallColor = caveGuideWallColor(wallT);
+    const guideBackground: [number, number, number] =
+      rho <= floorBand ? [...CAVE_HANDOFF_GUIDE.colors.floor] : wallColor;
+    const floorRings = maxGuideLines(floorBands.map((band) => radialGuideLine(rho, band, lineWidth)));
+    const wallRings = maxGuideLines(wallBands.map((band) => radialGuideLine(rho, band, lineWidth)));
+    const horizon = radialGuideLine(rho, horizonBand, lineWidth * CAVE_HANDOFF_GUIDE.line.horizonWidthMultiplier);
+    const ring = Math.max(floorRings, wallRings);
+    const seam = radialGuideLine(rho, floorBand, lineWidth * CAVE_HANDOFF_GUIDE.line.seamWidthMultiplier);
+    const boundary = radialGuideLine(rho, 1, lineWidth * CAVE_HANDOFF_GUIDE.line.boundaryWidthMultiplier);
+    const wallMask = smoothstep(
+      floorBand + CAVE_HANDOFF_GUIDE.line.wallMaskStartOffset,
+      floorBand + CAVE_HANDOFF_GUIDE.line.wallMaskEndOffset,
+      rho,
+    );
+    const wallGrid =
+      spokeGuideLine(
+        localX,
+        -localY,
+        minSide * 0.5,
+        CAVE_HANDOFF_GUIDE.wallRayLineWidthPixels,
+        CAVE_HANDOFF_GUIDE.wallRayIntervalRadians,
+      ) *
+      wallMask *
+      CAVE_HANDOFF_GUIDE.wallRayOpacity;
+    const line = clamp(Math.max(ring, seam, horizon, boundary, wallGrid), 0, 1);
+    const color =
+      line >= BLACK_LINE_THRESHOLD ? GUIDE_LINE_COLOR : mixGuideColors(guideBackground, GUIDE_LINE_COLOR, line);
+    return { color, insideProjection: true };
+  };
+}
+
+function maxGuideLines(values: number[]): number {
+  return values.reduce((max, value) => Math.max(max, value), 0);
 }
 
 function radialGuideLine(radius: number, targetRadius: number, width: number): number {
   return 1 - smoothstep(0, width, Math.abs(radius - targetRadius));
 }
 
-function spokeGuideLine(localX: number, localY: number, radiusPixels: number): number {
+function spokeGuideLine(
+  localX: number,
+  localY: number,
+  radiusPixels: number,
+  lineWidthPixels = 1.25,
+  interval = GUIDE_INTERVAL_RADIANS,
+): number {
   const radius = Math.hypot(localX, localY);
   if (radius <= 0.000001) return 0;
   const angle = Math.atan2(localX, -localY);
-  const wrapped = Math.abs((((angle / GUIDE_INTERVAL_RADIANS + 0.5) % 1) + 1) % 1 - 0.5) * GUIDE_INTERVAL_RADIANS;
+  const wrapped = Math.abs((((angle / interval + 0.5) % 1) + 1) % 1 - 0.5) * interval;
   const arcPixels = wrapped * radius * radiusPixels;
-  return 1 - smoothstep(0, 1.25, arcPixels);
+  return 1 - smoothstep(0, lineWidthPixels, arcPixels);
 }
 
 function mixGuideColors(

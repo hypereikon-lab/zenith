@@ -132,12 +132,12 @@ function resolveFisheyeCenter(center: FisheyeCenter): Vec3 {
   return normalize(center);
 }
 
-function tangentAxis(axis: Vec3, centerAxis: Vec3, fallbackAxis: Vec3): Vec3 {
+function tangentAxis(axis: Vec3, centerAxis: Vec3, alternateAxis: Vec3): Vec3 {
   const projected = subtract(axis, scaleVec3(centerAxis, dot(axis, centerAxis)));
   if (vectorLength(projected) > EPSILON) return normalize(projected);
 
-  const fallback = subtract(fallbackAxis, scaleVec3(centerAxis, dot(fallbackAxis, centerAxis)));
-  if (vectorLength(fallback) > EPSILON) return normalize(fallback);
+  const alternate = subtract(alternateAxis, scaleVec3(centerAxis, dot(alternateAxis, centerAxis)));
+  if (vectorLength(alternate) > EPSILON) return normalize(alternate);
 
   return normalize(cross(centerAxis, Math.abs(centerAxis[1]) < 0.9 ? UP_AXIS : EAST_AXIS));
 }

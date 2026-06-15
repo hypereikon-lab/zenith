@@ -140,8 +140,9 @@ describe("plate controller edit gate", () => {
     await controller.exportPlateMapImage();
 
     expect(downloadBlob).toHaveBeenCalledOnce();
-    expect(FakeCanvas.lastToBlobPixel(50, 50)).toEqual([0, 255, 0, 255]);
+    expect(FakeCanvas.lastToBlobPixel(50, 50)).toEqual([0, 222, 255, 255]);
     expect(FakeCanvas.lastToBlobPixel(0, 0)).toEqual([0, 0, 0, 255]);
+    expect(FakeCanvas.lastToBlobPixel(50, 35)).toEqual([0, 222, 255, 255]);
     expect(FakeCanvas.lastToBlobPixel(50, 25)).toEqual([0, 0, 0, 255]);
   });
 });

@@ -68,12 +68,12 @@ describe("flat domemaster coordinate spaces", () => {
     expectVectorClose(roundTrip, sourceDirection);
   });
 
-  test("places the flat horizon at the correct radius for every source projection mode", () => {
+  test("places the flat horizon or CAVE front-wall center at the correct carrier radius", () => {
     const modes: Array<[SourceProjectionMode, number]> = [
       ["zenith-180", 1],
-      ["zenith-270", 2 / 3],
+      ["zenith-230", 18 / 23],
       ["nadir-180", 1],
-      ["nadir-270", 2 / 3],
+      ["cave-270", 2 / 3],
     ];
 
     for (const [mode, expectedRadius] of modes) {

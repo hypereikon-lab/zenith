@@ -1,6 +1,11 @@
 import { dot, multiplyMat4, multiplyMat4Vec4, normalize, perspectiveLH, scaleVec3 } from "../projection.js";
 import { domePointFromSourceDirection } from "./dome-view.js";
-import { DEFAULT_CAVE_ROOM, normalizeCaveRoom } from "./cave-projection.js";
+import {
+  DEFAULT_CAVE_ROOM,
+  caveContinuityDirectionFromSurfacePoint,
+  caveSurfacePointFromContinuityDirection,
+  normalizeCaveRoom,
+} from "./cave-projection.js";
 import { physicalDirectionFromSourceDirection, sourceDirectionFromPhysicalDirection } from "./source-transform.js";
 import { sourceProjectionContainsDirection } from "./source-projection.js";
 import type { CaveRoom } from "./cave-projection.js";
@@ -23,9 +28,10 @@ type Ray = { origin: Vec3; direction: Vec3 };
 const EPSILON = 0.000001;
 
 export function sourceCaveDirectionFromScreenPoint(point: Point2D, projection: CaveViewProjection): Vec3 | null {
-  const physical = physicalCaveDirectionFromScreenPoint(point, projection);
-  if (!physical) return null;
-  const source = sourceDirectionFromPhysicalDirection(physical, projection);
+  const surfacePoint = caveSurfacePointFromScreenPoint(point, projection);
+  if (!surfacePoint) return null;
+  const continuityPhysical = caveContinuityDirectionFromSurfacePoint(surfacePoint, projection.room);
+  const source = sourceDirectionFromPhysicalDirection(continuityPhysical, projection);
   return sourceProjectionContainsDirection(source, projection.sourceProjectionMode || "zenith-180") ? source : null;
 }
 
@@ -36,8 +42,8 @@ export function sourceCavePointFromScreenPoint(point: Point2D, projection: CaveV
 
 export function sourceCaveDirectionToScreenPoint(direction: Vec3, projection: CaveViewProjection): Point2D | null {
   if (!sourceProjectionContainsDirection(direction, projection.sourceProjectionMode || "zenith-180")) return null;
-  const physical = physicalDirectionFromSourceDirection(direction, projection);
-  const hit = caveSurfacePointForPhysicalDirection(physical, projection.room);
+  const continuityPhysical = physicalDirectionFromSourceDirection(direction, projection);
+  const hit = caveSurfacePointFromContinuityDirection(continuityPhysical, projection.room);
   if (!hit) return null;
 
   const aspect = projection.rect.width / Math.max(projection.rect.height, EPSILON);
@@ -55,16 +61,17 @@ export function sourceCaveDirectionToScreenPoint(direction: Vec3, projection: Ca
     x: projection.rect.x + (x * 0.5 + 0.5) * projection.rect.width,
     y: projection.rect.y + (1 - (y * 0.5 + 0.5)) * projection.rect.height,
   };
-  const visiblePhysical = physicalCaveDirectionFromScreenPoint(screenPoint, projection);
-  return visiblePhysical && dot(visiblePhysical, normalize(physical)) > 0.999 ? screenPoint : null;
+  const visibleSurfacePoint = caveSurfacePointFromScreenPoint(screenPoint, projection);
+  if (!visibleSurfacePoint) return null;
+  const visibleContinuityPhysical = caveContinuityDirectionFromSurfacePoint(visibleSurfacePoint, projection.room);
+  return dot(visibleContinuityPhysical, normalize(continuityPhysical)) > 0.999 ? screenPoint : null;
 }
 
-function physicalCaveDirectionFromScreenPoint(point: Point2D, projection: CaveViewProjection): Vec3 | null {
+function caveSurfacePointFromScreenPoint(point: Point2D, projection: CaveViewProjection): Vec3 | null {
   if (!pointInRect(point, projection.rect)) return null;
   const ray = worldRayFromScreenPoint(point, projection);
   if (!ray) return null;
-  const hit = intersectCaveSurface(ray, projection.room);
-  return hit ? normalize(hit) : null;
+  return intersectCaveSurface(ray, projection.room);
 }
 
 export function caveSurfacePointForPhysicalDirection(direction: Vec3, room: CaveRoom = DEFAULT_CAVE_ROOM): Vec3 | null {

@@ -1,7 +1,6 @@
 import { directionFromPlateUv } from "../plates/plate-placement.js";
 import { clamp } from "../projection.js";
-import { directionToFisheyeUv, fisheyeUvToDirection } from "./fisheye-projection.js";
-import { sourceProjectionProfileForMode } from "./source-projection.js";
+import { sourceDirectionToUv, sourceUvToDirection } from "./source-projection.js";
 import type { SourceProjectionMode } from "./source-projection.js";
 import type { PreparedPlatePlacement } from "../plates/plate-placement.js";
 import type { Point2D, Vec3 } from "../projection.js";
@@ -20,6 +19,8 @@ export type FlatTransformOptions = {
   radiusScale?: number | string | null;
   rotationRadians?: number | string | null;
   sourceProjectionMode?: SourceProjectionMode | null;
+  domeGuideSemanticSplit?: number | string | null;
+  domeGuideHorizonSplit?: number | string | null;
 };
 export type DomePoint = { radius: number; azimuth: number };
 export type SourceOffset = { dx: number; dy: number };
@@ -68,7 +69,13 @@ export function flatDisplayPointToDomeDirection(
   options: FlatTransformOptions = {},
 ): Vec3 | null {
   const offset = flatDisplayPointToSourceOffset(point, metrics, options);
-  return flatSourceOffsetToDomeDirection(offset.dx, offset.dy, options.sourceProjectionMode || "zenith-180");
+  return flatSourceOffsetToDomeDirection(
+    offset.dx,
+    offset.dy,
+    options.sourceProjectionMode || "zenith-180",
+    options.domeGuideSemanticSplit,
+    options.domeGuideHorizonSplit,
+  );
 }
 
 export function flatDisplayPointToSourceOffset(
@@ -97,10 +104,20 @@ export function flatSourceOffsetToDomeDirection(
   dx: number,
   dy: number,
   sourceProjectionMode: SourceProjectionMode = "zenith-180",
+  domeGuideSemanticSplit?: number | string | null,
+  domeGuideHorizonSplit?: number | string | null,
 ): Vec3 | null {
-  const r = Math.hypot(dx, dy);
-  if (r > 1.02) return null;
-  return fisheyeUvToDirection(0.5 + dx * 0.5, 0.5 + dy * 0.5, sourceProjectionProfileForMode(sourceProjectionMode));
+  if (sourceProjectionMode !== "cave-270" && Math.hypot(dx, dy) > 1.02) return null;
+  return sourceUvToDirection(
+    0.5 + dx * 0.5,
+    0.5 + dy * 0.5,
+    sourceProjectionMode,
+    2,
+    2,
+    1,
+    domeGuideSemanticSplit,
+    domeGuideHorizonSplit,
+  );
 }
 
 export function plateUvToFlatPoint(
@@ -111,10 +128,20 @@ export function plateUvToFlatPoint(
   cy: number,
   radius: number,
   sourceProjectionMode: SourceProjectionMode = "zenith-180",
+  domeGuideSemanticSplit?: number | string | null,
+  domeGuideHorizonSplit?: number | string | null,
 ): Point2D | null {
   const direction = directionFromPlateUv(placement, u, v);
   if (!direction) return null;
-  return domeDirectionToFlatPoint(direction, cx, cy, radius, sourceProjectionMode);
+  return domeDirectionToFlatPoint(
+    direction,
+    cx,
+    cy,
+    radius,
+    sourceProjectionMode,
+    domeGuideSemanticSplit,
+    domeGuideHorizonSplit,
+  );
 }
 
 export function plateUvToDisplayFlatPoint(
@@ -126,9 +153,21 @@ export function plateUvToDisplayFlatPoint(
   radius: number,
   rotationRadians: number | string | null = 0,
   sourceProjectionMode: SourceProjectionMode = "zenith-180",
+  domeGuideSemanticSplit?: number | string | null,
+  domeGuideHorizonSplit?: number | string | null,
 ): Point2D | null {
   return sourceFlatToDisplayFlatPoint(
-    plateUvToFlatPoint(placement, u, v, cx, cy, radius, sourceProjectionMode),
+    plateUvToFlatPoint(
+      placement,
+      u,
+      v,
+      cx,
+      cy,
+      radius,
+      sourceProjectionMode,
+      domeGuideSemanticSplit,
+      domeGuideHorizonSplit,
+    ),
     cx,
     cy,
     rotationRadians,
@@ -141,8 +180,18 @@ export function domeDirectionToFlatPoint(
   cy: number,
   radius: number,
   sourceProjectionMode: SourceProjectionMode = "zenith-180",
+  domeGuideSemanticSplit?: number | string | null,
+  domeGuideHorizonSplit?: number | string | null,
 ): Point2D | null {
-  const uv = directionToFisheyeUv(direction, sourceProjectionProfileForMode(sourceProjectionMode));
+  const uv = sourceDirectionToUv(
+    direction,
+    sourceProjectionMode,
+    2,
+    2,
+    1,
+    domeGuideSemanticSplit,
+    domeGuideHorizonSplit,
+  );
   if (!uv) return null;
   return {
     x: cx + (uv.u - 0.5) * 2 * radius,

@@ -94,7 +94,7 @@ export const DEFAULT_CONTROL_VALUES = {
   imageSeedancePromptMode: stringOr(seedance.imageToVideo?.promptMode, "auto"),
   imageSeedanceRatio: stringOr(seedance.imageToVideo?.ratio, "640:640"),
   caveSource: stringOr(caveControls.caveSource, "current"),
-  caveProjection: stringOr(caveControls.caveProjection, "nadir-270"),
+  caveProjection: stringOr(caveControls.caveProjection, "cave-270"),
   caveFaceSize: stringOr(caveControls.caveFaceSize, "1024"),
   depthPolarity: stringOr(depthMotionControls.depthPolarity, "brightFar"),
   depthGuideMode: stringOr(depthMotionControls.depthGuideMode, "depthShaded"),
@@ -129,18 +129,18 @@ export function applyDefaultControlValues(controls: Partial<Record<keyof typeof 
   }
 }
 
-function numberOr(value: unknown, fallback: number): number {
+function numberOr(value: unknown, defaultValue: number): number {
   const number = Number(value);
-  return Number.isFinite(number) ? number : fallback;
+  return Number.isFinite(number) ? number : defaultValue;
 }
 
-function stringOr(value: unknown, fallback: string): string {
+function stringOr(value: unknown, defaultValue: string): string {
   const text = String(value ?? "").trim();
-  return text || fallback;
+  return text || defaultValue;
 }
 
-function booleanOr(value: unknown, fallback: boolean): boolean {
-  return value === undefined || value === null ? fallback : Boolean(value);
+function booleanOr(value: unknown, defaultValue: boolean): boolean {
+  return value === undefined || value === null ? defaultValue : Boolean(value);
 }
 
 function isCheckboxControl(control: ValueControl): control is HTMLInputElement {

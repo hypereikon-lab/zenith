@@ -10,7 +10,8 @@ import {
   plateUvToLocal,
   preparePlatePlacement,
 } from "./plate-placement.js";
-import { SOURCE_PROJECTION_MODES } from "../geometry/source-projection.js";
+import { SOURCE_PROJECTION_MODES, sourceMapPointToDirection } from "../geometry/source-projection.js";
+import type { Vec3 } from "../projection.js";
 
 describe("plate placement corner warp", () => {
   test("normalizes corner offsets with bounded defaults", () => {
@@ -133,6 +134,44 @@ describe("plate placement corner warp", () => {
     }
   });
 
+  test("prepares CAVE plates from square source-map carrier coordinates", () => {
+    const placement = preparePlatePlacement(
+      {
+        azimuth: 45,
+        radius: 1,
+        scale: 0.42,
+      },
+      { aspect: 1 },
+      "cave-270",
+      0.5,
+    );
+    const expectedDirection = sourceMapPointToDirection({ radius: 1, azimuth: 45 }, "cave-270", 2, 2, 1, 0.5);
+
+    expectVectorClose(placement.center, expectedDirection);
+    expect(placement.mapCenter[0]).toBeCloseTo(1, 8);
+    expect(placement.mapCenter[1]).toBeCloseTo(-1, 8);
+  });
+
+  test("prepares dome plates from remapped source-map carrier coordinates", () => {
+    const placement = preparePlatePlacement(
+      {
+        azimuth: 0,
+        radius: 1 / 3,
+        scale: 0.42,
+      },
+      { aspect: 1 },
+      "zenith-180",
+      1 / 3,
+    );
+    const expectedDirection = sourceMapPointToDirection({ radius: 1 / 3, azimuth: 0 }, "zenith-180", 2, 2, 1, 1 / 3);
+
+    expectVectorClose(placement.center, expectedDirection);
+    expect(placement.center[1]).toBeCloseTo(Math.SQRT1_2, 6);
+    expect(placement.center[2]).toBeCloseTo(Math.SQRT1_2, 6);
+    expect(placement.mapCenter[0]).toBeCloseTo(0, 8);
+    expect(placement.mapCenter[1]).toBeCloseTo(-1 / 3, 8);
+  });
+
   test("derives a bounded corner offset from a dragged local corner", () => {
     const placement = preparePlatePlacement({ scale: 1 }, { aspect: 1 });
     const base = plateCornerBaseLocal(placement, "se");
@@ -145,3 +184,11 @@ describe("plate placement corner warp", () => {
     expect(offset.y).toBeCloseTo(-0.2);
   });
 });
+
+function expectVectorClose(actual: Vec3, expected: Vec3 | null): void {
+  expect(expected).not.toBeNull();
+  const value = expected as Vec3;
+  for (let index = 0; index < 3; index += 1) {
+    expect(actual[index]).toBeCloseTo(value[index], 6);
+  }
+}

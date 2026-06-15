@@ -2,12 +2,11 @@ import type {
   NormalizedPlatePlacement,
   PlateCorner,
   PlateCornerOffsets,
-  PlatePlacementInput,
 } from "../plates/plate-placement.js";
 import type { SourceProjectionMode } from "../geometry/source-projection.js";
 
 export type ViewMode = "inside" | "theater" | "orbit" | "flat" | "split" | "cave" | "cutaway";
-export type WorkspaceId = "create" | "inpaint" | "depth" | "ship" | string;
+export type WorkspaceId = "source" | "sketch" | "repair" | "depth" | "motion" | "bridge" | "video" | "deliver" | string;
 export type MediaKind = "image" | "video";
 export type { SourceProjectionMode };
 export type ActiveDomeCamera = "inside" | "theater" | "orbit";
@@ -51,33 +50,6 @@ export type SeedanceOutput = RunwayOutput & {
   duration?: number;
   workflow?: string;
   prompt?: string;
-};
-
-export type VersionSnapshot = {
-  version?: number;
-  id: string;
-  name: string;
-  createdAt: string;
-  sourceNames?: string[];
-  plate?: {
-    count?: number;
-    fit?: string;
-    feather?: number;
-    activePlateIndex?: number;
-    patchPlacements?: PlatePlacementInput[];
-  };
-  generation?: {
-    model?: string;
-    ratio?: string;
-    quality?: string;
-    outputCount?: number;
-    prompt?: string;
-    lastOutputCount?: number;
-    lastOutputUrls?: string[];
-  };
-  thumbnails?: {
-    plate?: string | null;
-  };
 };
 
 export type PlacementDrag =
@@ -138,7 +110,6 @@ export type ZenithState = {
   timelineSeeking: boolean;
   pendingVideoUpload: boolean;
   videoFrameCallbackId: number | null;
-  dragDepth: number;
   panelHidden: boolean;
   fps: number;
   fpsSampleTime: number;
@@ -172,8 +143,6 @@ export type ZenithState = {
   depthPreviewHeight: number;
   depthPreviewName: string;
   depthPreviewSourceKind: "" | "texture" | "canvas";
-  versions: VersionSnapshot[];
-  workspaceSavedAt: string | null;
 };
 
 export type SetGpuState = (message: string, isError?: boolean) => void;

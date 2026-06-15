@@ -1,12 +1,19 @@
-import { CAVE_FACES, DEFAULT_CAVE_ROOM, caveFaceDirection } from "../geometry/cave-projection.js";
+import {
+  CAVE_FACES,
+  DEFAULT_CAVE_ROOM,
+  caveContinuityDirectionFromSurfacePoint,
+  caveFacePoint,
+} from "../geometry/cave-projection.js";
 import { createFisheyeProjectionProfile, directionToFisheyeUv } from "../geometry/fisheye-projection.js";
+import { sourceDirectionToUv } from "../geometry/source-projection.js";
 import { sourceDirectionFromPhysicalDirection } from "../geometry/source-transform.js";
+import type { MapUv } from "../projection.js";
 import type { CaveCoverage, CaveFace, CaveFaceSample, CaveRoom } from "../geometry/cave-projection.js";
 import type { FisheyeProjectionProfile } from "../geometry/fisheye-projection.js";
 import type { SourceOrientationTransform } from "../geometry/source-transform.js";
 import type { Vec3 } from "../projection.js";
 
-export const CAVE_SOURCE_PROJECTION_PRESETS = ["nadir-270", "nadir-180", "zenith-270", "zenith-180"] as const;
+export const CAVE_SOURCE_PROJECTION_PRESETS = ["cave-270"] as const;
 
 export type CaveSourceProjectionPreset = (typeof CAVE_SOURCE_PROJECTION_PRESETS)[number];
 
@@ -35,23 +42,13 @@ export function createCaveSourceProfile(
   width: number,
   height: number,
 ): FisheyeProjectionProfile {
-  if (preset === "nadir-270") {
-    return createFisheyeProjectionProfile({ width, height, center: "nadir", fieldOfViewDegrees: 270 });
-  }
-  if (preset === "nadir-180") {
-    return createFisheyeProjectionProfile({ width, height, center: "nadir", fieldOfViewDegrees: 180 });
-  }
-  if (preset === "zenith-270") {
-    return createFisheyeProjectionProfile({ width, height, center: "zenith", fieldOfViewDegrees: 270 });
-  }
-  return createFisheyeProjectionProfile({ width, height, center: "zenith", fieldOfViewDegrees: 180 });
+  void preset;
+  return createFisheyeProjectionProfile({ width, height, center: "nadir", fieldOfViewDegrees: 270 });
 }
 
 export function caveProjectionPresetLabel(preset: CaveSourceProjectionPreset): string {
-  if (preset === "nadir-270") return "Nadir 270 equidistant";
-  if (preset === "nadir-180") return "Nadir 180 equidistant";
-  if (preset === "zenith-270") return "Zenith 270 equidistant";
-  return "Zenith 180 equidistant";
+  void preset;
+  return "CAVE 270 continuity carrier";
 }
 
 export function renderCaveFaces(options: CaveExportRenderOptions): CaveFaceRenderResult[] {
@@ -92,7 +89,7 @@ export function renderCaveFace({
         room,
         sourceTransform,
       );
-      const uv = directionToFisheyeUv(direction, sourceProfile);
+      const uv = sourceUvForCaveExportDirection(direction, sourceProjection, sourceProfile, sourceCanvas.width, sourceCanvas.height);
       const outputIndex = (y * size + x) * 4;
       if (!uv) {
         image.data.set(missingColor, outputIndex);
@@ -116,13 +113,28 @@ export function renderCaveFace({
   };
 }
 
+function sourceUvForCaveExportDirection(
+  direction: Vec3,
+  sourceProjection: CaveSourceProjectionPreset | FisheyeProjectionProfile,
+  sourceProfile: FisheyeProjectionProfile,
+  width: number,
+  height: number,
+): MapUv | null {
+  if (typeof sourceProjection === "string") {
+    return sourceDirectionToUv(direction, sourceProjection, width, height);
+  }
+  return directionToFisheyeUv(direction, sourceProfile);
+}
+
 export function caveSourceDirectionForFaceSample(
   face: CaveFace,
   sample: CaveFaceSample,
   room: CaveRoom = DEFAULT_CAVE_ROOM,
   sourceTransform: Partial<SourceOrientationTransform> = {},
 ): Vec3 {
-  const physicalDirection = caveFaceDirection(face, sample, room);
+  const point = caveFacePoint(face, sample, room);
+  const eyeRelativePoint: Vec3 = [point[0] - (room.eyeX || 0), point[1] - (room.eyeHeight || DEFAULT_CAVE_ROOM.eyeHeight), point[2] - (room.eyeZ || 0)];
+  const physicalDirection = caveContinuityDirectionFromSurfacePoint(eyeRelativePoint, room);
   return sourceDirectionFromPhysicalDirection(physicalDirection, {
     sourceRotationRadians: sourceTransform.sourceRotationRadians ?? 0,
     domeTiltRadians: sourceTransform.domeTiltRadians ?? 0,

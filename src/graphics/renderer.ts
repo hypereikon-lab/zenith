@@ -3,6 +3,7 @@ import {
   normalizeSourceProjectionMode,
   sourceProjectionGeometryRange,
   sourceProjectionProfileForMode,
+  sourceProjectionShaderTheta,
 } from "../geometry/source-projection.js";
 import { buildCaveRoomGeometry, buildDomeGeometry, buildRoomGeometry } from "./geometry.js";
 import { getCssLayout as buildCssLayout, getRenderLayout as buildRenderLayout } from "./render-layout.js";
@@ -10,6 +11,7 @@ import { caveShaderCode, domeShaderCode, flatShaderCode, roomShaderCode } from "
 import { renderCopyTextureUsage } from "./texture-usage.js";
 import { SourceTextureController } from "../media/source-texture.js";
 import { PlateGpuCompositor } from "../plates/plate-gpu-compositor.js";
+import type { PipelineReadouts } from "../app/pipeline-state.svelte.js";
 import type { SetGpuState, ViewMode, ZenithState } from "../app/types.js";
 import type { PlateRenderOptions } from "../plates/plate-gpu-compositor.js";
 import type { ZenithControls, ZenithDom } from "../ui/dom.js";
@@ -41,6 +43,7 @@ type DomeRendererOptions = {
   };
   actions: {
     setGpuState: SetGpuState;
+    setReadouts: (readouts: Partial<PipelineReadouts>) => void;
     updateMediaReadouts: () => void;
     drawHud: (ctx: CanvasRenderingContext2D | null, options: HudOptions) => void;
     buildHudOptions: (width: number, height: number, dpr: number, layout: CssLayout) => HudOptions;
@@ -56,7 +59,7 @@ export function createDomeRenderer({
   viewCamera,
   actions,
 }: DomeRendererOptions) {
-  const { canvas, hud, hudContext, perfReadout, uploadReadout } = dom;
+  const { canvas, hud, hudContext } = dom;
   let device: GPUDevice;
   let context: GPUCanvasContext;
   let presentationFormat: GPUTextureFormat;
@@ -85,11 +88,7 @@ export function createDomeRenderer({
   let plateCompositor: PlateGpuCompositor;
   let renderSize: RenderSize = { width: 1, height: 1, dpr: 1 };
   let lastFrameTime = performance.now();
-  let videoUploadMode = "direct";
-  let videoUploadCanvas: HTMLCanvasElement | null = null;
-  let videoUploadContext: CanvasRenderingContext2D | null = null;
   let lastVideoUploadTime = -1;
-  let warnedVideoFallback = false;
 
   async function initialize() {
     if (!navigator.gpu) {
@@ -433,9 +432,7 @@ export function createDomeRenderer({
   }
 
   function resetVideoUploadState(): void {
-    videoUploadMode = "direct";
     lastVideoUploadTime = -1;
-    warnedVideoFallback = false;
   }
 
   function resize(): void {
@@ -484,9 +481,8 @@ export function createDomeRenderer({
       state.mediaKind === "video" &&
       video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
     ) {
-      const needsFallbackUpload = !("requestVideoFrameCallback" in video);
       const pausedFrameChanged = video.paused && lastVideoUploadTime !== video.currentTime;
-      if (state.pendingVideoUpload || needsFallbackUpload || pausedFrameChanged) {
+      if (state.pendingVideoUpload || pausedFrameChanged) {
         uploadCurrentVideoFrame();
         state.pendingVideoUpload = false;
       }
@@ -508,7 +504,7 @@ export function createDomeRenderer({
     state.fpsSampleTime = now;
     const scale = Math.round(Number(controls.renderScale.value) * 100);
     const mesh = ["low", "medium", "high"][Number(controls.meshQuality.value)] ?? "medium";
-    perfReadout.textContent = `${Math.round(state.fps)} fps, full map, ${scale}% scale, ${mesh} mesh`;
+    actions.setReadouts({ renderer: `${Math.round(state.fps)} fps, full map, ${scale}% scale, ${mesh} mesh` });
   }
 
   function uploadCurrentVideoFrame(): void {
@@ -523,45 +519,9 @@ export function createDomeRenderer({
       actions.updateMediaReadouts();
     }
 
-    if (videoUploadMode === "direct") {
-      try {
-        sourceTexture.copyExternal(video, width, height);
-        lastVideoUploadTime = video.currentTime;
-        uploadReadout.textContent = "Direct video frame";
-        return;
-      } catch (error) {
-        videoUploadMode = "canvas";
-        if (!warnedVideoFallback) {
-          warnedVideoFallback = true;
-          console.warn("Direct WebGPU video upload failed; using canvas frame upload.", error);
-        }
-      }
-    }
-
-    uploadVideoFrameViaCanvas(width, height);
-  }
-
-  function uploadVideoFrameViaCanvas(width: number, height: number): void {
-    if (!videoUploadCanvas) {
-      videoUploadCanvas = document.createElement("canvas");
-      videoUploadContext = videoUploadCanvas.getContext("2d", { alpha: false });
-    }
-
-    if (videoUploadCanvas.width !== width || videoUploadCanvas.height !== height) {
-      videoUploadCanvas.width = width;
-      videoUploadCanvas.height = height;
-    }
-
-    try {
-      videoUploadContext.drawImage(video, 0, 0, width, height);
-      sourceTexture.copyExternal(videoUploadCanvas, width, height);
-      lastVideoUploadTime = video.currentTime;
-      uploadReadout.textContent = "Canvas video frame";
-    } catch (error) {
-      if (!video.paused) {
-        console.warn("Could not upload the current video frame.", error);
-      }
-    }
+    sourceTexture.copyExternal(video, width, height);
+    lastVideoUploadTime = video.currentTime;
+    actions.setReadouts({ upload: "Direct WebGPU video frame" });
   }
 
   function render(): void {
@@ -699,7 +659,7 @@ export function createDomeRenderer({
     data[28] = controls.showSourceCircle.checked ? 1 : 0;
     data[29] = Number(controls.shellShade.value);
     data.set(profile.centerAxis, 32);
-    data[35] = (profile.fieldOfViewDegrees * 0.5 * Math.PI) / 180;
+    data[35] = sourceProjectionShaderTheta(sourceProjectionMode(), profile.fieldOfViewDegrees);
     data.set(profile.imageRightAxis, 36);
     data.set(profile.imageUpAxis, 40);
     device.queue.writeBuffer(uniformBuffer, 0, data);
@@ -861,7 +821,6 @@ export function createDomeRenderer({
     bindExternalSourceTexture,
     restoreOwnedSourceTexture,
     resetVideoUploadState,
-    getVideoUploadMode: () => videoUploadMode,
     getDevice: () => device,
     getCssLayout,
     captureCompositeCanvas,

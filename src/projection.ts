@@ -143,8 +143,8 @@ export function slerpDirections(a: Vec3, b: Vec3, t: number): Vec3 {
   if (omega <= 0.000001) return normalize(a);
   const sine = Math.sin(omega);
   if (Math.abs(sine) <= 0.000001) {
-    const fallback: Vec3 = Math.abs(a[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
-    const axis = normalize(cross(a, fallback));
+    const alternateAxis: Vec3 = Math.abs(a[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+    const axis = normalize(cross(a, alternateAxis));
     return rotateVectorAroundAxis(a, axis, omega * t);
   }
   const scaleA = Math.sin((1 - t) * omega) / sine;
@@ -172,8 +172,8 @@ export function rotationRowsFromTo(fromDirection: Vec3, toDirection: Vec3): Rota
   const cosine = clamp(dot(from, to), -1, 1);
   if (sine < 0.000001) {
     if (cosine > 0) return identityRotationRows();
-    const fallbackAxis: Vec3 = Math.abs(from[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
-    return rotationRowsAroundAxis(normalize(cross(from, fallbackAxis)), Math.PI);
+    const alternateAxis: Vec3 = Math.abs(from[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+    return rotationRowsAroundAxis(normalize(cross(from, alternateAxis)), Math.PI);
   }
   const [x, y, z] = axisCross;
   const k = (1 - cosine) / (sine * sine);

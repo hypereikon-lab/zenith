@@ -5,11 +5,11 @@ import type { ZenithState } from "./types.js";
 
 describe("view controller projection-aware review modes", () => {
   test("uses lower-facing review labels and camera defaults for nadir projections", () => {
-    const { controller, controls, state, viewReadout, buttons } = createFixture("nadir-270");
+    const { controller, controls, state, readouts, buttons } = createFixture("cave-270");
 
     controller.updateUiState();
-    expect(viewReadout.textContent).toBe("Nadir POV - Nadir 270");
-    expect(buttons.inside.textContent).toBe("Nadir");
+    expect(readouts.view).toBe("CAVE POV - CAVE 270");
+    expect(buttons.inside.textContent).toBe("CAVE");
     expect(buttons.theater.textContent).toBe("Theater");
     expect(buttons.orbit.textContent).toBe("Lower orbit");
     expect(buttons.cave.textContent).toBe("CAVE");
@@ -30,10 +30,10 @@ describe("view controller projection-aware review modes", () => {
   });
 
   test("keeps upper-dome review labels and camera defaults for zenith projections", () => {
-    const { controller, controls, state, viewReadout, buttons } = createFixture("zenith-270");
+    const { controller, controls, state, readouts, buttons } = createFixture("zenith-230");
 
     controller.updateUiState();
-    expect(viewReadout.textContent).toBe("Center POV - Zenith 270");
+    expect(readouts.view).toBe("Center POV - Zenith 230");
     expect(buttons.inside.textContent).toBe("Center");
     expect(buttons.theater.textContent).toBe("Theater");
     expect(buttons.orbit.textContent).toBe("Orbit");
@@ -45,14 +45,14 @@ describe("view controller projection-aware review modes", () => {
   });
 
   test("uses an above-room orbit when entering CAVE inspection", () => {
-    const { controller, state, viewReadout } = createFixture("nadir-270");
+    const { controller, state, readouts } = createFixture("cave-270");
     state.camera.orbitPitch = -0.5;
     state.camera.orbitDistance = 3;
 
     controller.setViewMode("cave");
 
     expect(state.viewMode).toBe("cave");
-    expect(viewReadout.textContent).toBe("CAVE from nadir map - Nadir 270");
+    expect(readouts.view).toBe("CAVE room - CAVE 270");
     expect(state.camera.orbitPitch).toBeGreaterThan(0.7);
     expect(state.camera.orbitDistance).toBeGreaterThanOrEqual(4.4);
   });
@@ -103,20 +103,22 @@ function createFixture(sourceProjection: string) {
     split: fakeButton("split"),
     cave: fakeButton("cave"),
   };
-  const viewReadout = { textContent: "" } as HTMLElement;
+  const readouts = { view: "" };
   const controller = createViewController({
     state,
     controls: controls as never,
     viewLabels: VIEW_LABELS,
     elements: {
       viewButtons: Object.values(buttons) as never,
-      viewReadout,
     },
     actions: {
+      setReadouts(next) {
+        Object.assign(readouts, next);
+      },
       scheduleWorkspaceAutosave() {},
     },
   });
-  return { controller, controls, state, viewReadout, buttons };
+  return { controller, controls, state, readouts, buttons };
 }
 
 function fakeButton(mode: string): HTMLButtonElement {

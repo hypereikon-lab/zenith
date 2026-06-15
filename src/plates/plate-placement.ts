@@ -1,6 +1,8 @@
 import { clamp, dot, normalize } from "../projection.js";
-import { fisheyeHalfAngleRadians } from "../geometry/fisheye-projection.js";
-import { sourceProjectionProfileForMode } from "../geometry/source-projection.js";
+import {
+  sourceMapPointToDirection,
+  sourceMapPointToUv,
+} from "../geometry/source-projection.js";
 import type { SourceProjectionMode } from "../geometry/source-projection.js";
 import type { Vec3 } from "../projection.js";
 
@@ -87,45 +89,59 @@ export function preparePlatePlacement(
   placement: PlatePlacementInput | NormalizedPlatePlacement,
   plate: PlateLike | null = null,
   sourceProjectionMode: SourceProjectionMode = "zenith-180",
+  innerGuideSplit?: number | string | null,
+  carrierHorizonRadius?: number | string | null,
 ): PreparedPlatePlacement {
   const normalized = normalizePlatePlacement(placement, plate);
   const aspect = plateAspect(plate, placement);
-  const azimuth = (normalized.azimuth * Math.PI) / 180;
-  const sinAzimuth = Math.sin(azimuth);
-  const cosAzimuth = Math.cos(azimuth);
   const spin = (normalized.spin * Math.PI) / 180;
   const dimensions = plateMapDimensions(normalized, plate);
-  const projection = sourceProjectionProfileForMode(sourceProjectionMode);
-  const theta = normalized.radius * fisheyeHalfAngleRadians(projection);
-  const radialTangent = normalize([
-    projection.imageRightAxis[0] * sinAzimuth + projection.imageUpAxis[0] * cosAzimuth,
-    projection.imageRightAxis[1] * sinAzimuth + projection.imageUpAxis[1] * cosAzimuth,
-    projection.imageRightAxis[2] * sinAzimuth + projection.imageUpAxis[2] * cosAzimuth,
-  ]);
-  const center: Vec3 = normalize([
-    projection.centerAxis[0] * Math.cos(theta) + radialTangent[0] * Math.sin(theta),
-    projection.centerAxis[1] * Math.cos(theta) + radialTangent[1] * Math.sin(theta),
-    projection.centerAxis[2] * Math.cos(theta) + radialTangent[2] * Math.sin(theta),
-  ]);
-  const right: Vec3 = normalize([
-    projection.imageRightAxis[0] * cosAzimuth - projection.imageUpAxis[0] * sinAzimuth,
-    projection.imageRightAxis[1] * cosAzimuth - projection.imageUpAxis[1] * sinAzimuth,
-    projection.imageRightAxis[2] * cosAzimuth - projection.imageUpAxis[2] * sinAzimuth,
-  ]);
-  const down: Vec3 = normalize([
-    -projection.centerAxis[0] * Math.sin(theta) + radialTangent[0] * Math.cos(theta),
-    -projection.centerAxis[1] * Math.sin(theta) + radialTangent[1] * Math.cos(theta),
-    -projection.centerAxis[2] * Math.sin(theta) + radialTangent[2] * Math.cos(theta),
+  return prepareSourceMapCarrierPlatePlacement(
+    normalized,
+    aspect,
+    spin,
+    dimensions,
+    sourceProjectionMode,
+    innerGuideSplit,
+    carrierHorizonRadius,
+  );
+}
+
+function prepareSourceMapCarrierPlatePlacement(
+  normalized: NormalizedPlatePlacement,
+  aspect: number,
+  spin: number,
+  dimensions: PlateMapDimensions,
+  sourceProjectionMode: SourceProjectionMode,
+  innerGuideSplit?: number | string | null,
+  carrierHorizonRadius?: number | string | null,
+): PreparedPlatePlacement {
+  const azimuth = (normalized.azimuth * Math.PI) / 180;
+  const mapPoint = { radius: normalized.radius, azimuth: normalized.azimuth };
+  const mapUv = sourceMapPointToUv(mapPoint, sourceProjectionMode);
+  const center: Vec3 =
+    sourceMapPointToDirection(mapPoint, sourceProjectionMode, 2, 2, 1, innerGuideSplit, carrierHorizonRadius) ||
+    fallbackCenter(sourceProjectionMode);
+  const right: Vec3 =
+    sourceMapPointTangent(center, mapPoint, sourceProjectionMode, 0, 0.1, innerGuideSplit, carrierHorizonRadius) ||
+    fallbackRight(center);
+  const rawDown: Vec3 =
+    sourceMapPointTangent(center, mapPoint, sourceProjectionMode, 0.0025, 0, innerGuideSplit, carrierHorizonRadius) ||
+    fallbackDown(center, right);
+  const down = normalize([
+    rawDown[0] - center[0] * dot(rawDown, center) - right[0] * dot(rawDown, right),
+    rawDown[1] - center[1] * dot(rawDown, center) - right[1] * dot(rawDown, right),
+    rawDown[2] - center[2] * dot(rawDown, center) - right[2] * dot(rawDown, right),
   ]);
 
   return {
     ...normalized,
-    theta,
+    theta: normalized.radius,
     azimuthRadians: azimuth,
     center,
     right,
     down,
-    mapCenter: [sinAzimuth * normalized.radius, -cosAzimuth * normalized.radius],
+    mapCenter: [(mapUv.u - 0.5) * 2, (mapUv.v - 0.5) * 2],
     mapWidth: dimensions.width,
     mapHeight: dimensions.height,
     angularWidth: 2 * Math.atan(dimensions.width * 0.5),
@@ -134,6 +150,74 @@ export function preparePlatePlacement(
     spinSin: Math.sin(spin),
     spinCos: Math.cos(spin),
   };
+}
+
+function sourceMapPointTangent(
+  center: Vec3,
+  point: { radius: number; azimuth: number },
+  sourceProjectionMode: SourceProjectionMode,
+  dRadius: number,
+  dAzimuth: number,
+  innerGuideSplit?: number | string | null,
+  carrierHorizonRadius?: number | string | null,
+): Vec3 | null {
+  const forward = sourceMapPointToDirection(
+    {
+      radius: clamp(point.radius + dRadius, 0, 1),
+      azimuth: normalizeDegrees(point.azimuth + dAzimuth),
+    },
+    sourceProjectionMode,
+    2,
+    2,
+    1,
+    innerGuideSplit,
+    carrierHorizonRadius,
+  );
+  const backward = sourceMapPointToDirection(
+    {
+      radius: clamp(point.radius - dRadius, 0, 1),
+      azimuth: normalizeDegrees(point.azimuth - dAzimuth),
+    },
+    sourceProjectionMode,
+    2,
+    2,
+    1,
+    innerGuideSplit,
+    carrierHorizonRadius,
+  );
+  let tangent: Vec3 | null = null;
+  if (forward && backward) {
+    tangent = [forward[0] - backward[0], forward[1] - backward[1], forward[2] - backward[2]];
+  } else if (forward) {
+    tangent = [forward[0] - center[0], forward[1] - center[1], forward[2] - center[2]];
+  } else if (backward) {
+    tangent = [center[0] - backward[0], center[1] - backward[1], center[2] - backward[2]];
+  }
+  if (!tangent || Math.hypot(tangent[0], tangent[1], tangent[2]) <= 0.000001) return null;
+  const projected: Vec3 = [
+    tangent[0] - center[0] * dot(tangent, center),
+    tangent[1] - center[1] * dot(tangent, center),
+    tangent[2] - center[2] * dot(tangent, center),
+  ];
+  if (Math.hypot(projected[0], projected[1], projected[2]) <= 0.000001) return null;
+  return normalize(projected);
+}
+
+function fallbackCenter(sourceProjectionMode: SourceProjectionMode): Vec3 {
+  if (sourceProjectionMode === "nadir-180" || sourceProjectionMode === "cave-270") return [0, -1, 0];
+  return [0, 1, 0];
+}
+
+function fallbackRight(center: Vec3): Vec3 {
+  return Math.abs(center[1]) > 0.97 ? [1, 0, 0] : normalize([center[2], 0, -center[0]]);
+}
+
+function fallbackDown(center: Vec3, right: Vec3): Vec3 {
+  return normalize([
+    center[1] * right[2] - center[2] * right[1],
+    center[2] * right[0] - center[0] * right[2],
+    center[0] * right[1] - center[1] * right[0],
+  ]);
 }
 
 export function plateMapDimensions(

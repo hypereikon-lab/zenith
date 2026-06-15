@@ -15,7 +15,7 @@ const frontProjection: CaveViewProjection = {
   sourceRotationRadians: 0,
   domeTiltRadians: 0,
   mirror: false,
-  sourceProjectionMode: "nadir-270",
+  sourceProjectionMode: "cave-270",
 };
 
 describe("CAVE view projection", () => {

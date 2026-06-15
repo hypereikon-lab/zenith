@@ -20,6 +20,11 @@ struct VertexOut {
   @location(2) splatLocal: vec2<f32>,
 };
 
+struct BackgroundVertexOut {
+  @builtin(position) position: vec4<f32>,
+  @location(0) uv: vec2<f32>,
+};
+
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 @group(0) @binding(1) var linearSampler: sampler;
 @group(0) @binding(2) var sourceTexture: texture_2d<f32>;
@@ -156,6 +161,29 @@ fn applyGuideNoise(rgb: vec3<f32>, uv: vec2<f32>) -> vec3<f32> {
 }
 
 @vertex
+fn backgroundVertexMain(@builtin(vertex_index) vertexIndex: u32) -> BackgroundVertexOut {
+  var positions = array<vec2<f32>, 3>(
+    vec2<f32>(-1.0, -1.0),
+    vec2<f32>(3.0, -1.0),
+    vec2<f32>(-1.0, 3.0)
+  );
+  let position = positions[vertexIndex];
+  var out: BackgroundVertexOut;
+  out.position = vec4<f32>(position, 0.0, 1.0);
+  out.uv = position * 0.5 + vec2<f32>(0.5, 0.5);
+  return out;
+}
+
+@fragment
+fn backgroundFragmentMain(in: BackgroundVertexOut) -> @location(0) vec4<f32> {
+  let normalized = (in.uv - vec2<f32>(0.5, 0.5)) / max(uniforms.fisheyeScaleOutputSize.xy, vec2<f32>(0.0001, 0.0001));
+  if (length(normalized) <= 1.0) {
+    return vec4<f32>(0.0, 1.0, 0.0, 1.0);
+  }
+  return vec4<f32>(0.0, 0.0, 0.0, 1.0);
+}
+
+@vertex
 fn vertexMain(@builtin(vertex_index) vertexIndex: u32, @location(0) sourceUv: vec2<f32>) -> VertexOut {
   var corners = array<vec2<f32>, 6>(
     vec2<f32>(-1.0, -1.0),
@@ -251,6 +279,7 @@ type DepthWebGpuRenderInput = {
   settings: DepthMotionInput;
   progress?: number;
   waitForCompletion?: boolean;
+  emptyBackground?: "black" | "greenDome";
 };
 type DepthWebGpuFrame = { texture: GPUTexture | null; width: number; height: number };
 type DepthPreviewUniformProfile = Pick<ProjectionProfile, "fisheyeScaleX" | "fisheyeScaleY">;
@@ -276,6 +305,7 @@ export function createDepthWebGpuPreviewRenderer({
   let presentationFormat: GPUTextureFormat;
   let basePipeline: GPURenderPipeline;
   let gapFillPipeline: GPURenderPipeline;
+  let backgroundPipeline: GPURenderPipeline;
   let bindGroupLayout: GPUBindGroupLayout;
   let sampler: GPUSampler;
   let baseUniformBuffer: GPUBuffer;
@@ -338,8 +368,30 @@ export function createDepthWebGpuPreviewRenderer({
     const module = device.createShaderModule({ code: depthReprojectionShaderCode });
     basePipeline = createReprojectionPipeline(module, "base");
     gapFillPipeline = createReprojectionPipeline(module, "gapFill");
+    backgroundPipeline = createBackgroundPipeline(module);
     baseUniformBuffer = createUniformBuffer();
     gapFillUniformBuffer = createUniformBuffer();
+  }
+
+  function createBackgroundPipeline(module: GPUShaderModule): GPURenderPipeline {
+    return device.createRenderPipeline({
+      layout: device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] }),
+      vertex: {
+        module,
+        entryPoint: "backgroundVertexMain",
+      },
+      fragment: {
+        module,
+        entryPoint: "backgroundFragmentMain",
+        targets: [{ format: presentationFormat }],
+      },
+      primitive: { topology: "triangle-list", cullMode: "none" },
+      depthStencil: {
+        depthWriteEnabled: false,
+        depthCompare: "always",
+        format: DEPTH_STENCIL_FORMAT,
+      },
+    });
   }
 
   function createReprojectionPipeline(module: GPUShaderModule, passKind: "base" | "gapFill"): GPURenderPipeline {
@@ -403,6 +455,7 @@ export function createDepthWebGpuPreviewRenderer({
     settings,
     progress = 0.55,
     waitForCompletion = false,
+    emptyBackground = "black",
   }: DepthWebGpuRenderInput): Promise<DepthWebGpuFrame> {
     await initialize();
     const size = clamp(Math.round(profile.width || 512), 128, 1536);
@@ -460,6 +513,11 @@ export function createDepthWebGpuPreviewRenderer({
     });
     basePass.setViewport(0, 0, size, size, 0, 1);
     basePass.setScissorRect(0, 0, size, size);
+    if (emptyBackground === "greenDome") {
+      basePass.setPipeline(backgroundPipeline);
+      basePass.setBindGroup(0, baseBindGroup);
+      basePass.draw(3);
+    }
     basePass.setPipeline(basePipeline);
     basePass.setStencilReference(1);
     basePass.setBindGroup(0, baseBindGroup);

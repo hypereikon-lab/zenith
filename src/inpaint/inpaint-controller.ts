@@ -53,7 +53,6 @@ export function createInpaintController({
     updateMediaReadouts: () => void;
     updateDepthMotionUiState?: () => void;
     scheduleWorkspaceAutosave: ScheduleWorkspaceAutosave;
-    saveWorkspaceSnapshot?: (reason: string) => Promise<unknown> | unknown;
     setGpuState?: SetGpuState;
   };
 }) {
@@ -148,7 +147,6 @@ export function createInpaintController({
       } else {
         inpaintReadout.textContent = "Runway returned no images";
       }
-      await actions.saveWorkspaceSnapshot?.("inpaint-complete");
     } catch (error) {
       if (!handleStaleOperation(error, inpaintReadout)) {
         console.error(error);
