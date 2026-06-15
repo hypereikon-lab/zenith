@@ -3,10 +3,8 @@ import {
   CanvasSource,
   Mp4OutputFormat,
   Output,
-  canEncodeVideo,
 } from "mediabunny";
 
-const MP4_VIDEO_CODEC_FALLBACKS = ["avc", "hevc", "vp9", "av1"] as const;
 const AVC_PROFILE_PREFIXES = [
   "42e0", // Constrained Baseline
   "4200", // Baseline
@@ -23,7 +21,7 @@ const AVC_LEVELS = [
   { macroblocks: 36864, bitrate: 240_000_000, hex: "33" }, // 5.1
   { macroblocks: Number.POSITIVE_INFINITY, bitrate: Number.POSITIVE_INFINITY, hex: "34" }, // 5.2
 ];
-const HARDWARE_ACCELERATION_CANDIDATES: VideoEncoderConfig["hardwareAcceleration"][] = ["prefer-hardware", "no-preference", "prefer-software"];
+const REQUIRED_HARDWARE_ACCELERATION: VideoEncoderConfig["hardwareAcceleration"] = "prefer-hardware";
 type Mp4EncodeOptions = {
   width: number;
   height: number;
@@ -33,7 +31,7 @@ type Mp4EncodeOptions = {
   onProgress?: (stage: string, progress: number) => void;
 };
 type Mp4VideoConfig = {
-  codec: (typeof MP4_VIDEO_CODEC_FALLBACKS)[number];
+  codec: "avc";
   fullCodecString?: string;
   bitrate: number;
   latencyMode: VideoEncoderConfig["latencyMode"];
@@ -124,51 +122,29 @@ export async function supportedMp4VideoConfig({ width, height, fps }: BitrateInp
   const avcCandidates = avcCodecStringsForConfig({ width, height, bitrate });
 
   for (const fullCodecString of avcCandidates) {
-    for (const hardwareAcceleration of HARDWARE_ACCELERATION_CANDIDATES) {
-      const supportedConfig = await supportedVideoEncoderConfig({
-        codec: fullCodecString,
-        width,
-        height,
+    const supportedConfig = await supportedVideoEncoderConfig({
+      codec: fullCodecString,
+      width,
+      height,
+      bitrate,
+      framerate: fps,
+      latencyMode: "quality",
+      hardwareAcceleration: REQUIRED_HARDWARE_ACCELERATION,
+      alpha: "discard",
+      avc: { format: "avc" },
+    });
+    if (supportedConfig) {
+      return {
+        codec: "avc",
+        fullCodecString: supportedConfig.codec || fullCodecString,
         bitrate,
-        framerate: fps,
-        latencyMode: "quality",
-        hardwareAcceleration,
-        alpha: "discard",
-        avc: { format: "avc" },
-      });
-      if (supportedConfig) {
-        return {
-          codec: "avc",
-          fullCodecString: supportedConfig.codec || fullCodecString,
-          bitrate,
-          latencyMode: supportedConfig.latencyMode || "quality",
-          hardwareAcceleration: supportedConfig.hardwareAcceleration || hardwareAcceleration,
-        };
-      }
+        latencyMode: supportedConfig.latencyMode || "quality",
+        hardwareAcceleration: supportedConfig.hardwareAcceleration || REQUIRED_HARDWARE_ACCELERATION,
+      };
     }
   }
 
-  for (const codec of MP4_VIDEO_CODEC_FALLBACKS) {
-    for (const hardwareAcceleration of HARDWARE_ACCELERATION_CANDIDATES) {
-      if (await canEncodeVideoConfig(codec, {
-        width,
-        height,
-        bitrate,
-        framerate: fps,
-        hardwareAcceleration,
-        latencyMode: "quality",
-      })) {
-        return {
-          codec,
-          bitrate,
-          latencyMode: "quality",
-          hardwareAcceleration,
-        };
-      }
-    }
-  }
-
-  throw new Error("No MP4-compatible WebCodecs encoder is available in this browser.");
+  throw new Error("No supported AVC WebCodecs MP4 encoder is available in this browser.");
 }
 
 async function supportedVideoEncoderConfig(config: VideoConfigProbe): Promise<VideoEncoderConfig | null> {
@@ -178,14 +154,6 @@ async function supportedVideoEncoderConfig(config: VideoConfigProbe): Promise<Vi
     return support?.supported ? support.config || config : null;
   } catch {
     return null;
-  }
-}
-
-async function canEncodeVideoConfig(codec: (typeof MP4_VIDEO_CODEC_FALLBACKS)[number], options: Record<string, unknown>): Promise<boolean> {
-  try {
-    return await canEncodeVideo(codec, options);
-  } catch {
-    return false;
   }
 }
 

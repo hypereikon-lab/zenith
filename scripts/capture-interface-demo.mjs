@@ -1,14 +1,16 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 
-const CHROME = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
-const APP_URL = "http://127.0.0.1:5174";
+const CHROME = process.env.CHROME_PATH || (await findChromeExecutable());
+const APP_URL = process.env.ZENITH_CAPTURE_APP_URL || "http://127.0.0.1:5173";
 const DEBUG_PORT = 9223;
 const WIDTH = 1080;
 const HEIGHT = 1920;
 const FPS = 6;
-const OUT_DIR = process.env.ZENITH_CAPTURE_OUT_DIR || "C:\\Users\\sebas\\Downloads\\zenith-interface-captures";
+const OUT_DIR =
+  process.env.ZENITH_CAPTURE_OUT_DIR || path.join(os.homedir(), "Downloads", "zenith-interface-captures");
 const PROFILE_DIR = path.join(process.cwd(), ".tmp-chrome-capture-profile");
 
 class CdpPage {
@@ -308,4 +310,34 @@ async function fetchJson(url) {
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function findChromeExecutable() {
+  const candidatesByPlatform = {
+    darwin: [
+      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+      path.join(os.homedir(), "Applications", "Google Chrome.app", "Contents", "MacOS", "Google Chrome"),
+    ],
+    win32: [
+      "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+      "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      path.join(os.homedir(), "AppData", "Local", "Google", "Chrome", "Application", "chrome.exe"),
+    ],
+    linux: ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"],
+  };
+  const candidates = candidatesByPlatform[process.platform] || candidatesByPlatform.linux;
+  for (const candidate of candidates) {
+    if (process.platform === "linux" && !path.isAbsolute(candidate)) return candidate;
+    if (await fileExists(candidate)) return candidate;
+  }
+  throw new Error("Could not find Google Chrome. Set CHROME_PATH to the Chrome executable path.");
+}
+
+async function fileExists(filePath) {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
 }

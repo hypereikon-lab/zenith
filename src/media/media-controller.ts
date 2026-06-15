@@ -2,6 +2,7 @@ import { cloneCanvas, imageBitmapToCanvas } from "./canvas-utils.js";
 import { createDefaultMap } from "./default-map.js";
 import { formatMediaTime } from "./video-transport.js";
 import type { ScheduleWorkspaceAutosave, SetGpuState, ZenithState } from "../app/types.js";
+import type { PipelineReadouts } from "../app/pipeline-state.svelte.js";
 
 type UploadOptions = { preserveDepthPreview?: boolean };
 type DisplayTextureOptions = { sourceCanvas?: HTMLCanvasElement | null };
@@ -10,9 +11,6 @@ type MediaUploadSource = ImageBitmap | HTMLCanvasElement | HTMLVideoElement;
 type MediaControllerOptions = {
   state: ZenithState;
   elements: {
-    sourceReadout: HTMLElement;
-    mediaReadout: HTMLElement;
-    uploadReadout: HTMLElement;
     playbackRate: HTMLSelectElement | HTMLInputElement;
   };
   video: HTMLVideoElement;
@@ -29,7 +27,6 @@ type MediaControllerOptions = {
     bindExternalSourceTexture: (texture: GPUTexture) => void;
     restoreOwnedSourceTexture: () => void;
     resetVideoUploadState: () => void;
-    getVideoUploadMode: () => string;
   };
   runwayOperations: {
     abortAll: (message: string) => void;
@@ -37,6 +34,7 @@ type MediaControllerOptions = {
   actions: {
     clearDepthMapState?: (message: string) => void;
     setGpuState: SetGpuState;
+    setReadouts: (readouts: Partial<PipelineReadouts>) => void;
     scheduleWorkspaceAutosave: ScheduleWorkspaceAutosave;
   };
 };
@@ -50,8 +48,6 @@ export function createMediaController({
   runwayOperations,
   actions,
 }: MediaControllerOptions) {
-  const { sourceReadout, mediaReadout, uploadReadout } = elements;
-
   async function loadDefaultTexture() {
     const defaultMap = createDefaultMap(2048);
     const bitmap = await createImageBitmap(defaultMap);
@@ -74,7 +70,7 @@ export function createMediaController({
     } catch (error) {
       console.error(error);
       actions.setGpuState("Media failed", true);
-      sourceReadout.textContent = `Could not load ${file.name}`;
+      actions.setReadouts({ source: `Could not load ${file.name}` });
     }
   }
 
@@ -245,19 +241,27 @@ export function createMediaController({
     if (state.depthPreviewActive) {
       const width = state.depthPreviewWidth || state.sourceWidth;
       const height = state.depthPreviewHeight || state.sourceHeight;
-      sourceReadout.textContent = state.depthPreviewName || "Depth motion preview";
-      mediaReadout.textContent = `${width} x ${height} depth motion`;
-      uploadReadout.textContent = state.depthPreviewSourceKind === "texture" ? "Depth GPU texture" : "Depth preview frame";
+      actions.setReadouts({
+        source: state.depthPreviewName || "Depth motion preview",
+        media: `${width} x ${height} depth motion`,
+        upload: state.depthPreviewSourceKind === "texture" ? "Depth GPU texture" : "Depth preview frame",
+      });
       return;
     }
-    sourceReadout.textContent = state.sourceName;
+    const source = state.sourceName;
     if (state.mediaKind === "video") {
       const duration = state.mediaDuration ? `, ${formatMediaTime(state.mediaDuration)}` : "";
-      mediaReadout.textContent = `${state.sourceWidth} x ${state.sourceHeight} video${duration}`;
-      uploadReadout.textContent = renderer.getVideoUploadMode() === "canvas" ? "Canvas video frame" : "Pending video frame";
+      actions.setReadouts({
+        source,
+        media: `${state.sourceWidth} x ${state.sourceHeight} video${duration}`,
+        upload: "Pending direct WebGPU video frame",
+      });
     } else {
-      mediaReadout.textContent = `${state.sourceWidth} x ${state.sourceHeight} image`;
-      uploadReadout.textContent = "Image texture";
+      actions.setReadouts({
+        source,
+        media: `${state.sourceWidth} x ${state.sourceHeight} image`,
+        upload: "Image texture",
+      });
     }
   }
 
