@@ -1,0 +1,12 @@
+CAVE carrier experiment prompts
+
+Use these as GPT Image 2 / inpaint prompt starting points.
+
+1. CAVE continuity mural
+Use the image as a continuous CAVE room carrier map. The left and right edges wrap into each other. The horizontal axis is room perimeter travel across front, right, back, and left walls. The upper band is upper wall / overhead continuation. The middle band is wall and horizon continuity. The lower band is floor continuation compressed toward the viewer. Fill missing regions as one coherent CAVE environment. Preserve horizontal continuity across the full width. Do not create cube-face cuts, seams, labels, guides, borders, or polar circular distortion.
+
+2. CAVE rounded-square carrier
+Use the image as a continuous rounded-square CAVE carrier. The center is floor continuation below the viewer. Moving outward reaches lower wall, horizon, upper wall, and overhead allowance. The square perimeter wraps around the room horizontally. Preserve continuous geometry and object identity across all guide lines. Remove guide marks and output a clean image with no seams, labels, or construction marks.
+
+3. Current CAVE 270 polar reference
+Use this only as a baseline. It is a circular 270-degree CAVE source carrier with floor at center and horizon at two-thirds radius. Repair missing regions while preserving the circular source geometry. Compare against the mural and rounded-square carriers to see which prompt is easiest for the model to obey.
