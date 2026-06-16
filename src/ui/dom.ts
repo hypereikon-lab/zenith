@@ -97,6 +97,8 @@ export function queryZenithDom() {
       showLabels: q<ControlElement>("#showLabels"),
       showSourceCircle: q<ControlElement>("#showSourceCircle"),
       showZenith: q<ControlElement>("#showZenith"),
+      showCaveMask: (document.querySelector("#showCaveMask") as ControlElement | null) || undefined,
+      invertCaveMask: (document.querySelector("#invertCaveMask") as ControlElement | null) || undefined,
       plateCount: q<ControlElement>("#plateCount"),
       plateFit: q<ControlElement>("#plateFit"),
       plateFeather: q<ControlElement>("#plateFeather"),

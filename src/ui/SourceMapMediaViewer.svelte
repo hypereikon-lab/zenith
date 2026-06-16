@@ -20,10 +20,13 @@
     plateEditorViewLabel,
   } from "../plates/plate-editor-view.js";
   import { clamp } from "../projection.js";
+  import { sourceGuideBreakpoints, sourceGuideZones } from "../geometry/source-guide-semantics.js";
+  import type { SourceGuideBreakpoint } from "../geometry/source-guide-semantics.js";
   import type { ArtifactMedia } from "../artifacts/artifact-types.js";
   import type { ProjectionCameraDragModifiers } from "../geometry/projection-camera-controls.js";
   import type { SourceMapPreviewRenderer } from "../graphics/source-map-preview-renderer.js";
   import type { PlateEditorViewMode } from "../plates/plate-editor-view.js";
+  import CameraControlsPanel from "./CameraControlsPanel.svelte";
 
   const PREVIEW_SIZE = 960;
 
@@ -37,6 +40,8 @@
   let loadedSourceKey = "";
   let imageSize = $state({ width: 0, height: 0 });
   let viewMode = $state<PlateEditorViewMode>("source-map");
+  let showCaveMask = $state<boolean>(false);
+  let invertCaveMask = $state<boolean>(false);
   let viewCamera = $state(defaultPlateEditorCamera(workbench.projectionProfile));
   let status = $state("Drop or import an image to inspect it through projection geometry.");
   let videoPlaying = $state(false);
@@ -45,6 +50,7 @@
   let previousProjectionProfile = workbench.projectionProfile;
   let renderSerial = 0;
   let videoFrameRequest: number | null = null;
+  let videoFrameCallbackId: number | null = null;
   let activeCameraDrag = $state<{
     pointerId: number;
     startClient: { x: number; y: number };
@@ -53,6 +59,20 @@
     started: boolean;
   } | null>(null);
   let viewCameraEuler = $derived(eulerDegreesFromQuaternion(viewCamera.orientation));
+
+  let activeGuideBreakpointDrag = $state<GuideBreakpointDrag | null>(null);
+  let guideBreakpoints = $derived(
+    sourceGuideBreakpoints(workbench.projectionProfile, workbench.domeGuideSemanticSplit, workbench.domeGuideHorizonSplit),
+  );
+  let guideZones = $derived(
+    sourceGuideZones(workbench.projectionProfile, workbench.domeGuideSemanticSplit, workbench.domeGuideHorizonSplit),
+  );
+
+  type GuideBreakpointId = SourceGuideBreakpoint["id"];
+  type GuideBreakpointDrag = {
+    id: GuideBreakpointId;
+    railRect: DOMRect;
+  };
 
   onMount(() => {
     if (canvas) {
@@ -67,6 +87,36 @@
     };
   });
 
+  let canvasWidth = $state(960);
+  let canvasHeight = $state(960);
+
+  $effect(() => {
+    if (!canvas) return;
+    const updateSize = () => {
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const pixelRatio = window.devicePixelRatio || 1;
+      const w = Math.max(1, Math.round(rect.width * pixelRatio));
+      const h = Math.max(1, Math.round(rect.height * pixelRatio));
+      if (canvasWidth !== w || canvasHeight !== h) {
+        canvasWidth = w;
+        canvasHeight = h;
+      }
+    };
+    updateSize();
+
+    const observer = new ResizeObserver(() => {
+      updateSize();
+    });
+    observer.observe(canvas);
+
+    window.addEventListener("resize", updateSize);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateSize);
+    };
+  });
+
   $effect(() => {
     const projectionProfile = workbench.projectionProfile;
     const viewerMode = workbench.viewerMode;
@@ -77,6 +127,10 @@
     const sourceVideo = videoElement;
     const selectedViewMode = effectiveViewMode();
     const camera = viewCamera;
+    const caveMask = showCaveMask;
+    const invertMask = invertCaveMask;
+    const width = canvasWidth;
+    const height = canvasHeight;
     if (projectionProfile !== previousProjectionProfile) {
       previousProjectionProfile = projectionProfile;
       viewCamera = defaultPlateEditorCamera(projectionProfile);
@@ -91,6 +145,10 @@
       camera,
       innerGuideSplit,
       horizonGuideSplit,
+      caveMask,
+      invertMask,
+      width,
+      height,
     );
   });
 
@@ -116,6 +174,10 @@
     camera: typeof viewCamera,
     innerGuideSplit: number,
     horizonGuideSplit: number,
+    showCaveMask: boolean,
+    invertCaveMask: boolean,
+    width: number = PREVIEW_SIZE,
+    height: number = PREVIEW_SIZE,
   ) {
     const serial = ++renderSerial;
     if (!canvas) return;
@@ -143,14 +205,16 @@
         imageSize = { width: sourceVideo.videoWidth, height: sourceVideo.videoHeight };
         loadedSourceKey = `video:${mediaUrl}`;
         gpu.render({
-          width: PREVIEW_SIZE,
-          height: PREVIEW_SIZE,
+          width,
+          height,
           sourceProjectionMode: projectionProfile,
           projectionViewMode: selectedViewMode,
           projectionCamera: camera,
           showProjectionGuides: viewerMode !== "domemaster",
           domeGuideSemanticSplit: innerGuideSplit,
           domeGuideHorizonSplit: horizonGuideSplit,
+          showCaveMask,
+          invertCaveMask,
         });
         updateVideoClock();
         status = `${label} MP4 mapped as ${sourceProjectionLabel(projectionProfile)} / ${plateEditorViewLabel(selectedViewMode)}${
@@ -176,14 +240,16 @@
         loadedSourceKey = `image:${mediaUrl}`;
       }
       gpu.render({
-        width: PREVIEW_SIZE,
-        height: PREVIEW_SIZE,
+        width,
+        height,
         sourceProjectionMode: projectionProfile,
         projectionViewMode: selectedViewMode,
         projectionCamera: camera,
         showProjectionGuides: viewerMode !== "domemaster",
         domeGuideSemanticSplit: innerGuideSplit,
         domeGuideHorizonSplit: horizonGuideSplit,
+        showCaveMask,
+        invertCaveMask,
       });
       status = `${label} mapped as ${sourceProjectionLabel(projectionProfile)} / ${plateEditorViewLabel(selectedViewMode)}${
         imageSize.width > 0 ? ` (${imageSize.width} x ${imageSize.height})` : ""
@@ -196,11 +262,6 @@
 
   function effectiveViewMode(): PlateEditorViewMode {
     return plateEditorViewDisabledReason(viewMode, workbench.projectionProfile) ? "source-map" : viewMode;
-  }
-
-  function setViewMode(mode: PlateEditorViewMode) {
-    if (plateEditorViewDisabledReason(mode, workbench.projectionProfile)) return;
-    viewMode = mode;
   }
 
   function setViewerMode(mode: typeof workbench.viewerMode) {
@@ -286,22 +347,11 @@
       viewCamera,
       workbench.domeGuideSemanticSplit,
       workbench.domeGuideHorizonSplit,
+      showCaveMask,
+      invertCaveMask,
+      canvasWidth,
+      canvasHeight,
     );
-  }
-
-  function updateCameraPosition(axis: 0 | 1 | 2, value: number) {
-    const position = [...viewCamera.position] as [number, number, number];
-    position[axis] = value;
-    updateViewCamera({ position });
-  }
-
-  function updateCameraEuler(axis: "yawDegrees" | "pitchDegrees" | "rollDegrees", value: number) {
-    const next = { ...viewCameraEuler, [axis]: value };
-    updateViewCamera({ orientation: quaternionFromEulerDegrees(next.yawDegrees, next.pitchDegrees, next.rollDegrees) });
-  }
-
-  function nudgeCamera(truck: number, lift: number, push: number) {
-    viewCamera = nudgeProjectionCamera(viewCamera, effectiveViewMode(), truck, lift, push);
   }
 
   function previewViewport(): { width: number; height: number } {
@@ -373,21 +423,42 @@
   }
 
   function startVideoRenderLoop() {
-    if (videoFrameRequest !== null) return;
-    const tick = () => {
-      videoFrameRequest = null;
-      const video = videoElement;
-      if (!video || video.paused || video.ended) return;
-      renderCurrentMedia();
+    const video = videoElement;
+    if (!video) return;
+
+    if ("requestVideoFrameCallback" in video) {
+      if (videoFrameCallbackId !== null) return;
+      const tick = () => {
+        videoFrameCallbackId = null;
+        if (video.paused || video.ended) return;
+        updateVideoClock();
+        renderCurrentMedia();
+        videoFrameCallbackId = video.requestVideoFrameCallback(tick);
+      };
+      videoFrameCallbackId = video.requestVideoFrameCallback(tick);
+    } else {
+      if (videoFrameRequest !== null) return;
+      const tick = () => {
+        videoFrameRequest = null;
+        if (video.paused || video.ended) return;
+        updateVideoClock();
+        renderCurrentMedia();
+        videoFrameRequest = requestAnimationFrame(tick);
+      };
       videoFrameRequest = requestAnimationFrame(tick);
-    };
-    videoFrameRequest = requestAnimationFrame(tick);
+    }
   }
 
   function stopVideoRenderLoop() {
-    if (videoFrameRequest === null) return;
-    cancelAnimationFrame(videoFrameRequest);
-    videoFrameRequest = null;
+    const video = videoElement;
+    if (videoFrameCallbackId !== null && video && "cancelVideoFrameCallback" in video) {
+      video.cancelVideoFrameCallback(videoFrameCallbackId);
+      videoFrameCallbackId = null;
+    }
+    if (videoFrameRequest !== null) {
+      cancelAnimationFrame(videoFrameRequest);
+      videoFrameRequest = null;
+    }
   }
 
   function formatTime(seconds: number): string {
@@ -395,6 +466,94 @@
     const minutes = Math.floor(seconds / 60);
     const wholeSeconds = Math.floor(seconds % 60);
     return `${minutes}:${wholeSeconds.toString().padStart(2, "0")}`;
+  }
+
+  function handleGuideRailPointerDown(event: PointerEvent) {
+    const breakpoint = nearestEditableBreakpoint(pointerRadiusOnRail(event, event.currentTarget.getBoundingClientRect()));
+    if (!breakpoint) return;
+    startGuideBreakpointDrag(event, breakpoint.id, event.currentTarget);
+  }
+
+  function handleGuideBreakpointPointerDown(event: PointerEvent, breakpointId: GuideBreakpointId) {
+    event.stopPropagation();
+    const rail = event.currentTarget.closest(".guide-breakpoint-rail");
+    if (!rail) return;
+    startGuideBreakpointDrag(event, breakpointId, rail);
+  }
+
+  function startGuideBreakpointDrag(event: PointerEvent, breakpointId: GuideBreakpointId, rail: HTMLElement) {
+    activeGuideBreakpointDrag = {
+      id: breakpointId,
+      railRect: rail.getBoundingClientRect(),
+    };
+    updateGuideBreakpointFromPointer(event, activeGuideBreakpointDrag);
+  }
+
+  function handleGuideBreakpointPointerMove(event: PointerEvent) {
+    const drag = activeGuideBreakpointDrag;
+    if (!drag) return;
+    updateGuideBreakpointFromPointer(event, drag);
+  }
+
+  function handleGuideBreakpointPointerUp(event: PointerEvent) {
+    const drag = activeGuideBreakpointDrag;
+    if (!drag) return;
+    activeGuideBreakpointDrag = null;
+  }
+
+  function handleGuideBreakpointKeydown(event: KeyboardEvent, breakpointId: GuideBreakpointId) {
+    let delta = 0;
+    if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
+      delta = -0.01;
+    } else if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+      delta = 0.01;
+    } else if (event.key === "Home") {
+      setGuideBreakpointRadius(breakpointId, 0);
+      return;
+    } else if (event.key === "End") {
+      setGuideBreakpointRadius(breakpointId, 1);
+      return;
+    } else {
+      return;
+    }
+    const current = guideBreakpoints.find((breakpoint) => breakpoint.id === breakpointId)?.radius ?? 0;
+    setGuideBreakpointRadius(breakpointId, current + delta);
+  }
+
+  function updateGuideBreakpointFromPointer(event: PointerEvent, drag: GuideBreakpointDrag) {
+    setGuideBreakpointRadius(drag.id, pointerRadiusOnRail(event, drag.railRect));
+  }
+
+  function pointerRadiusOnRail(event: PointerEvent, railRect: DOMRect): number {
+    return clamp((event.clientX - railRect.left) / Math.max(railRect.width, 1), 0, 1);
+  }
+
+  function nearestEditableBreakpoint(radius: number): SourceGuideBreakpoint | null {
+    const editable = guideBreakpoints.filter((breakpoint) => breakpoint.editable);
+    if (editable.length === 0) return null;
+    return editable.reduce((nearest, breakpoint) =>
+      Math.abs(breakpoint.radius - radius) < Math.abs(nearest.radius - radius) ? breakpoint : nearest,
+    );
+  }
+
+  function setGuideBreakpointRadius(breakpointId: GuideBreakpointId, radius: number) {
+    if (breakpointId === "inner-split") {
+      workbench.domeGuideSemanticSplit = clamp(radius, 0.05, 0.95);
+    } else if (breakpointId === "carrier-horizon" || breakpointId === "physical-horizon") {
+      workbench.domeGuideHorizonSplit = clamp(radius, 0.05, 0.95);
+    }
+  }
+
+  function guideBreakpointSummary(): string {
+    return guideBreakpoints.map((breakpoint) => `${breakpoint.label} ${formatPercent(breakpoint.radius)}`).join(" · ");
+  }
+
+  function guideZoneSummary(): string {
+    return guideZones.map((zone) => `${zone.label}`).join(" · ");
+  }
+
+  function formatPercent(value: number): string {
+    return `${Math.round(value * 100)}%`;
   }
 </script>
 
@@ -434,6 +593,13 @@
       onwheel={handleWheel}
       oncontextmenu={(event) => event.preventDefault()}
     ></canvas>
+    {#if effectiveViewMode() !== "source-map" && hasProjectableMedia()}
+      <div class="viewer-hud-hint">
+        <span>🖱️ Drag to Rotate</span>
+        <span>Shift+Drag to Pan</span>
+        <span>Scroll to Zoom</span>
+      </div>
+    {/if}
   </div>
 
   <div class="source-map-tools">
@@ -460,22 +626,6 @@
         </label>
       </div>
     {/if}
-
-    <div class="viewer-mode-group source-map-surface-mode" aria-label={`${label} projection surface`}>
-      {#each PLATE_EDITOR_VIEW_MODES as mode}
-        {@const disabledReason = plateEditorViewDisabledReason(mode, workbench.projectionProfile)}
-        <button
-          type="button"
-          class:selected={effectiveViewMode() === mode}
-          aria-pressed={effectiveViewMode() === mode ? "true" : "false"}
-          disabled={Boolean(disabledReason)}
-          title={disabledReason || `${plateEditorViewLabel(mode)} preview surface`}
-          onclick={() => setViewMode(mode)}
-        >
-          {plateEditorViewLabel(mode)}
-        </button>
-      {/each}
-    </div>
 
     <div class="viewer-mode-group" aria-label={`${label} guide overlay`}>
       <button
@@ -504,102 +654,70 @@
       </button>
     </div>
 
-    {#if effectiveViewMode() !== "source-map"}
-      <div class="motion-controls projection-camera-controls" aria-label={`${label} projection camera controls`}>
-        <label for="source-map-camera-x">
-          <span>Camera X {viewCamera.position[0].toFixed(2)}m</span>
-          <input
-            id="source-map-camera-x"
-            type="range"
-            min="-8"
-            max="8"
-            step="0.01"
-            value={viewCamera.position[0]}
-            oninput={(event) => updateCameraPosition(0, Number((event.currentTarget as HTMLInputElement).value))}
-          />
-        </label>
-        <label for="source-map-camera-y">
-          <span>Camera Y {viewCamera.position[1].toFixed(2)}m</span>
-          <input
-            id="source-map-camera-y"
-            type="range"
-            min="-8"
-            max="8"
-            step="0.01"
-            value={viewCamera.position[1]}
-            oninput={(event) => updateCameraPosition(1, Number((event.currentTarget as HTMLInputElement).value))}
-          />
-        </label>
-        <label for="source-map-camera-z">
-          <span>Camera Z {viewCamera.position[2].toFixed(2)}m</span>
-          <input
-            id="source-map-camera-z"
-            type="range"
-            min="-8"
-            max="8"
-            step="0.01"
-            value={viewCamera.position[2]}
-            oninput={(event) => updateCameraPosition(2, Number((event.currentTarget as HTMLInputElement).value))}
-          />
-        </label>
-        <label for="source-map-view-yaw">
-          <span>Yaw {viewCameraEuler.yawDegrees.toFixed(1)} deg</span>
-          <input
-            id="source-map-view-yaw"
-            type="range"
-            min="-180"
-            max="180"
-            step="0.1"
-            value={viewCameraEuler.yawDegrees}
-            oninput={(event) => updateCameraEuler("yawDegrees", Number((event.currentTarget as HTMLInputElement).value))}
-          />
-        </label>
-        <label for="source-map-view-pitch">
-          <span>Pitch {viewCameraEuler.pitchDegrees.toFixed(1)} deg</span>
-          <input
-            id="source-map-view-pitch"
-            type="range"
-            min="-180"
-            max="180"
-            step="0.1"
-            value={viewCameraEuler.pitchDegrees}
-            oninput={(event) => updateCameraEuler("pitchDegrees", Number((event.currentTarget as HTMLInputElement).value))}
-          />
-        </label>
-        <label for="source-map-view-roll">
-          <span>Roll {viewCameraEuler.rollDegrees.toFixed(1)} deg</span>
-          <input
-            id="source-map-view-roll"
-            type="range"
-            min="-180"
-            max="180"
-            step="0.1"
-            value={viewCameraEuler.rollDegrees}
-            oninput={(event) => updateCameraEuler("rollDegrees", Number((event.currentTarget as HTMLInputElement).value))}
-          />
-        </label>
-        <label for="source-map-view-fov">
-          <span>View FOV {Math.round(viewCamera.fovDegrees)} deg</span>
-          <input
-            id="source-map-view-fov"
-            type="range"
-            min="42"
-            max="128"
-            step="1"
-            value={viewCamera.fovDegrees}
-            oninput={(event) => updateViewCamera({ fovDegrees: clamp(Number((event.currentTarget as HTMLInputElement).value), 42, 128) })}
-          />
-        </label>
-        <div class="camera-nudge-grid" aria-label={`${label} local camera movement`}>
-          <button type="button" class="secondary-action compact-action" onclick={() => nudgeCamera(-0.2, 0, 0)}>Truck left</button>
-          <button type="button" class="secondary-action compact-action" onclick={() => nudgeCamera(0.2, 0, 0)}>Truck right</button>
-          <button type="button" class="secondary-action compact-action" onclick={() => nudgeCamera(0, 0.2, 0)}>Lift up</button>
-          <button type="button" class="secondary-action compact-action" onclick={() => nudgeCamera(0, -0.2, 0)}>Lift down</button>
-          <button type="button" class="secondary-action compact-action" onclick={() => nudgeCamera(0, 0, 0.2)}>Push forward</button>
-          <button type="button" class="secondary-action compact-action" onclick={() => nudgeCamera(0, 0, -0.2)}>Pull back</button>
-        </div>
+    <div class="projection-guide-controls" aria-label="Projection handoff guide controls">
+      <div class="guide-breakpoint-control">
+        <span class="guide-breakpoint-title">Source-map breakpoints</span>
+        <span class="guide-breakpoint-summary">{guideZoneSummary()}</span>
+        <span class="guide-breakpoint-rail-wrap">
+          <span
+            class="guide-breakpoint-rail"
+            role="group"
+            aria-label="Source-map breakpoint rail"
+            onpointerdown={handleGuideRailPointerDown}
+            onpointermove={handleGuideBreakpointPointerMove}
+            onpointerup={handleGuideBreakpointPointerUp}
+            onpointercancel={handleGuideBreakpointPointerUp}
+          >
+            {#each guideZones as zone}
+              <span
+                class={`guide-breakpoint-zone ${zone.tone}`}
+                style={`left: ${zone.startRadius * 100}%; width: ${(zone.endRadius - zone.startRadius) * 100}%`}
+              ></span>
+            {/each}
+            {#each guideBreakpoints as breakpoint}
+              {#if breakpoint.editable}
+                <button
+                  type="button"
+                  class:editable={breakpoint.editable}
+                  class:horizon={breakpoint.role === "horizon"}
+                  class="guide-breakpoint-marker"
+                  style={`left: ${breakpoint.radius * 100}%`}
+                  title={`${breakpoint.label} ${formatPercent(breakpoint.radius)}`}
+                  aria-label={`${breakpoint.label} breakpoint at ${formatPercent(breakpoint.radius)}`}
+                  onpointerdown={(event) => handleGuideBreakpointPointerDown(event, breakpoint.id)}
+                  onkeydown={(event) => handleGuideBreakpointKeydown(event, breakpoint.id)}
+                ></button>
+              {:else}
+                <span
+                  class:horizon={breakpoint.role === "horizon"}
+                  class="guide-breakpoint-marker"
+                  style={`left: ${breakpoint.radius * 100}%`}
+                  title={`${breakpoint.label} ${formatPercent(breakpoint.radius)}`}
+                ></span>
+              {/if}
+            {/each}
+          </span>
+        </span>
+        <span class="guide-breakpoint-values">
+          {#each guideBreakpoints as breakpoint}
+            <span class:fixed={!breakpoint.editable}>
+              {breakpoint.label} {formatPercent(breakpoint.radius)}
+            </span>
+          {/each}
+        </span>
       </div>
-    {/if}
+    </div>
+
+    <CameraControlsPanel
+      bind:viewMode
+      bind:viewCamera
+      bind:showCaveMask
+      bind:invertCaveMask
+      projectionProfile={workbench.projectionProfile}
+      onNudge={(truck, lift, push) => {
+        viewCamera = nudgeProjectionCamera(viewCamera, effectiveViewMode(), truck, lift, push);
+      }}
+    />
 
     <output class="source-map-status">{status}</output>
   </div>

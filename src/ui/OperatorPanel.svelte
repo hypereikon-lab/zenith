@@ -35,6 +35,13 @@
   function importAccept(operatorId: string) {
     return operatorId === "import-source" ? "image/*,video/*" : "image/*";
   }
+
+  let sectionOpen = $state({
+    rotation: true,
+    translation: false,
+    depth: false,
+    render: false
+  });
 </script>
 
 <section class="operator-panel" aria-label="Valid operations for selected artifact">
@@ -76,115 +83,162 @@
           {/if}
 
           {#if item.operator.configFields?.includes("duration")}
-            <div class="motion-controls" aria-label="Motion Draft local settings">
-              <label for="motion-duration">
-                <span>Duration {workbench.motionConfig.duration}s</span>
-                <input id="motion-duration" type="number" min="1" max="15" step="0.5" bind:value={workbench.motionConfig.duration} />
-              </label>
-              <label for="motion-fps">
-                <span>FPS</span>
-                <input id="motion-fps" type="number" min="6" max="30" step="1" bind:value={workbench.motionConfig.fps} />
-              </label>
-              <label for="motion-size">
-                <span>Output size</span>
-                <select id="motion-size" bind:value={workbench.motionConfig.size}>
-                  <option value={512}>512 px</option>
-                  <option value={768}>768 px</option>
-                  <option value={1024}>1024 px</option>
-                  <option value={1536}>1536 px</option>
-                </select>
-              </label>
-              <label for="motion-radius-scale">
-                <span>Radius scale {workbench.motionConfig.radiusScale.toFixed(2)}</span>
-                <input
-                  id="motion-radius-scale"
-                  type="range"
-                  min="0.75"
-                  max="1.25"
-                  step="0.001"
-                  bind:value={workbench.motionConfig.radiusScale}
-                />
-              </label>
-              <label for="motion-yaw">
-                <span>Yaw {workbench.motionConfig.yaw}°</span>
-                <input id="motion-yaw" type="range" min="-45" max="45" step="1" bind:value={workbench.motionConfig.yaw} />
-              </label>
-              <label for="motion-pitch">
-                <span>Pitch {workbench.motionConfig.pitch}°</span>
-                <input id="motion-pitch" type="range" min="-30" max="30" step="1" bind:value={workbench.motionConfig.pitch} />
-              </label>
-              <label for="motion-roll">
-                <span>Roll {workbench.motionConfig.roll}°</span>
-                <input id="motion-roll" type="range" min="-30" max="30" step="1" bind:value={workbench.motionConfig.roll} />
-              </label>
-              <label for="motion-truck">
-                <span>Truck {workbench.motionConfig.truck.toFixed(2)}m</span>
-                <input id="motion-truck" type="range" min="-2" max="2" step="0.01" bind:value={workbench.motionConfig.truck} />
-              </label>
-              <label for="motion-lift">
-                <span>Lift {workbench.motionConfig.lift.toFixed(2)}m</span>
-                <input id="motion-lift" type="range" min="-2" max="2" step="0.01" bind:value={workbench.motionConfig.lift} />
-              </label>
-              <label for="motion-push">
-                <span>Push {workbench.motionConfig.push.toFixed(2)}m</span>
-                <input id="motion-push" type="range" min="-2" max="2" step="0.01" bind:value={workbench.motionConfig.push} />
-              </label>
-              <label for="motion-depth-gain">
-                <span>Motion gain {workbench.motionConfig.depthGain.toFixed(2)}</span>
-                <input
-                  id="motion-depth-gain"
-                  type="range"
-                  min="0.05"
-                  max="3"
-                  step="0.01"
-                  bind:value={workbench.motionConfig.depthGain}
-                />
-              </label>
-              <label for="motion-near">
-                <span>Near {workbench.motionConfig.nearMeters.toFixed(2)}m</span>
-                <input id="motion-near" type="number" min="0.001" max="50" step="0.1" bind:value={workbench.motionConfig.nearMeters} />
-              </label>
-              <label for="motion-far">
-                <span>Far {workbench.motionConfig.farMeters.toFixed(2)}m</span>
-                <input id="motion-far" type="number" min="0.01" max="100" step="0.1" bind:value={workbench.motionConfig.farMeters} />
-              </label>
-              <label for="motion-depth-contrast">
-                <span>Depth contrast {workbench.motionConfig.depthContrast.toFixed(2)}</span>
-                <input
-                  id="motion-depth-contrast"
-                  type="range"
-                  min="0.25"
-                  max="4"
-                  step="0.01"
-                  bind:value={workbench.motionConfig.depthContrast}
-                />
-              </label>
-              <label for="motion-gap-fill">
-                <span>Gap fill {workbench.motionConfig.gapFillPasses}</span>
-                <input id="motion-gap-fill" type="range" min="0" max="8" step="1" bind:value={workbench.motionConfig.gapFillPasses} />
-              </label>
-              <label for="motion-polarity">
-                <span>Depth polarity</span>
-                <select id="motion-polarity" bind:value={workbench.motionConfig.polarity}>
-                  <option value="brightFar">Bright = far</option>
-                  <option value="brightNear">Bright = near</option>
-                </select>
-              </label>
-              <label for="motion-guide-mode">
-                <span>Preview guide</span>
-                <select id="motion-guide-mode" bind:value={workbench.motionConfig.guideMode}>
-                  <option value="source">Source color</option>
-                  <option value="depthShaded">Depth shaded</option>
-                  <option value="depthMap">Depth map</option>
-                </select>
-              </label>
-              <label for="motion-empty-background">
-                <span>Empty background</span>
-                <select id="motion-empty-background" bind:value={workbench.motionConfig.emptyBackground}>
-                  <option value="greenDome">Green inside dome handoff</option>
-                  <option value="black">Black</option>
-                </select>
-              </label>
+            <div class="accordion-group" aria-label="Motion Draft settings groups">
+              <!-- Section 1: Camera Rotation -->
+              <div class="accordion-item" class:open={sectionOpen.rotation}>
+                <button type="button" class="accordion-header" onclick={() => sectionOpen.rotation = !sectionOpen.rotation}>
+                  <span>📸 Camera Rotation</span>
+                  <span class="accordion-icon">{sectionOpen.rotation ? "▼" : "▶"}</span>
+                </button>
+                {#if sectionOpen.rotation}
+                  <div class="accordion-content">
+                    <label for="motion-yaw">
+                      <span>Yaw {workbench.motionConfig.yaw}°</span>
+                      <input id="motion-yaw" type="range" min="-45" max="45" step="1" bind:value={workbench.motionConfig.yaw} />
+                    </label>
+                    <label for="motion-pitch">
+                      <span>Pitch {workbench.motionConfig.pitch}°</span>
+                      <input id="motion-pitch" type="range" min="-30" max="30" step="1" bind:value={workbench.motionConfig.pitch} />
+                    </label>
+                    <label for="motion-roll">
+                      <span>Roll {workbench.motionConfig.roll}°</span>
+                      <input id="motion-roll" type="range" min="-30" max="30" step="1" bind:value={workbench.motionConfig.roll} />
+                    </label>
+                  </div>
+                {/if}
+              </div>
+
+              <!-- Section 2: Camera Translation -->
+              <div class="accordion-item" class:open={sectionOpen.translation}>
+                <button type="button" class="accordion-header" onclick={() => sectionOpen.translation = !sectionOpen.translation}>
+                  <span>🚀 Translation & Position</span>
+                  <span class="accordion-icon">{sectionOpen.translation ? "▼" : "▶"}</span>
+                </button>
+                {#if sectionOpen.translation}
+                  <div class="accordion-content">
+                    <label for="motion-truck">
+                      <span>Truck {workbench.motionConfig.truck.toFixed(2)}m</span>
+                      <input id="motion-truck" type="range" min="-2" max="2" step="0.01" bind:value={workbench.motionConfig.truck} />
+                    </label>
+                    <label for="motion-lift">
+                      <span>Lift {workbench.motionConfig.lift.toFixed(2)}m</span>
+                      <input id="motion-lift" type="range" min="-2" max="2" step="0.01" bind:value={workbench.motionConfig.lift} />
+                    </label>
+                    <label for="motion-push">
+                      <span>Push {workbench.motionConfig.push.toFixed(2)}m</span>
+                      <input id="motion-push" type="range" min="-2" max="2" step="0.01" bind:value={workbench.motionConfig.push} />
+                    </label>
+                  </div>
+                {/if}
+              </div>
+
+              <!-- Section 3: Depth & Projection -->
+              <div class="accordion-item" class:open={sectionOpen.depth}>
+                <button type="button" class="accordion-header" onclick={() => sectionOpen.depth = !sectionOpen.depth}>
+                  <span>👁️ Depth & Projection</span>
+                  <span class="accordion-icon">{sectionOpen.depth ? "▼" : "▶"}</span>
+                </button>
+                {#if sectionOpen.depth}
+                  <div class="accordion-content">
+                    <label for="motion-radius-scale">
+                      <span>Radius scale {workbench.motionConfig.radiusScale.toFixed(2)}</span>
+                      <input
+                        id="motion-radius-scale"
+                        type="range"
+                        min="0.75"
+                        max="1.25"
+                        step="0.001"
+                        bind:value={workbench.motionConfig.radiusScale}
+                      />
+                    </label>
+                    <label for="motion-depth-gain">
+                      <span>Motion gain {workbench.motionConfig.depthGain.toFixed(2)}</span>
+                      <input
+                        id="motion-depth-gain"
+                        type="range"
+                        min="0.05"
+                        max="3"
+                        step="0.01"
+                        bind:value={workbench.motionConfig.depthGain}
+                      />
+                    </label>
+                    <label for="motion-depth-contrast">
+                      <span>Depth contrast {workbench.motionConfig.depthContrast.toFixed(2)}</span>
+                      <input
+                        id="motion-depth-contrast"
+                        type="range"
+                        min="0.25"
+                        max="4"
+                        step="0.01"
+                        bind:value={workbench.motionConfig.depthContrast}
+                      />
+                    </label>
+                    <label for="motion-near">
+                      <span>Near {workbench.motionConfig.nearMeters.toFixed(2)}m</span>
+                      <input id="motion-near" type="number" min="0.001" max="50" step="0.1" bind:value={workbench.motionConfig.nearMeters} />
+                    </label>
+                    <label for="motion-far">
+                      <span>Far {workbench.motionConfig.farMeters.toFixed(2)}m</span>
+                      <input id="motion-far" type="number" min="0.01" max="100" step="0.1" bind:value={workbench.motionConfig.farMeters} />
+                    </label>
+                    <div class="segmented-control-group">
+                      <span>Depth polarity</span>
+                      <div class="segmented-buttons">
+                        <button type="button" class:selected={workbench.motionConfig.polarity === "brightFar"} onclick={() => workbench.motionConfig.polarity = "brightFar"}>Far</button>
+                        <button type="button" class:selected={workbench.motionConfig.polarity === "brightNear"} onclick={() => workbench.motionConfig.polarity = "brightNear"}>Near</button>
+                      </div>
+                    </div>
+                  </div>
+                {/if}
+              </div>
+
+              <!-- Section 4: Render Settings -->
+              <div class="accordion-item" class:open={sectionOpen.render}>
+                <button type="button" class="accordion-header" onclick={() => sectionOpen.render = !sectionOpen.render}>
+                  <span>⚙️ Render Settings</span>
+                  <span class="accordion-icon">{sectionOpen.render ? "▼" : "▶"}</span>
+                </button>
+                {#if sectionOpen.render}
+                  <div class="accordion-content">
+                    <label for="motion-duration">
+                      <span>Duration {workbench.motionConfig.duration}s</span>
+                      <input id="motion-duration" type="number" min="1" max="15" step="0.5" bind:value={workbench.motionConfig.duration} />
+                    </label>
+                    <label for="motion-fps">
+                      <span>FPS</span>
+                      <input id="motion-fps" type="number" min="6" max="30" step="1" bind:value={workbench.motionConfig.fps} />
+                    </label>
+                    <label for="motion-size">
+                      <span>Output size</span>
+                      <select id="motion-size" bind:value={workbench.motionConfig.size}>
+                        <option value={512}>512 px</option>
+                        <option value={768}>768 px</option>
+                        <option value={1024}>1024 px</option>
+                        <option value={1536}>1536 px</option>
+                      </select>
+                    </label>
+                    <label for="motion-gap-fill">
+                      <span>Gap fill {workbench.motionConfig.gapFillPasses}</span>
+                      <input id="motion-gap-fill" type="range" min="0" max="8" step="1" bind:value={workbench.motionConfig.gapFillPasses} />
+                    </label>
+                    <div class="segmented-control-group">
+                      <span>Preview guide</span>
+                      <div class="segmented-buttons three-col">
+                        <button type="button" class:selected={workbench.motionConfig.guideMode === "source"} onclick={() => workbench.motionConfig.guideMode = "source"}>Color</button>
+                        <button type="button" class:selected={workbench.motionConfig.guideMode === "depthShaded"} onclick={() => workbench.motionConfig.guideMode = "depthShaded"}>Shaded</button>
+                        <button type="button" class:selected={workbench.motionConfig.guideMode === "depthMap"} onclick={() => workbench.motionConfig.guideMode = "depthMap"}>Map</button>
+                      </div>
+                    </div>
+                    <div class="segmented-control-group">
+                      <span>Empty background</span>
+                      <div class="segmented-buttons">
+                        <button type="button" class:selected={workbench.motionConfig.emptyBackground === "greenDome"} onclick={() => workbench.motionConfig.emptyBackground = "greenDome"}>Green</button>
+                        <button type="button" class:selected={workbench.motionConfig.emptyBackground === "black"} onclick={() => workbench.motionConfig.emptyBackground = "black"}>Black</button>
+                      </div>
+                    </div>
+                  </div>
+                {/if}
+              </div>
             </div>
           {/if}
 

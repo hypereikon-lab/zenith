@@ -60,6 +60,7 @@
   } from "../plates/plate-drag-math.js";
   import { createPlateEditorProjectionAdapter } from "../plates/plate-editor-projection-adapter.js";
   import { createPlateSketchGpuRenderer } from "../plates/plate-sketch-gpu-renderer.js";
+  import CameraControlsPanel from "./CameraControlsPanel.svelte";
   import { clamp, wrapDegrees } from "../projection.js";
   import type {
     NormalizedPlatePlacement,
@@ -93,6 +94,10 @@
   let plateFeather = $state(0.02);
   let plateEditMode = $state<"scale" | "warp">("scale");
   let plateProjectionViewMode = $state<PlateEditorViewMode>("source-map");
+  let showCaveMask = $state<boolean>(false);
+  let invertCaveMask = $state<boolean>(false);
+  let canvasWidth = $state(768);
+  let canvasHeight = $state(768);
   let viewCamera = $state(defaultPlateEditorCamera(workbench.projectionProfile));
   let renderStatus = $state("Load plates or use the default references.");
   let gpuRenderer = $state.raw<PlateSketchGpuRenderer | null>(null);
@@ -200,6 +205,43 @@
       previousViewerMode = viewerMode;
       renderOverlay();
     }
+  });
+
+  $effect(() => {
+    if (!previewCanvas) return;
+    const updateSize = () => {
+      if (!previewCanvas) return;
+      const rect = previewCanvas.getBoundingClientRect();
+      const pixelRatio = window.devicePixelRatio || 1;
+      const w = Math.max(1, Math.round(rect.width * pixelRatio));
+      const h = Math.max(1, Math.round(rect.height * pixelRatio));
+      if (canvasWidth !== w || canvasHeight !== h) {
+        canvasWidth = w;
+        canvasHeight = h;
+      }
+    };
+    updateSize();
+
+    const observer = new ResizeObserver(() => {
+      updateSize();
+    });
+    observer.observe(previewCanvas);
+
+    window.addEventListener("resize", updateSize);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateSize);
+    };
+  });
+
+  $effect(() => {
+    viewCamera;
+    plateProjectionViewMode;
+    showCaveMask;
+    invertCaveMask;
+    canvasWidth;
+    canvasHeight;
+    scheduleRenderPreview();
   });
 
   async function handlePlateInput(event: Event) {
@@ -314,7 +356,7 @@
     try {
       renderStatus = "Rendering WebGPU plate sketch preview...";
       const gpu = await ensureGpuRenderer();
-      gpu.renderPreview(buildRenderOptions(PREVIEW_SIZE));
+      gpu.renderPreview(buildRenderOptions(canvasWidth));
       renderOverlay();
       const viewMode = currentPlateProjectionViewMode();
       renderStatus = `${plates.length} plate${plates.length === 1 ? "" : "s"} previewed through WebGPU ${workbench.projectionProfile} ${plateEditorViewLabel(viewMode)}.`;
@@ -339,6 +381,8 @@
       projectionViewMode: currentPlateProjectionViewMode(),
       projectionCamera: viewCamera,
       showProjectionGuides: workbench.viewerMode !== "domemaster",
+      showCaveMask,
+      invertCaveMask,
     };
   }
 
@@ -352,14 +396,18 @@
 
   function renderOverlay() {
     if (!previewCanvas) return;
-    previewCanvas.width = PREVIEW_SIZE;
-    previewCanvas.height = PREVIEW_SIZE;
+    previewCanvas.width = canvasWidth;
+    previewCanvas.height = canvasHeight;
     const context = previewCanvas.getContext("2d");
-    context.clearRect(0, 0, PREVIEW_SIZE, PREVIEW_SIZE);
+    if (!context) return;
+    context.clearRect(0, 0, canvasWidth, canvasHeight);
+    context.save();
+    context.scale(canvasWidth / PREVIEW_SIZE, canvasHeight / PREVIEW_SIZE);
     if (currentPlateProjectionViewMode() === "source-map") {
       drawProjectionGuide(context);
     }
     drawPlateEditorOverlay(context);
+    context.restore();
   }
 
   function drawProjectionGuide(context: CanvasRenderingContext2D) {
@@ -975,6 +1023,7 @@
       rect: previewRect(),
       domeGuideSemanticSplit: workbench.domeGuideSemanticSplit,
       domeGuideHorizonSplit: workbench.domeGuideHorizonSplit,
+      showCaveMask,
     });
   }
 
@@ -1182,38 +1231,6 @@
     return plateEditorViewDisabledReason(plateProjectionViewMode, workbench.projectionProfile) ? "source-map" : plateProjectionViewMode;
   }
 
-  function updateViewCamera(patch: Partial<typeof viewCamera>) {
-    viewCamera = { ...viewCamera, ...patch };
-    scheduleRenderPreview();
-  }
-
-  function updateViewCameraPosition(axis: 0 | 1 | 2, value: number) {
-    const position = [...viewCamera.position] as Vec3;
-    position[axis] = value;
-    updateViewCamera({ position });
-  }
-
-  function updateViewCameraPivot(axis: 0 | 1 | 2, value: number) {
-    const pivot = [...(viewCamera.pivot || [0, 0, 0])] as Vec3;
-    pivot[axis] = value;
-    updateViewCamera({ pivot });
-  }
-
-  function updateViewCameraEuler(axis: "yawDegrees" | "pitchDegrees" | "rollDegrees", value: number) {
-    const next = { ...viewCameraEuler, [axis]: value };
-    updateViewCamera({ orientation: quaternionFromEulerDegrees(next.yawDegrees, next.pitchDegrees, next.rollDegrees) });
-  }
-
-  function moveViewCamera(truck: number, lift: number, push: number) {
-    viewCamera = nudgeProjectionCamera(viewCamera, currentPlateProjectionViewMode(), truck, lift, push);
-    scheduleRenderPreview();
-  }
-
-  function relockViewCameraToPivot() {
-    viewCamera = lookAtPivot(viewCamera);
-    scheduleRenderPreview();
-  }
-
 </script>
 
 <section class="plate-editor" aria-label="Plate Sketch placement editor">
@@ -1315,158 +1332,16 @@
       </div>
     </div>
 
-    <div class="viewer-mode-group plate-surface-mode" aria-label="Plate Sketch projection editing surface">
-      {#each PLATE_EDITOR_VIEW_MODES as mode}
-        {@const disabledReason = plateEditorViewDisabledReason(mode, workbench.projectionProfile)}
-        <button
-          type="button"
-          class:selected={currentPlateProjectionViewMode() === mode}
-          aria-pressed={currentPlateProjectionViewMode() === mode ? "true" : "false"}
-          disabled={Boolean(disabledReason)}
-          title={disabledReason || `${plateEditorViewLabel(mode)} editing surface`}
-          onclick={() => setPlateProjectionViewMode(mode)}
-        >
-          {plateEditorViewLabel(mode)}
-        </button>
-      {/each}
-    </div>
-    {#if workbench.projectionProfile !== "cave-270"}
-      <p class="control-help">CAVE Room is only available for CAVE 270.</p>
-    {/if}
-
-    {#if currentPlateProjectionViewMode() !== "source-map"}
-      <div class="motion-controls projection-camera-controls" aria-label="Projection view camera controls">
-        <label for="plate-editor-camera-x">
-          <span>Camera X {viewCamera.position[0].toFixed(2)}m</span>
-          <input
-            id="plate-editor-camera-x"
-            type="range"
-            min="-8"
-            max="8"
-            step="0.01"
-            value={viewCamera.position[0]}
-            oninput={(event) => updateViewCameraPosition(0, Number((event.currentTarget as HTMLInputElement).value))}
-          />
-        </label>
-        <label for="plate-editor-camera-y">
-          <span>Camera Y {viewCamera.position[1].toFixed(2)}m</span>
-          <input
-            id="plate-editor-camera-y"
-            type="range"
-            min="-8"
-            max="8"
-            step="0.01"
-            value={viewCamera.position[1]}
-            oninput={(event) => updateViewCameraPosition(1, Number((event.currentTarget as HTMLInputElement).value))}
-          />
-        </label>
-        <label for="plate-editor-camera-z">
-          <span>Camera Z {viewCamera.position[2].toFixed(2)}m</span>
-          <input
-            id="plate-editor-camera-z"
-            type="range"
-            min="-8"
-            max="8"
-            step="0.01"
-            value={viewCamera.position[2]}
-            oninput={(event) => updateViewCameraPosition(2, Number((event.currentTarget as HTMLInputElement).value))}
-          />
-        </label>
-        <label for="plate-editor-view-yaw">
-          <span>Yaw {viewCameraEuler.yawDegrees.toFixed(1)}°</span>
-          <input
-            id="plate-editor-view-yaw"
-            type="range"
-            min="-180"
-            max="180"
-            step="0.1"
-            value={viewCameraEuler.yawDegrees}
-            oninput={(event) => updateViewCameraEuler("yawDegrees", Number((event.currentTarget as HTMLInputElement).value))}
-          />
-        </label>
-        <label for="plate-editor-view-pitch">
-          <span>Pitch {viewCameraEuler.pitchDegrees.toFixed(1)}°</span>
-          <input
-            id="plate-editor-view-pitch"
-            type="range"
-            min="-180"
-            max="180"
-            step="0.1"
-            value={viewCameraEuler.pitchDegrees}
-            oninput={(event) => updateViewCameraEuler("pitchDegrees", Number((event.currentTarget as HTMLInputElement).value))}
-          />
-        </label>
-        <label for="plate-editor-view-roll">
-          <span>Roll {viewCameraEuler.rollDegrees.toFixed(1)}°</span>
-          <input
-            id="plate-editor-view-roll"
-            type="range"
-            min="-180"
-            max="180"
-            step="0.1"
-            value={viewCameraEuler.rollDegrees}
-            oninput={(event) => updateViewCameraEuler("rollDegrees", Number((event.currentTarget as HTMLInputElement).value))}
-          />
-        </label>
-        <label for="plate-editor-view-fov">
-          <span>View FOV {Math.round(viewCamera.fovDegrees)}°</span>
-          <input
-            id="plate-editor-view-fov"
-            type="range"
-            min="42"
-            max="128"
-            step="1"
-            value={viewCamera.fovDegrees}
-            oninput={(event) => updateViewCamera({ fovDegrees: Number((event.currentTarget as HTMLInputElement).value) })}
-          />
-        </label>
-        <label for="plate-editor-pivot-x">
-          <span>Pivot X {(viewCamera.pivot?.[0] ?? 0).toFixed(2)}m</span>
-          <input
-            id="plate-editor-pivot-x"
-            type="range"
-            min="-4"
-            max="4"
-            step="0.01"
-            value={viewCamera.pivot?.[0] ?? 0}
-            oninput={(event) => updateViewCameraPivot(0, Number((event.currentTarget as HTMLInputElement).value))}
-          />
-        </label>
-        <label for="plate-editor-pivot-y">
-          <span>Pivot Y {(viewCamera.pivot?.[1] ?? 0).toFixed(2)}m</span>
-          <input
-            id="plate-editor-pivot-y"
-            type="range"
-            min="-4"
-            max="4"
-            step="0.01"
-            value={viewCamera.pivot?.[1] ?? 0}
-            oninput={(event) => updateViewCameraPivot(1, Number((event.currentTarget as HTMLInputElement).value))}
-          />
-        </label>
-        <label for="plate-editor-pivot-z">
-          <span>Pivot Z {(viewCamera.pivot?.[2] ?? 0).toFixed(2)}m</span>
-          <input
-            id="plate-editor-pivot-z"
-            type="range"
-            min="-4"
-            max="4"
-            step="0.01"
-            value={viewCamera.pivot?.[2] ?? 0}
-            oninput={(event) => updateViewCameraPivot(2, Number((event.currentTarget as HTMLInputElement).value))}
-          />
-        </label>
-        <div class="camera-nudge-grid" aria-label="Projection camera local movement">
-          <button type="button" class="secondary-action compact-action" onclick={() => moveViewCamera(-0.2, 0, 0)}>Truck left</button>
-          <button type="button" class="secondary-action compact-action" onclick={() => moveViewCamera(0.2, 0, 0)}>Truck right</button>
-          <button type="button" class="secondary-action compact-action" onclick={() => moveViewCamera(0, 0.2, 0)}>Lift up</button>
-          <button type="button" class="secondary-action compact-action" onclick={() => moveViewCamera(0, -0.2, 0)}>Lift down</button>
-          <button type="button" class="secondary-action compact-action" onclick={() => moveViewCamera(0, 0, 0.2)}>Push forward</button>
-          <button type="button" class="secondary-action compact-action" onclick={() => moveViewCamera(0, 0, -0.2)}>Pull back</button>
-          <button type="button" class="secondary-action compact-action" onclick={relockViewCameraToPivot}>Look at pivot</button>
-        </div>
-      </div>
-    {/if}
+    <CameraControlsPanel
+      bind:viewMode={plateProjectionViewMode}
+      bind:viewCamera
+      bind:showCaveMask
+      bind:invertCaveMask
+      projectionProfile={workbench.projectionProfile}
+      onNudge={(truck, lift, push) => {
+        viewCamera = nudgeProjectionCamera(viewCamera, currentPlateProjectionViewMode(), truck, lift, push);
+      }}
+    />
 
     <div class="viewer-mode-group plate-viewer-mode" aria-label="Plate editor viewer mode">
       <button
