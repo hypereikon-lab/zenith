@@ -26,6 +26,7 @@ export type DomeViewProjection = {
   mirror: boolean;
   sourceProjectionMode?: SourceProjectionMode;
   cutaway?: boolean;
+  showCaveMask?: boolean;
 };
 
 export type DomePoint = { radius: number; azimuth: number };
@@ -51,26 +52,45 @@ export function sourceDomeDirectionToScreenPoint(
   projection: DomeViewProjection,
 ): Point2D | null {
   const physical = physicalDomeDirectionFromSourceDirection(direction, projection);
-  if (!physicalDirectionInProjectionRange(physical, projection)) return null;
-  if (projection.cutaway && physical[0] < CUTAWAY_HIDDEN_X) return null;
+  if (!physicalDirectionInProjectionRange(physical, projection)) {
+    console.log("DEBUG: physicalDirectionInProjectionRange failed", physical);
+    return null;
+  }
+  if (projection.cutaway && physical[0] < CUTAWAY_HIDDEN_X) {
+    console.log("DEBUG: cutaway check failed");
+    return null;
+  }
 
   const aspect = projection.rect.width / Math.max(projection.rect.height, 0.000001);
   const cameraProjection = perspectiveLH((projection.fovDegrees * Math.PI) / 180, aspect, 0.01, 20);
   const mvp = multiplyMat4(cameraProjection, projection.viewMatrix);
   const clip = multiplyMat4Vec4(mvp, [physical[0], physical[1], physical[2], 1]);
-  if (clip[3] <= 0.0001) return null;
+  if (clip[3] <= 0.0001) {
+    console.log("DEBUG: clip[3] <= 0.0001 failed", clip[3]);
+    return null;
+  }
 
   const x = clip[0] / clip[3];
   const y = clip[1] / clip[3];
   const z = clip[2] / clip[3];
-  if (x < -1.1 || x > 1.1 || y < -1.1 || y > 1.1 || z < 0 || z > 1.05) return null;
+  if (x < -1.1 || x > 1.1 || y < -1.1 || y > 1.1 || z < 0 || z > 1.05) {
+    console.log("DEBUG: boundary check failed", { x, y, z });
+    return null;
+  }
 
   const screenPoint = {
     x: projection.rect.x + (x * 0.5 + 0.5) * projection.rect.width,
     y: projection.rect.y + (1 - (y * 0.5 + 0.5)) * projection.rect.height,
   };
   const visiblePhysical = physicalDomeDirectionFromScreenPoint(screenPoint, projection);
-  if (!visiblePhysical || dot(visiblePhysical, physical) < VISIBILITY_DOT_THRESHOLD) return null;
+  if (!visiblePhysical) {
+    console.log("DEBUG: physicalDomeDirectionFromScreenPoint returned null");
+    return null;
+  }
+  if (dot(visiblePhysical, physical) < VISIBILITY_DOT_THRESHOLD) {
+    console.log("DEBUG: dot product check failed", { dotVal: dot(visiblePhysical, physical), visiblePhysical, physical });
+    return null;
+  }
   return screenPoint;
 }
 
@@ -124,6 +144,13 @@ function physicalDomeDirectionFromScreenPoint(point: Point2D, projection: DomeVi
   candidates.sort((left, right) => left - right);
   for (const distance of candidates) {
     const hit = addVec3(ray.origin, scaleVec3(ray.direction, distance));
+    if (projection.showCaveMask) {
+      // Inward normal for sphere is -normalize(hit)
+      const normal = scaleVec3(normalize(hit), -1);
+      if (dot(ray.direction, normal) > 0.0) {
+        continue;
+      }
+    }
     if (!physicalDirectionInProjectionRange(hit, projection)) continue;
     if (projection.cutaway && hit[0] < CUTAWAY_HIDDEN_X) continue;
     return normalize(hit);

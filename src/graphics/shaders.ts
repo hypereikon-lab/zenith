@@ -21,6 +21,10 @@ struct Uniforms {
   sourceCenterTheta: vec4<f32>,
   sourceRight: vec4<f32>,
   sourceUp: vec4<f32>,
+  showCaveMask: f32,
+  cameraPosX: f32,
+  cameraPosY: f32,
+  cameraPosZ: f32,
 };
 
 struct VertexOut {
@@ -114,6 +118,23 @@ fn sourceSample(sourceDir: vec3<f32>) -> vec3<f32> {
 
 @fragment
 fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
+  if (uniforms.showCaveMask > 0.5) {
+    let px = u32(in.position.x);
+    let py = u32(in.position.y);
+    let cx = px % 2u;
+    let cy = py % 2u;
+    let isFirstPixel = cx == 0u && cy == 0u;
+    if (uniforms.showCaveMask > 1.5) {
+      if (isFirstPixel) {
+        discard;
+      }
+    } else {
+      if (!isFirstPixel) {
+        discard;
+      }
+    }
+  }
+
   let physicalDir = normalize(in.world);
   if (uniforms.cutaway > 0.5 && physicalDir.x < -0.025) {
     discard;
@@ -133,13 +154,29 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
     let tangent = normalize(sourceDir - center * clamp(dot(sourceDir, center), -1.0, 1.0));
     azimuth = atan2(dot(tangent, uniforms.sourceRight.xyz), dot(tangent, uniforms.sourceUp.xyz));
   }
-  let latitude = gridLine(theta, PI / 12.0, 1.5) * 0.58 * uniforms.showRings;
-  let longitude = gridLine(azimuth, PI / 12.0, 1.5) * 0.48 * uniforms.showSpokes;
-  let horizon = (1.0 - smoothstep(0.004, 0.018 + fwidth(theta) * 3.0, abs(theta - HALF_PI))) * uniforms.showHorizon;
-  let zenith = (1.0 - smoothstep(0.0, 0.028 + fwidth(theta) * 2.0, theta)) * uniforms.showZenith;
-  let overlay = clamp(max(max(max(latitude, longitude), horizon), zenith) * uniforms.overlayOpacity, 0.0, 0.82);
+  let thetaMax = max(uniforms.sourceCenterTheta.w, 0.0001);
+  let split = clamp(uniforms.sourceCarrierSplit, 0.18, 0.72);
+  let horizon = clamp(HALF_PI / thetaMax, 0.0001, 1.0);
+  let semanticPhysical = clamp(horizon * 0.5, 0.0001, max(horizon - 0.0001, 0.0001));
+
+  let centerLine = (1.0 - smoothstep(0.0, 0.022 + fwidth(theta) * 2.0, theta)) * uniforms.showZenith;
+  let splitLine = (1.0 - smoothstep(0.002, 0.012 + fwidth(theta) * 2.0, abs(theta - semanticPhysical * thetaMax))) * uniforms.showHorizon;
+  let horizonLine = (1.0 - smoothstep(0.002, 0.012 + fwidth(theta) * 2.0, abs(theta - horizon * thetaMax))) * uniforms.showHorizon;
+  let boundaryLine = (1.0 - smoothstep(0.002, 0.012 + fwidth(theta) * 2.0, abs(theta - thetaMax))) * uniforms.showSourceCircle;
+
+  let rings = max(
+    max(
+      (1.0 - smoothstep(0.002, 0.012 + fwidth(theta) * 2.0, abs(theta - semanticPhysical * 0.5 * thetaMax))) * uniforms.showRings,
+      (1.0 - smoothstep(0.002, 0.012 + fwidth(theta) * 2.0, abs(theta - mix(semanticPhysical, horizon, 0.5) * thetaMax))) * uniforms.showRings
+    ),
+    (1.0 - smoothstep(0.002, 0.012 + fwidth(theta) * 2.0, abs(theta - mix(horizon, 1.0, 0.5) * thetaMax))) * uniforms.showRings
+  ) * 0.44;
+
+  let spokes = gridLine(azimuth, PI / 12.0, 1.35) * uniforms.showSpokes * 0.42;
+
+  let overlay = clamp(max(max(max(max(max(centerLine, splitLine), horizonLine), boundaryLine), rings), spokes) * uniforms.overlayOpacity, 0.0, 0.82);
   color = mix(color, vec3<f32>(0.78, 0.96, 1.0), overlay);
-  color = color + vec3<f32>(0.08, 0.12, 0.13) * horizon * uniforms.shellShade;
+  color = color + vec3<f32>(0.08, 0.12, 0.13) * horizonLine * uniforms.shellShade;
 
   return vec4<f32>(color, 1.0);
 }
@@ -166,6 +203,10 @@ struct Uniforms {
   sourceCenterTheta: vec4<f32>,
   sourceRight: vec4<f32>,
   sourceUp: vec4<f32>,
+  showCaveMask: f32,
+  cameraPosX: f32,
+  cameraPosY: f32,
+  cameraPosZ: f32,
 };
 
 struct VertexOut {
@@ -251,8 +292,11 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
     let eyeHorizon = (1.0 - smoothstep(0.002, 0.012 + fwidth(rho) * 2.0, abs(rho - horizonBand))) * uniforms.showHorizon;
     let boundary = (1.0 - smoothstep(0.002, 0.012 + fwidth(rho) * 2.0, abs(rho - 1.0))) * uniforms.showSourceCircle;
     let wallMask = smoothstep(floorBand + 0.015, floorBand + 0.055, rho);
-    let rings = lineAt(rho, 0.125, 1.35) * wallMask * uniforms.showRings * 0.44;
-    let spokes = lineAt(rayAngle, PI / 12.0, 1.35) * wallMask * uniforms.showSpokes * 0.42;
+    let rings = max(
+      (1.0 - smoothstep(0.002, 0.012 + fwidth(rho) * 2.0, abs(rho - mix(floorBand, horizonBand, 0.5)))) * uniforms.showRings,
+      (1.0 - smoothstep(0.002, 0.012 + fwidth(rho) * 2.0, abs(rho - mix(horizonBand, 1.0, 0.5)))) * uniforms.showRings
+    ) * 0.44;
+    let spokes = lineAt(rayAngle, PI / 6.0, 1.35) * wallMask * uniforms.showSpokes * 0.42;
     let overlay = clamp(max(max(max(max(max(center, floorSeam), eyeHorizon), boundary), rings), spokes) * uniforms.overlayOpacity, 0.0, 0.82);
     color = mix(color, vec3<f32>(0.78, 0.96, 1.0), overlay);
     return vec4<f32>(color, 1.0);
@@ -270,11 +314,14 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
     max(uniforms.sourceCenterTheta.w, 0.0001);
   let angle = atan2(normalized.x, -normalized.y) + uniforms.rotation;
 
+  let split = clamp(uniforms.sourceCarrierSplit, 0.18, 0.72);
+  let splitLine = (1.0 - smoothstep(0.002, 0.012 + fwidth(radius) * 2.0, abs(radius - split))) * insideMask * uniforms.showHorizon;
+
   let ring = lineAt(theta, PI / 12.0, 1.4) * insideMask * uniforms.showRings;
   let spoke = lineAt(angle, PI / 12.0, 1.4) * insideMask * uniforms.showSpokes;
   let horizon = (1.0 - smoothstep(0.002, 0.01 + fwidth(theta) * 2.0, abs(theta - HALF_PI))) * insideMask * uniforms.showHorizon;
   let sourceCircle = (1.0 - smoothstep(0.002, 0.012 + fwidth(radius) * 2.0, abs(radius - 1.0))) * insideMask * uniforms.showSourceCircle;
-  let overlay = clamp(max(max(max(ring * 0.4, spoke * 0.38), horizon), sourceCircle) * uniforms.overlayOpacity, 0.0, 0.82);
+  let overlay = clamp(max(max(max(max(ring * 0.4, spoke * 0.38), horizon), sourceCircle), splitLine) * uniforms.overlayOpacity, 0.0, 0.82);
   color = mix(color, vec3<f32>(0.78, 0.96, 1.0), overlay);
   return vec4<f32>(color, 1.0);
 }
@@ -301,6 +348,10 @@ struct Uniforms {
   sourceCenterTheta: vec4<f32>,
   sourceRight: vec4<f32>,
   sourceUp: vec4<f32>,
+  showCaveMask: f32,
+  cameraPosX: f32,
+  cameraPosY: f32,
+  cameraPosZ: f32,
 };
 
 struct VertexOut {
@@ -545,8 +596,45 @@ fn sourceSample(sourceDir: vec3<f32>) -> vec3<f32> {
   return vec3<f32>(uv, select(0.0, 1.0, physicalRadial <= 1.0001));
 }
 
+fn getFaceNormal(face: f32) -> vec3<f32> {
+  let faceIndex = clamp(floor(face + 0.5), 0.0, 4.0);
+  if (faceIndex == 0.0) {
+    return vec3<f32>(0.0, 0.0, -1.0);
+  } else if (faceIndex == 1.0) {
+    return vec3<f32>(-1.0, 0.0, 0.0);
+  } else if (faceIndex == 2.0) {
+    return vec3<f32>(0.0, 0.0, 1.0);
+  } else if (faceIndex == 3.0) {
+    return vec3<f32>(1.0, 0.0, 0.0);
+  } else {
+    return vec3<f32>(0.0, 1.0, 0.0);
+  }
+}
+
 @fragment
 fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
+  if (uniforms.showCaveMask > 0.5) {
+    let cameraPos = vec3<f32>(uniforms.cameraPosX, uniforms.cameraPosY, uniforms.cameraPosZ);
+    let viewDir = normalize(in.world - cameraPos);
+    let normal = getFaceNormal(in.face);
+    if (dot(viewDir, normal) > 0.0) {
+      let px = u32(in.position.x);
+      let py = u32(in.position.y);
+      let cx = px % 2u;
+      let cy = py % 2u;
+      let isFirstPixel = cx == 0u && cy == 0u;
+      if (uniforms.showCaveMask > 1.5) {
+        if (isFirstPixel) {
+          discard;
+        }
+      } else {
+        if (!isFirstPixel) {
+          discard;
+        }
+      }
+    }
+  }
+
   let continuityPhysicalDir = continuityPhysicalDirectionFromCavePoint(in.world, in.faceUv, in.face);
   let sourceDir = sourceDirectionFromPhysical(continuityPhysicalDir);
   let sample = sourceSample(sourceDir);
@@ -558,11 +646,44 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
   let floorShade = select(1.0, 0.86, in.face > 3.5);
   color = color * mix(1.0, heightShade * floorShade, uniforms.shellShade);
 
-  let faceGrid = max(gridLine(in.faceUv.x, 0.25, 1.35), gridLine(in.faceUv.y, 0.25, 1.35)) * 0.28;
-  let faceEdge = max(edgeLine(in.faceUv.x), edgeLine(in.faceUv.y));
-  let horizon = (1.0 - smoothstep(0.004, 0.018 + fwidth(dot(sourceDir, vec3<f32>(0.0, 1.0, 0.0))) * 3.0, abs(sourceDir.y))) *
-    uniforms.showHorizon;
-  let overlay = clamp(max(max(faceGrid * uniforms.showSpokes, faceEdge), horizon * 0.42) * uniforms.overlayOpacity, 0.0, 0.82);
+  let yVal = in.world.y;
+  let boundaryPt = caveFloorBoundaryPointForRay(in.world.xz);
+  let boundaryDistance = max(length(boundaryPt), 0.000001);
+  let rhoFloorVal = clamp(length(in.world.xz) / boundaryDistance, 0.0, 1.0);
+  let rayAngle = caveWallPerimeterAngleFromBoundary(boundaryPt);
+
+  let fwidthY = fwidth(yVal);
+  let fwidthRhoFloor = fwidth(rhoFloorVal);
+
+  let floorBand = abs(uniforms.sourceCenterTheta.w);
+  let bottom = -2.0;
+
+  var center = 0.0;
+  var floorSeam = 0.0;
+  var eyeHorizon = 0.0;
+  var boundary = 0.0;
+  var rings = 0.0;
+
+  if (in.face > 3.5) {
+    center = (1.0 - smoothstep(0.0, 0.018 + fwidthRhoFloor * 2.0, rhoFloorVal)) * uniforms.showZenith;
+    floorSeam = (1.0 - smoothstep(0.002, 0.012 + fwidthRhoFloor * 2.0, abs(rhoFloorVal - 1.0))) * uniforms.showHorizon;
+    rings = (1.0 - smoothstep(0.002, 0.012 + fwidthRhoFloor * 2.0, abs(rhoFloorVal - 0.5))) * uniforms.showRings * 0.44;
+  } else {
+    floorSeam = (1.0 - smoothstep(0.002, 0.012 + fwidthY * 2.0, abs(yVal - (-2.0)))) * uniforms.showHorizon;
+    eyeHorizon = (1.0 - smoothstep(0.002, 0.012 + fwidthY * 2.0, abs(yVal - 0.0))) * uniforms.showHorizon;
+    boundary = (1.0 - smoothstep(0.002, 0.012 + fwidthY * 2.0, abs(yVal - 2.0))) * uniforms.showSourceCircle;
+
+    let ringBelow = (1.0 - smoothstep(0.002, 0.012 + fwidthY * 2.0, abs(yVal - (-1.0)))) * uniforms.showRings;
+    let ringAbove = (1.0 - smoothstep(0.002, 0.012 + fwidthY * 2.0, abs(yVal - 1.0))) * uniforms.showRings;
+    rings = max(ringBelow, ringAbove) * 0.44;
+  }
+
+  // Draw spokes
+  let spokes = gridLine(rayAngle, PI / 6.0, 1.35) * select(0.0, 1.0, in.face <= 3.5) * uniforms.showSpokes * 0.42;
+
+  let faceEdge = max(edgeLine(in.faceUv.x), edgeLine(in.faceUv.y)) * 0.35; // keep subtle face boundary lines
+
+  let overlay = clamp(max(max(max(max(max(max(center, floorSeam), eyeHorizon), boundary), rings), spokes), faceEdge) * uniforms.overlayOpacity, 0.0, 0.82);
   color = mix(color, vec3<f32>(0.78, 0.96, 1.0), overlay);
 
   return vec4<f32>(color, 1.0);

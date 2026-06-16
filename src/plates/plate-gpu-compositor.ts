@@ -391,32 +391,13 @@ fn vertexMain(@builtin(vertex_index) index: u32) -> VertexOut {
   return out;
 }
 
-fn radialGuideLine(radius: f32, targetRadius: f32, width: f32) -> f32 {
-  return 1.0 - smoothstep(0.0, width, abs(radius - targetRadius));
-}
-
-fn spokeGuideLine(local: vec2<f32>, radiusPixels: f32, interval: f32, lineWidthPixels: f32) -> f32 {
-  let radius = length(local);
-  if (radius <= 0.000001) {
-    return 0.0;
-  }
-  let angle = atan2(local.x, -local.y);
-  let wrapped = abs(fract(angle / interval + 0.5) - 0.5) * interval;
-  let arcPixels = wrapped * radius * radiusPixels;
-  return 1.0 - smoothstep(0.0, lineWidthPixels, arcPixels);
-}
-
 @fragment
 fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
   let domeRadiusUv = max(guide.values.x, 0.000001);
-  let thetaMax = max(guide.values.y, 0.000001);
-  let lineWidthTheta = max(guide.values.z, 0.000001);
   let horizonRadius = abs(guide.values.w);
   if (guide.values.x < 0.0) {
     let local = (in.uv - vec2<f32>(0.5)) * vec2<f32>(2.0, -2.0);
     let rho = max(abs(local.x), abs(local.y));
-    let caveLineWidth = max(abs(guide.values.y), 0.0015);
-    let caveRadiusPixels = max(abs(guide.values.z), 1.0);
     let floorBand = guide.values.w;
     let horizonBand = clamp(guide.semantics.y, floorBand + 0.0001, 0.9999);
     let wallColor = select(
@@ -428,17 +409,7 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
     if (rho <= floorBand) {
       guideBackground = ${wgslVec3Rgb(CAVE_HANDOFF_GUIDE.colors.floor)};
     }
-    let wallRingA = radialGuideLine(rho, mix(floorBand, horizonBand, 0.5), caveLineWidth);
-    let wallRingB = radialGuideLine(rho, mix(horizonBand, 1.0, 0.5), caveLineWidth);
-    let horizon = radialGuideLine(rho, horizonBand, caveLineWidth * ${wgslFloat(CAVE_HANDOFF_GUIDE.line.horizonWidthMultiplier)});
-    let ring = max(wallRingA, wallRingB);
-    let seam = radialGuideLine(rho, floorBand, caveLineWidth * ${wgslFloat(CAVE_HANDOFF_GUIDE.line.seamWidthMultiplier)});
-    let boundary = radialGuideLine(rho, 1.0, caveLineWidth * ${wgslFloat(CAVE_HANDOFF_GUIDE.line.boundaryWidthMultiplier)});
-    let wallMask = smoothstep(floorBand + ${wgslFloat(CAVE_HANDOFF_GUIDE.line.wallMaskStartOffset)}, floorBand + ${wgslFloat(CAVE_HANDOFF_GUIDE.line.wallMaskEndOffset)}, rho);
-    let wallGrid = spokeGuideLine(local, caveRadiusPixels, ${wgslFloat(CAVE_HANDOFF_GUIDE.wallRayIntervalRadians)}, ${wgslFloat(CAVE_HANDOFF_GUIDE.wallRayLineWidthPixels)}) * wallMask * ${wgslFloat(CAVE_HANDOFF_GUIDE.wallRayOpacity)};
-    let line = clamp(max(max(max(max(ring, seam), horizon), boundary), wallGrid), 0.0, 1.0);
-    let background = mix(guideBackground, vec3<f32>(0.0), line);
-    return vec4<f32>(background, 1.0);
+    return vec4<f32>(guideBackground, 1.0);
   }
 
   let local = (in.uv - vec2<f32>(0.5)) / domeRadiusUv;
@@ -447,29 +418,12 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
     return vec4<f32>(0.0, 0.0, 0.0, 1.0);
   }
 
-  let radiusPixels = thetaMax * 1.45 / max(lineWidthTheta, 0.000001);
   let skyGuideColor = ${wgslVec3Rgb(DOME_HANDOFF_GUIDE.colors.sky)};
   let horizonGuideColor = ${wgslVec3Rgb(DOME_HANDOFF_GUIDE.colors.horizon)};
   let floorGuideColor = ${wgslVec3Rgb(DOME_HANDOFF_GUIDE.colors.floor)};
   let isNadir = guide.values.w < 0.0;
   let semanticSplit = clamp(guide.semantics.x, 0.18, 0.72);
   let carrierHorizon = clamp(guide.semantics.y, semanticSplit + 0.0001, 0.9999);
-  let radiusLineWidth = max(1.5 / max(radiusPixels, 1.0), 0.0012);
-  var outerGuideEnd = 1.0;
-  if (horizonRadius < 0.999 && !isNadir) {
-    outerGuideEnd = clamp(carrierHorizon, semanticSplit + 0.04, 0.98);
-  }
-  var ring = radialGuideLine(radius, semanticSplit, radiusLineWidth * 1.15);
-  ring = max(ring, radialGuideLine(radius, mix(semanticSplit, outerGuideEnd, 0.5), radiusLineWidth));
-  var horizon = 0.0;
-  if (horizonRadius < 0.999 && !isNadir) {
-    horizon = radialGuideLine(radius, carrierHorizon, radiusLineWidth * 1.4);
-    ring = max(ring, radialGuideLine(radius, mix(carrierHorizon, 1.0, 0.5), radiusLineWidth));
-  }
-  let spokeMask = smoothstep(semanticSplit + 0.015, semanticSplit + 0.055, radius);
-  let spoke = spokeGuideLine(local, radiusPixels, ${wgslFloat(Math.PI / 6)}, 1.25) * spokeMask;
-  let sourceCircle = radialGuideLine(radius, 1.0, max(radiusLineWidth * 1.08, 0.0032));
-  let line = clamp(max(max(max(ring, spoke), horizon), sourceCircle), 0.0, 1.0);
   let semanticTransition = ${wgslFloat(DOME_HANDOFF_GUIDE.semanticTransitionWidth)};
   let horizonAmount = smoothstep(semanticSplit - semanticTransition, semanticSplit + semanticTransition, radius);
   let belowHorizonAmount = smoothstep(carrierHorizon - semanticTransition, carrierHorizon + semanticTransition, radius);
@@ -480,8 +434,7 @@ fn fragmentMain(in: VertexOut) -> @location(0) vec4<f32> {
   if (isNadir) {
     guideBackground = mix(floorGuideColor, horizonGuideColor, horizonAmount);
   }
-  let background = mix(guideBackground, vec3<f32>(0.0), line);
-  return vec4<f32>(background, 1.0);
+  return vec4<f32>(guideBackground, 1.0);
 }
 `;
 

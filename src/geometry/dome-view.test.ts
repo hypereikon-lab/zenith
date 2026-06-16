@@ -153,6 +153,26 @@ describe("dome view pointer projection", () => {
       expectVectorClose(roundTrip, source);
     }
   });
+
+  test("projects and raycasts through front/blocking dome surface when mask is enabled", () => {
+    const centerScreen = { x: 50, y: 50 };
+
+    // With mask disabled: center screen hit should be on the front of the dome (physical [0, 0, 1])
+    const hitWithoutMask = sourceDomeDirectionFromScreenPoint(centerScreen, {
+      ...baseProjection,
+      showCaveMask: false,
+    });
+    expect(hitWithoutMask).not.toBeNull();
+    expectVectorClose(hitWithoutMask, [0, 0, 1]);
+
+    // With mask enabled: center screen hit should pass through the front of the dome and hit the back interior (physical [0, 0, -1])
+    const hitWithMask = sourceDomeDirectionFromScreenPoint(centerScreen, {
+      ...baseProjection,
+      showCaveMask: true,
+    });
+    expect(hitWithMask).not.toBeNull();
+    expectVectorClose(hitWithMask, [0, 0, -1]);
+  });
 });
 
 function expectVectorClose(received: Vec3 | null, expected: Vec3): void {

@@ -249,8 +249,9 @@ export function cameraBasisFromRigPose<Mode extends string = CameraRigMode>(
   const normalizedPose = normalizeCameraRigPose(pose);
   const orientation = normalizeQuaternion(normalizedPose.orientation);
   const basis = cameraBasisFromOrientation(orientation);
+  const position = normalizedPose.mode === "inside" ? [0, 0, 0] as Vec3 : normalizedPose.position;
   return {
-    position: normalizedPose.position,
+    position,
     orientation,
     right: basis.right,
     up: basis.up,
@@ -388,16 +389,59 @@ export function orbitCameraAroundPivot<Mode extends string>(
 ): CameraRigPose<Mode> {
   const pivot = pose.pivot || [0, 0, 0];
   const offset = subtract(pose.position, pivot);
-  const yaw = quaternionFromAxisAngle(WORLD_UP, yawDeltaDegrees * DEG_TO_RAD);
+
+  // To clamp pitch, we calculate the current pitch angle of the offset vector relative to the horizontal plane.
+  const distance = vectorLength(offset);
+  if (distance < 0.000001) return normalizeCameraRigPose({ ...pose }) as CameraRigPose<Mode>;
+
+  // Current pitch angle in radians (arcsin of Y / distance)
+  const currentPitch = Math.asin(clamp(offset[1] / distance, -1, 1));
+  const currentPitchDegrees = currentPitch * RAD_TO_DEG;
+
+  // Clamp the new pitch to avoid flipping over the poles (gimbal lock)
+  const nextPitchDegrees = clamp(currentPitchDegrees + pitchDeltaDegrees, -89.9, 89.9);
+  const actualPitchDeltaDegrees = nextPitchDegrees - currentPitchDegrees;
+
+  // Damp the yaw rotation near the poles (gimbal lock region) to maintain constant linear velocity and prevent wild spinning/snapping.
+  const cosPitch = Math.abs(Math.cos(currentPitch));
+  const scaledYawDelta = yawDeltaDegrees * Math.max(0.02, cosPitch);
+  const yaw = quaternionFromAxisAngle(WORLD_UP, scaledYawDelta * DEG_TO_RAD);
   const yawedOffset = rotateVectorByQuaternion(offset, yaw);
+
   const right = normalize(cross(WORLD_UP, normalize(scaleVec3(yawedOffset, -1))));
-  const pitch = quaternionFromAxisAngle(vectorLength(right) > 0.000001 ? right : CANONICAL_RIGHT, pitchDeltaDegrees * DEG_TO_RAD);
+  const pitch = quaternionFromAxisAngle(vectorLength(right) > 0.000001 ? right : CANONICAL_RIGHT, actualPitchDeltaDegrees * DEG_TO_RAD);
   const nextOffset = rotateVectorByQuaternion(yawedOffset, pitch);
   const nextPosition = addVec3(pivot, nextOffset);
+
   return normalizeCameraRigPose<Mode>({
     ...pose,
     position: nextPosition,
-    orientation: quaternionFromLookAt(nextPosition, pivot, eulerDegreesFromQuaternion(pose.orientation).rollDegrees),
+    orientation: quaternionFromLookAt(nextPosition, pivot, 0), // Lock roll to 0 for standard orbit
+  });
+}
+
+export function rotateCameraEuler<Mode extends string>(
+  pose: CameraRigPose<Mode>,
+  yawDeltaDegrees: number,
+  pitchDeltaDegrees: number,
+): CameraRigPose<Mode> {
+  const euler = eulerDegreesFromQuaternion(pose.orientation);
+  // In a first-person fly camera, pitch is typically clamped to prevent looking past straight up or down.
+  const nextPitchDegrees = clamp(euler.pitchDegrees + pitchDeltaDegrees, -89.9, 89.9);
+  const nextYawDegrees = euler.yawDegrees + yawDeltaDegrees;
+
+  // Keep roll as 0 (standard for FPS cameras) unless otherwise needed, but we'll use 0 here for stable FPS view
+  const nextOrientation = quaternionFromEulerDegrees(nextYawDegrees, nextPitchDegrees, 0);
+
+  // If the pose has a pivot, we want to push the pivot in front of the camera so it remains valid
+  const basis = cameraBasisFromRigPose(normalizeCameraRigPose({ ...pose, orientation: nextOrientation }));
+  const pivotDistance = pose.pivot ? vectorLength(subtract(pose.pivot, pose.position)) : 5;
+  const nextPivot = addVec3(pose.position, scaleVec3(basis.forward, Math.max(1, pivotDistance)));
+
+  return normalizeCameraRigPose<Mode>({
+    ...pose,
+    orientation: nextOrientation,
+    pivot: nextPivot,
   });
 }
 

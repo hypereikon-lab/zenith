@@ -55,9 +55,10 @@ export function fitInverseDepthAlignment(
 
   const initial = weightedLinearFit(fitSamples);
   const residuals = fitSamples.map((sample) => Math.abs(sample.y - (initial.scale * sample.x + initial.offset)));
-  const median = medianValue(residuals);
+  const medianAbsoluteDeviation = medianValue(residuals);
+  const sigma = 1.4826 * medianAbsoluteDeviation;
   const trimSigma = Math.max(1, options.residualTrimSigma ?? 3);
-  const cutoff = Math.max(0.002, median * trimSigma);
+  const cutoff = Math.max(0.002, sigma * trimSigma);
   const trimmed = fitSamples.filter((sample) => Math.abs(sample.y - (initial.scale * sample.x + initial.offset)) <= cutoff);
   const rejectedByResidual = fitSamples.length - trimmed.length;
 
@@ -71,7 +72,7 @@ export function fitInverseDepthAlignment(
       samplesUsed: trimmed.length,
       rejectedSamples: rejectedBeforeFit + rejectedByResidual,
       rmse: rmse(fitSamples, initial),
-      medianAbsoluteError: median,
+      medianAbsoluteError: medianAbsoluteDeviation,
       minAcceptedConfidence: minConfidence,
       warnings: ["Depth overlap exists, but robust residual trimming left too few stable samples."],
       createdAt,

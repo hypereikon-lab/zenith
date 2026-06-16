@@ -1,5 +1,4 @@
 import { describe, expect, test } from "vitest";
-import { CAVE_HANDOFF_GUIDE } from "../geometry/cave-handoff-guide.js";
 import { DOME_HANDOFF_GUIDE } from "../geometry/dome-handoff-guide.js";
 import { plateCompositeShader, plateGuideShader } from "./plate-gpu-compositor.js";
 
@@ -37,11 +36,8 @@ describe("plate GPU compositor shader", () => {
   });
 
   test("draws radial spokes in the inpaint handoff guide", () => {
-    expect(plateGuideShader).toContain("fn spokeGuideLine");
-    expect(plateGuideShader).toContain("atan2(local.x, -local.y)");
-    expect(plateGuideShader).toContain("let spokeMask = smoothstep(semanticSplit + 0.015, semanticSplit + 0.055, radius)");
-    expect(plateGuideShader).toContain("let spoke = spokeGuideLine(local, radiusPixels, 0.5235987756, 1.25) * spokeMask");
-    expect(plateGuideShader).toContain("max(max(max(ring, spoke), horizon), sourceCircle)");
+    expect(plateGuideShader).not.toContain("fn spokeGuideLine");
+    expect(plateGuideShader).not.toContain("spokeGuideLine");
   });
 
   test("separates dome sky and floor guide zones in the inpaint handoff guide", () => {
@@ -52,10 +48,8 @@ describe("plate GPU compositor shader", () => {
     expect(plateGuideShader).toContain(`let floorGuideColor = vec3<f32>(0.0, 1.0, 0.0)`);
     expect(plateGuideShader).toContain("let isNadir = guide.values.w < 0.0");
     expect(plateGuideShader).toContain("let semanticSplit = clamp(guide.semantics.x, 0.18, 0.72)");
-    expect(plateGuideShader).toContain("var ring = radialGuideLine(radius, semanticSplit");
-    expect(plateGuideShader).toContain("ring = max(ring, radialGuideLine(radius, mix(semanticSplit, outerGuideEnd, 0.5)");
-    expect(plateGuideShader).not.toContain("mix(semanticSplit, outerGuideEnd, 0.25)");
-    expect(plateGuideShader).not.toContain("mix(semanticSplit, outerGuideEnd, 0.75)");
+    expect(plateGuideShader).not.toContain("var ring = radialGuideLine");
+    expect(plateGuideShader).not.toContain("radialGuideLine");
     expect(plateGuideShader).toContain("guideBackground = mix(floorGuideColor, horizonGuideColor, horizonAmount)");
     expect(plateGuideShader).not.toContain("fn guideLine");
   });
@@ -65,12 +59,10 @@ describe("plate GPU compositor shader", () => {
     expect(plateGuideShader).not.toContain("let wallColor = mix");
     expect(plateGuideShader).toContain("let floorBand = guide.values.w");
     expect(plateGuideShader).toContain("let horizonBand = clamp(guide.semantics.y, floorBand + 0.0001, 0.9999)");
-    expect(plateGuideShader).toContain("let wallRingA = radialGuideLine(rho, mix(floorBand, horizonBand, 0.5)");
-    expect(plateGuideShader).toContain("let wallRingB = radialGuideLine(rho, mix(horizonBand, 1.0, 0.5)");
-    expect(plateGuideShader).toContain("let horizon = radialGuideLine(rho, horizonBand");
-    expect(plateGuideShader).toContain(
-      `let wallGrid = spokeGuideLine(local, caveRadiusPixels, ${CAVE_HANDOFF_GUIDE.wallRayIntervalRadians.toFixed(10)}, ${CAVE_HANDOFF_GUIDE.wallRayLineWidthPixels})`,
-    );
+    expect(plateGuideShader).not.toContain("let wallRingA = radialGuideLine");
+    expect(plateGuideShader).not.toContain("let wallRingB = radialGuideLine");
+    expect(plateGuideShader).not.toContain("let horizon = radialGuideLine");
+    expect(plateGuideShader).not.toContain("wallGrid = spokeGuideLine");
     expect(plateGuideShader).not.toContain("floorSpoke");
     expect(plateGuideShader).not.toContain("let center = 1.0 - smoothstep");
   });

@@ -26,6 +26,7 @@ export type PlateEditorProjectionAdapterOptions = {
   rect: Rect;
   domeGuideSemanticSplit?: number | string | null;
   domeGuideHorizonSplit?: number | string | null;
+  showCaveMask?: boolean;
 };
 
 export function createPlateEditorProjectionAdapter({
@@ -35,6 +36,7 @@ export function createPlateEditorProjectionAdapter({
   rect,
   domeGuideSemanticSplit,
   domeGuideHorizonSplit,
+  showCaveMask,
 }: PlateEditorProjectionAdapterOptions): PlateEditorProjectionAdapter {
   const disabledReason = plateEditorViewDisabledReason(mode, sourceProjectionMode);
   if (disabledReason) {
@@ -55,9 +57,9 @@ export function createPlateEditorProjectionAdapter({
       return uv ? { x: rect.x + uv.u * rect.width, y: rect.y + uv.v * rect.height } : null;
     }
     if (mode === "cave-room") {
-      return sourceCaveDirectionToScreenPoint(direction, plateEditorCaveProjection(camera, sourceProjectionMode, rect));
+      return sourceCaveDirectionToScreenPoint(direction, plateEditorCaveProjection(camera, sourceProjectionMode, rect, showCaveMask));
     }
-    return sourceDomeDirectionToScreenPoint(direction, plateEditorDomeProjection(mode, camera, sourceProjectionMode, rect));
+    return sourceDomeDirectionToScreenPoint(direction, plateEditorDomeProjection(mode, camera, sourceProjectionMode, rect, showCaveMask));
   };
 
   const sourceDirectionAt = (point: Point2D): Vec3 | null => {
@@ -74,9 +76,9 @@ export function createPlateEditorProjectionAdapter({
       );
     }
     if (mode === "cave-room") {
-      return sourceCaveDirectionFromScreenPoint(point, plateEditorCaveProjection(camera, sourceProjectionMode, rect));
+      return sourceCaveDirectionFromScreenPoint(point, plateEditorCaveProjection(camera, sourceProjectionMode, rect, showCaveMask));
     }
-    return sourceDomeDirectionFromScreenPoint(point, plateEditorDomeProjection(mode, camera, sourceProjectionMode, rect));
+    return sourceDomeDirectionFromScreenPoint(point, plateEditorDomeProjection(mode, camera, sourceProjectionMode, rect, showCaveMask));
   };
 
   const adapter: PlateEditorProjectionAdapter = {

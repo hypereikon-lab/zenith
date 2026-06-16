@@ -28,29 +28,33 @@ export function interpolateCameraKeyframes(
 ): RgbdCameraPose {
   const span = Math.max(0.000001, next.timeSeconds - previous.timeSeconds);
   const rawT = clamp01((timeSeconds - previous.timeSeconds) / span);
-  const t = smoothstep(rawT);
-  return interpolateCameraPoses(previous.pose, next.pose, t, beforePrevious.pose, afterNext.pose);
+  const tSmooth = smoothstep(rawT);
+  // Bypass smoothstep for position spline interpolation to maintain non-zero continuous velocity across keyframe boundaries.
+  // Use tSmooth for rotation and scalar values to ensure smooth easing transitions.
+  return interpolateCameraPoses(previous.pose, next.pose, rawT, tSmooth, beforePrevious.pose, afterNext.pose);
 }
 
 export function interpolateCameraPoses(
   previous: RgbdCameraPose,
   next: RgbdCameraPose,
-  t: number,
+  tPosition: number,
+  tOthers: number = tPosition,
   beforePrevious?: RgbdCameraPose,
   afterNext?: RgbdCameraPose,
 ): RgbdCameraPose {
-  const amount = clamp01(t);
+  const amountPos = clamp01(tPosition);
+  const amountOthers = clamp01(tOthers);
   const position = beforePrevious && afterNext
-    ? catmullRomVec3(beforePrevious.position, previous.position, next.position, afterNext.position, amount)
-    : lerpVec3(previous.position, next.position, amount);
+    ? catmullRomVec3(beforePrevious.position, previous.position, next.position, afterNext.position, amountPos)
+    : lerpVec3(previous.position, next.position, amountPos);
   return normalizeRgbdCameraPose({
     position,
-    orientation: slerpQuaternion(previous.orientation, next.orientation, amount),
-    pivot: previous.pivot && next.pivot ? lerpVec3(previous.pivot, next.pivot, amount) : next.pivot || previous.pivot || null,
-    fovDegrees: lerp(previous.fovDegrees, next.fovDegrees, amount),
-    nearMeters: lerp(previous.nearMeters || 0.01, next.nearMeters || 0.01, amount),
-    farMeters: lerp(previous.farMeters || 80, next.farMeters || 80, amount),
-    mode: amount < 0.5 ? previous.mode : next.mode,
+    orientation: slerpQuaternion(previous.orientation, next.orientation, amountOthers),
+    pivot: previous.pivot && next.pivot ? lerpVec3(previous.pivot, next.pivot, amountOthers) : next.pivot || previous.pivot || null,
+    fovDegrees: lerp(previous.fovDegrees, next.fovDegrees, amountOthers),
+    nearMeters: lerp(previous.nearMeters || 0.01, next.nearMeters || 0.01, amountOthers),
+    farMeters: lerp(previous.farMeters || 80, next.farMeters || 80, amountOthers),
+    mode: amountOthers < 0.5 ? previous.mode : next.mode,
   });
 }
 

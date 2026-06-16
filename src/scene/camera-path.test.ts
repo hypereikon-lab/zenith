@@ -79,4 +79,19 @@ describe("RGBD 6DoF camera path math", () => {
     expect(diagnostics.expectedDisocclusion).toBeGreaterThan(0.5);
     expect(diagnostics.risk).not.toBe("low");
   });
+
+  test("uses linear parameterization for position but smoothstep for others", () => {
+    const startPose = { ...defaultRgbdCameraPose(), position: [0, 0, 0] as [number, number, number], fovDegrees: 100 };
+    const endPose = { ...defaultRgbdCameraPose(), position: [10, 0, 0] as [number, number, number], fovDegrees: 50 };
+    const interpolated = interpolateCameraPoses(
+      startPose,
+      endPose,
+      0.25, // tPosition
+      0.15625, // tOthers
+    );
+    // Position should be exactly 25% of the way (2.5)
+    expect(interpolated.position[0]).toBeCloseTo(2.5, 5);
+    // FOV should be interpolated using tOthers (100 - (100-50)*0.15625 = 100 - 7.8125 = 92.1875)
+    expect(interpolated.fovDegrees).toBeCloseTo(92.1875, 4);
+  });
 });

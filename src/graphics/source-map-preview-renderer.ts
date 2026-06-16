@@ -27,6 +27,8 @@ export type SourceMapPreviewRenderOptions = {
   showProjectionGuides?: boolean;
   domeGuideSemanticSplit?: number | string | null;
   domeGuideHorizonSplit?: number | string | null;
+  showCaveMask?: boolean;
+  invertCaveMask?: boolean;
 };
 
 export type SourceMapPreviewSource = ImageBitmap | HTMLCanvasElement | HTMLVideoElement;
@@ -42,143 +44,18 @@ export async function createSourceMapPreviewRenderer(canvas: HTMLCanvasElement):
     throw new Error("WebGPU is not available in this browser.");
   }
 
-  const adapter = await navigator.gpu.requestAdapter();
-  if (!adapter) {
-    throw new Error("No WebGPU adapter was found.");
-  }
-
-  const device = await adapter.requestDevice();
-  let destroyed = false;
-  device.lost.then((info) => {
-    if (destroyed || info.reason === "destroyed") return;
-    console.error("Source Map Preview WebGPU device lost:", info.message);
-  });
-
-  const context = canvas.getContext("webgpu");
-  if (!context) {
-    throw new Error("Could not create a WebGPU canvas context.");
-  }
-
-  const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
-  context.configure({
-    device,
-    format: presentationFormat,
-    alphaMode: "opaque",
-    usage: GPUTextureUsage.RENDER_ATTACHMENT,
-  });
-
-  const sampler = device.createSampler({
-    magFilter: "linear",
-    minFilter: "linear",
-    mipmapFilter: "linear",
-    addressModeU: "clamp-to-edge",
-    addressModeV: "clamp-to-edge",
-  });
-
-  const bindGroupLayout = device.createBindGroupLayout({
-    entries: [
-      {
-        binding: 0,
-        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-        buffer: { type: "uniform" },
-      },
-      {
-        binding: 1,
-        visibility: GPUShaderStage.FRAGMENT,
-        sampler: { type: "filtering" },
-      },
-      {
-        binding: 2,
-        visibility: GPUShaderStage.FRAGMENT,
-        texture: { sampleType: "float", viewDimension: "2d" },
-      },
-    ],
-  });
-  const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
-
-  const flatPipeline = device.createRenderPipeline({
-    layout: pipelineLayout,
-    vertex: {
-      module: device.createShaderModule({ code: flatShaderCode }),
-      entryPoint: "vertexMain",
-    },
-    fragment: {
-      module: device.createShaderModule({ code: flatShaderCode }),
-      entryPoint: "fragmentMain",
-      targets: [{ format: presentationFormat }],
-    },
-    primitive: {
-      topology: "triangle-list",
-    },
-  });
-
-  const domePipeline = device.createRenderPipeline({
-    layout: pipelineLayout,
-    vertex: {
-      module: device.createShaderModule({ code: domeShaderCode }),
-      entryPoint: "vertexMain",
-      buffers: [
-        {
-          arrayStride: 12,
-          attributes: [{ shaderLocation: 0, offset: 0, format: "float32x3" }],
-        },
-      ],
-    },
-    fragment: {
-      module: device.createShaderModule({ code: domeShaderCode }),
-      entryPoint: "fragmentMain",
-      targets: [{ format: presentationFormat }],
-    },
-    primitive: {
-      topology: "triangle-list",
-      cullMode: "none",
-    },
-    depthStencil: {
-      depthWriteEnabled: true,
-      depthCompare: "less",
-      format: "depth24plus",
-    },
-  });
-
-  const caveGeometry = buildCaveRoomGeometry();
-  const cavePipeline = device.createRenderPipeline({
-    layout: pipelineLayout,
-    vertex: {
-      module: device.createShaderModule({ code: caveShaderCode }),
-      entryPoint: "vertexMain",
-      buffers: [
-        {
-          arrayStride: 24,
-          attributes: [
-            { shaderLocation: 0, offset: 0, format: "float32x3" },
-            { shaderLocation: 1, offset: 12, format: "float32x2" },
-            { shaderLocation: 2, offset: 20, format: "float32" },
-          ],
-        },
-      ],
-    },
-    fragment: {
-      module: device.createShaderModule({ code: caveShaderCode }),
-      entryPoint: "fragmentMain",
-      targets: [{ format: presentationFormat }],
-    },
-    primitive: {
-      topology: "triangle-list",
-      cullMode: "none",
-    },
-    depthStencil: {
-      depthWriteEnabled: true,
-      depthCompare: "less",
-      format: "depth24plus",
-    },
-  });
-
-  const uniformBuffer = device.createBuffer({
-    size: 176,
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-  });
-  const caveVertexBuffer = createBuffer(caveGeometry.vertices, GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST);
-  const caveIndexBuffer = createBuffer(caveGeometry.indices, GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST);
+  let device!: GPUDevice;
+  let context!: GPUCanvasContext;
+  let presentationFormat!: GPUTextureFormat;
+  let sampler!: GPUSampler;
+  let bindGroupLayout!: GPUBindGroupLayout;
+  let pipelineLayout!: GPUPipelineLayout;
+  let flatPipeline!: GPURenderPipeline;
+  let domePipeline!: GPURenderPipeline;
+  let cavePipeline!: GPURenderPipeline;
+  let uniformBuffer!: GPUBuffer;
+  let caveVertexBuffer!: GPUBuffer;
+  let caveIndexBuffer!: GPUBuffer;
 
   let sourceTexture: GPUTexture | null = null;
   let sourceWidth = 1;
@@ -193,7 +70,157 @@ export async function createSourceMapPreviewRenderer(canvas: HTMLCanvasElement):
   let depthWidth = 0;
   let depthHeight = 0;
 
+  let destroyed = false;
+  let lastSourceImage: SourceMapPreviewSource | null = null;
+  const caveGeometry = buildCaveRoomGeometry();
+
+  async function init(): Promise<void> {
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) {
+      throw new Error("No WebGPU adapter was found.");
+    }
+
+    device = await adapter.requestDevice();
+    device.lost.then((info) => {
+      if (destroyed || info.reason === "destroyed") return;
+      console.warn("Source Map Preview WebGPU device lost. Re-initializing...", info.message);
+      cleanup();
+      void init().then(() => {
+        if (lastSourceImage) {
+          setSourceImage(lastSourceImage);
+        }
+      }).catch((error) => {
+        console.error("Failed to re-initialize WebGPU renderer after device loss:", error);
+      });
+    });
+
+    context = canvas.getContext("webgpu")!;
+    presentationFormat = navigator.gpu.getPreferredCanvasFormat();
+    context.configure({
+      device,
+      format: presentationFormat,
+      alphaMode: "opaque",
+      usage: GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+
+    sampler = device.createSampler({
+      magFilter: "linear",
+      minFilter: "linear",
+      mipmapFilter: "linear",
+      addressModeU: "clamp-to-edge",
+      addressModeV: "clamp-to-edge",
+    });
+
+    bindGroupLayout = device.createBindGroupLayout({
+      entries: [
+        {
+          binding: 0,
+          visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+          buffer: { type: "uniform" },
+        },
+        {
+          binding: 1,
+          visibility: GPUShaderStage.FRAGMENT,
+          sampler: { type: "filtering" },
+        },
+        {
+          binding: 2,
+          visibility: GPUShaderStage.FRAGMENT,
+          texture: { sampleType: "float", viewDimension: "2d" },
+        },
+      ],
+    });
+    pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
+
+    flatPipeline = device.createRenderPipeline({
+      layout: pipelineLayout,
+      vertex: {
+        module: device.createShaderModule({ code: flatShaderCode }),
+        entryPoint: "vertexMain",
+      },
+      fragment: {
+        module: device.createShaderModule({ code: flatShaderCode }),
+        entryPoint: "fragmentMain",
+        targets: [{ format: presentationFormat }],
+      },
+      primitive: {
+        topology: "triangle-list",
+      },
+    });
+
+    domePipeline = device.createRenderPipeline({
+      layout: pipelineLayout,
+      vertex: {
+        module: device.createShaderModule({ code: domeShaderCode }),
+        entryPoint: "vertexMain",
+        buffers: [
+          {
+            arrayStride: 12,
+            attributes: [{ shaderLocation: 0, offset: 0, format: "float32x3" }],
+          },
+        ],
+      },
+      fragment: {
+        module: device.createShaderModule({ code: domeShaderCode }),
+        entryPoint: "fragmentMain",
+        targets: [{ format: presentationFormat }],
+      },
+      primitive: {
+        topology: "triangle-list",
+        cullMode: "none",
+      },
+      depthStencil: {
+        depthWriteEnabled: true,
+        depthCompare: "less",
+        format: "depth24plus",
+      },
+    });
+
+    cavePipeline = device.createRenderPipeline({
+      layout: pipelineLayout,
+      vertex: {
+        module: device.createShaderModule({ code: caveShaderCode }),
+        entryPoint: "vertexMain",
+        buffers: [
+          {
+            arrayStride: 24,
+            attributes: [
+              { shaderLocation: 0, offset: 0, format: "float32x3" },
+              { shaderLocation: 1, offset: 12, format: "float32x2" },
+              { shaderLocation: 2, offset: 20, format: "float32" },
+            ],
+          },
+        ],
+      },
+      fragment: {
+        module: device.createShaderModule({ code: caveShaderCode }),
+        entryPoint: "fragmentMain",
+        targets: [{ format: presentationFormat }],
+      },
+      primitive: {
+        topology: "triangle-list",
+        cullMode: "none",
+      },
+      depthStencil: {
+        depthWriteEnabled: true,
+        depthCompare: "less",
+        format: "depth24plus",
+      },
+    });
+
+    uniformBuffer = device.createBuffer({
+      size: 192,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+    caveVertexBuffer = createBuffer(caveGeometry.vertices, GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST);
+    caveIndexBuffer = createBuffer(caveGeometry.indices, GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST);
+  }
+
+  await init();
+
   function setSourceImage(source: SourceMapPreviewSource): void {
+    if (!device) return;
+    lastSourceImage = source;
     const dimensions = sourceDimensions(source);
     if (!dimensions) return;
     sourceWidth = dimensions.width;
@@ -212,7 +239,7 @@ export async function createSourceMapPreviewRenderer(canvas: HTMLCanvasElement):
   }
 
   function render(options: SourceMapPreviewRenderOptions): void {
-    if (!sourceTexture) return;
+    if (!device || !sourceTexture) return;
     const width = Math.max(1, Math.round(options.width));
     const height = Math.max(1, Math.round(options.height));
     if (canvas.width !== width) canvas.width = width;
@@ -328,7 +355,7 @@ export async function createSourceMapPreviewRenderer(canvas: HTMLCanvasElement):
     const view = plateEditorViewMatrix(projectionViewMode, camera, sourceProjectionMode);
     const profile = sourceProjectionProfileForMode(sourceProjectionMode, sourceWidth, sourceHeight, 1);
     const showGuides = options.showProjectionGuides ? 1 : 0;
-    const data = new Float32Array(44);
+    const data = new Float32Array(48);
     data.set(multiplyMat4(projection, view), 0);
     data[16] = profile.fisheyeScaleX;
     data[17] = profile.fisheyeScaleY;
@@ -354,6 +381,10 @@ export async function createSourceMapPreviewRenderer(canvas: HTMLCanvasElement):
     );
     data.set(profile.imageRightAxis, 36);
     data.set(profile.imageUpAxis, 40);
+    data[44] = options.showCaveMask ? (options.invertCaveMask ? 2 : 1) : 0;
+    data[45] = camera.position[0];
+    data[46] = camera.position[1];
+    data[47] = camera.position[2];
     device.queue.writeBuffer(uniformBuffer, 0, data);
   }
 
@@ -366,17 +397,23 @@ export async function createSourceMapPreviewRenderer(canvas: HTMLCanvasElement):
     return buffer;
   }
 
+  function cleanup(): void {
+    sourceTexture?.destroy();
+    sourceTexture = null;
+    domeVertexBuffer?.destroy();
+    domeVertexBuffer = null;
+    domeIndexBuffer?.destroy();
+    domeIndexBuffer = null;
+    caveVertexBuffer?.destroy();
+    caveIndexBuffer?.destroy();
+    depthTexture?.destroy();
+    depthTexture = null;
+  }
+
   function destroy(): void {
     destroyed = true;
-    sourceTexture?.destroy();
-    sourceTextureWidth = 0;
-    sourceTextureHeight = 0;
-    domeVertexBuffer?.destroy();
-    domeIndexBuffer?.destroy();
-    caveVertexBuffer.destroy();
-    caveIndexBuffer.destroy();
-    depthTexture?.destroy();
-    if ("destroy" in device && typeof device.destroy === "function") {
+    cleanup();
+    if (device && "destroy" in device && typeof device.destroy === "function") {
       device.destroy();
     }
   }

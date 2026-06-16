@@ -21,6 +21,7 @@ export type CaveViewProjection = {
   mirror: boolean;
   sourceProjectionMode?: SourceProjectionMode;
   room?: CaveRoom;
+  showCaveMask?: boolean;
 };
 
 type Ray = { origin: Vec3; direction: Vec3 };
@@ -71,14 +72,14 @@ function caveSurfacePointFromScreenPoint(point: Point2D, projection: CaveViewPro
   if (!pointInRect(point, projection.rect)) return null;
   const ray = worldRayFromScreenPoint(point, projection);
   if (!ray) return null;
-  return intersectCaveSurface(ray, projection.room);
+  return intersectCaveSurface(ray, projection.room, projection.showCaveMask);
 }
 
 export function caveSurfacePointForPhysicalDirection(direction: Vec3, room: CaveRoom = DEFAULT_CAVE_ROOM): Vec3 | null {
   return intersectCaveSurface({ origin: [0, 0, 0], direction: normalize(direction) }, room);
 }
 
-function intersectCaveSurface(ray: Ray, room: CaveRoom = DEFAULT_CAVE_ROOM): Vec3 | null {
+function intersectCaveSurface(ray: Ray, room: CaveRoom = DEFAULT_CAVE_ROOM, showCaveMask?: boolean): Vec3 | null {
   const safeRoom = normalizeCaveRoom(room);
   const halfWidth = safeRoom.width * 0.5;
   const halfDepth = safeRoom.depth * 0.5;
@@ -86,11 +87,11 @@ function intersectCaveSurface(ray: Ray, room: CaveRoom = DEFAULT_CAVE_ROOM): Vec
   const top = safeRoom.height - safeRoom.eyeHeight;
   const candidates: Array<{ t: number; point: Vec3 }> = [];
 
-  addPlaneCandidate(candidates, ray, 0, halfWidth, bottom, top, -halfDepth, halfDepth);
-  addPlaneCandidate(candidates, ray, 0, -halfWidth, bottom, top, -halfDepth, halfDepth);
-  addPlaneCandidate(candidates, ray, 2, halfDepth, -halfWidth, halfWidth, bottom, top);
-  addPlaneCandidate(candidates, ray, 2, -halfDepth, -halfWidth, halfWidth, bottom, top);
-  addPlaneCandidate(candidates, ray, 1, bottom, -halfWidth, halfWidth, -halfDepth, halfDepth);
+  addPlaneCandidate(candidates, ray, 0, halfWidth, bottom, top, -halfDepth, halfDepth, showCaveMask);
+  addPlaneCandidate(candidates, ray, 0, -halfWidth, bottom, top, -halfDepth, halfDepth, showCaveMask);
+  addPlaneCandidate(candidates, ray, 2, halfDepth, -halfWidth, halfWidth, bottom, top, showCaveMask);
+  addPlaneCandidate(candidates, ray, 2, -halfDepth, -halfWidth, halfWidth, bottom, top, showCaveMask);
+  addPlaneCandidate(candidates, ray, 1, bottom, -halfWidth, halfWidth, -halfDepth, halfDepth, showCaveMask);
 
   candidates.sort((a, b) => a.t - b.t);
   return candidates[0]?.point || null;
@@ -105,11 +106,27 @@ function addPlaneCandidate(
   firstMax: number,
   secondMin: number,
   secondMax: number,
+  showCaveMask?: boolean,
 ): void {
   const denominator = ray.direction[axis];
   if (Math.abs(denominator) <= EPSILON) return;
   const t = (value - ray.origin[axis]) / denominator;
   if (t <= EPSILON) return;
+
+  if (showCaveMask) {
+    let normal: Vec3;
+    if (axis === 0) {
+      normal = [-Math.sign(value), 0, 0];
+    } else if (axis === 2) {
+      normal = [0, 0, -Math.sign(value)];
+    } else {
+      normal = [0, 1, 0];
+    }
+    if (dot(ray.direction, normal) > 0.0) {
+      return;
+    }
+  }
+
   const point: Vec3 = [
     ray.origin[0] + ray.direction[0] * t,
     ray.origin[1] + ray.direction[1] * t,

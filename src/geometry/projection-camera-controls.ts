@@ -2,8 +2,8 @@ import {
   cameraBasisFromRigPose,
   lookAtPivot,
   normalizeCameraRigPose,
-  orbitCameraAroundPivotArcball,
-  rotateCameraArcball,
+  orbitCameraAroundPivot,
+  rotateCameraEuler,
 } from "./camera-rig.js";
 import { addVec3 } from "./camera-rig.js";
 import { clamp, normalize, scaleVec3, subtract, vectorLength } from "../projection.js";
@@ -43,6 +43,8 @@ const PAN_WORLD_FRACTION_PER_VIEW_HEIGHT = 1.35;
 const DOLLY_DISTANCE_FRACTION_PER_VIEW_HEIGHT = 3.0;
 const WHEEL_DISTANCE_FRACTION = 0.12;
 const WHEEL_FOV_DEGREES_PER_PIXEL = 0.035;
+const ORBIT_DEGREES_PER_PIXEL = 0.45;
+const LOOK_DEGREES_PER_PIXEL = 0.25;
 
 export function cloneCameraRigPose<Mode extends string>(pose: CameraRigPose<Mode>): CameraRigPose<Mode> {
   return normalizeCameraRigPose<Mode>({
@@ -84,9 +86,17 @@ export function applyProjectionCameraPointerDrag<Mode extends string>(
     return dollyProjectionCamera(input.startCamera, input.viewMode, amount);
   }
   if (intent === "orbit") {
-    return orbitCameraAroundPivotArcball(input.startCamera, input.startPoint, input.currentPoint, input.viewport);
+    return orbitCameraAroundPivot(
+      input.startCamera,
+      -dx * ORBIT_DEGREES_PER_PIXEL,
+      -dy * ORBIT_DEGREES_PER_PIXEL
+    );
   }
-  return rotateCameraArcball(input.startCamera, input.startPoint, input.currentPoint, input.viewport);
+  return rotateCameraEuler(
+    input.startCamera,
+    dx * LOOK_DEGREES_PER_PIXEL,
+    dy * LOOK_DEGREES_PER_PIXEL
+  );
 }
 
 export function applyProjectionCameraWheel<Mode extends string>(

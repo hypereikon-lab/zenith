@@ -8,6 +8,9 @@ import {
 import { buildCaveRoomGeometry, buildDomeGeometry, buildRoomGeometry } from "./geometry.js";
 import { getCssLayout as buildCssLayout, getRenderLayout as buildRenderLayout } from "./render-layout.js";
 import { caveShaderCode, domeShaderCode, flatShaderCode, roomShaderCode } from "./shaders.js";
+import { workbench } from "../artifacts/artifact-store.svelte.js";
+import { normalizeDomeGuideSemanticSplit } from "../geometry/dome-handoff-guide.js";
+import { sourceGuideCarrierHorizonRadius } from "../geometry/source-guide-semantics.js";
 import { renderCopyTextureUsage } from "./texture-usage.js";
 import { SourceTextureController } from "../media/source-texture.js";
 import { PlateGpuCompositor } from "../plates/plate-gpu-compositor.js";
@@ -339,7 +342,7 @@ export function createDomeRenderer({
 
   function createUniforms() {
     uniformBuffer = device.createBuffer({
-      size: 176,
+      size: 192,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
     roomUniformBuffer = device.createBuffer({
@@ -642,7 +645,7 @@ export function createDomeRenderer({
     const { width: sourceWidth, height: sourceHeight } = effectiveSourceSize();
     const profile = sourceProjectionProfileForMode(sourceProjectionMode(), sourceWidth, sourceHeight, controls.radiusScale.value);
 
-    const data = new Float32Array(44);
+    const data = new Float32Array(48);
     data.set(mvp, 0);
     data[16] = profile.fisheyeScaleX;
     data[17] = profile.fisheyeScaleY;
@@ -658,10 +661,23 @@ export function createDomeRenderer({
     data[27] = controls.showZenith.checked ? 1 : 0;
     data[28] = controls.showSourceCircle.checked ? 1 : 0;
     data[29] = Number(controls.shellShade.value);
+    data[30] = normalizeDomeGuideSemanticSplit(workbench.domeGuideSemanticSplit);
+    data[31] = sourceGuideCarrierHorizonRadius(sourceProjectionMode(), data[30], workbench.domeGuideHorizonSplit);
     data.set(profile.centerAxis, 32);
-    data[35] = sourceProjectionShaderTheta(sourceProjectionMode(), profile.fieldOfViewDegrees);
+    data[35] = sourceProjectionShaderTheta(
+      sourceProjectionMode(),
+      profile.fieldOfViewDegrees,
+      workbench.domeGuideSemanticSplit,
+    );
     data.set(profile.imageRightAxis, 36);
     data.set(profile.imageUpAxis, 40);
+    const posX = -(view[0] * view[12] + view[1] * view[13] + view[2] * view[14]);
+    const posY = -(view[4] * view[12] + view[5] * view[13] + view[6] * view[14]);
+    const posZ = -(view[8] * view[12] + view[9] * view[13] + view[10] * view[14]);
+    data[44] = controls.showCaveMask?.checked ? (controls.invertCaveMask?.checked ? 2 : 1) : 0;
+    data[45] = posX;
+    data[46] = posY;
+    data[47] = posZ;
     device.queue.writeBuffer(uniformBuffer, 0, data);
   }
 

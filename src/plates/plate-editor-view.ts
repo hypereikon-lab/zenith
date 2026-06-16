@@ -99,6 +99,7 @@ export function plateEditorDomeProjection(
   camera: Partial<PlateEditorCamera>,
   sourceProjectionMode: SourceProjectionMode,
   rect: Rect,
+  showCaveMask?: boolean,
 ): DomeViewProjection {
   const normalized = normalizePlateEditorCamera(camera as Partial<PlateEditorCamera> & Record<string, unknown>);
   return {
@@ -109,6 +110,7 @@ export function plateEditorDomeProjection(
     domeTiltRadians: 0,
     mirror: false,
     sourceProjectionMode,
+    showCaveMask,
   };
 }
 
@@ -116,6 +118,7 @@ export function plateEditorCaveProjection(
   camera: Partial<PlateEditorCamera>,
   sourceProjectionMode: SourceProjectionMode,
   rect: Rect,
+  showCaveMask?: boolean,
 ): CaveViewProjection {
   const normalized = normalizePlateEditorCamera(camera as Partial<PlateEditorCamera> & Record<string, unknown>);
   return {
@@ -126,6 +129,7 @@ export function plateEditorCaveProjection(
     domeTiltRadians: 0,
     mirror: false,
     sourceProjectionMode,
+    showCaveMask,
   };
 }
 

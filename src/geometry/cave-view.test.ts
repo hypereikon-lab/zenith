@@ -45,6 +45,26 @@ describe("CAVE view projection", () => {
 
     expectVectorClose(sourceCaveDirectionFromScreenPoint(screen, projection), source);
   });
+
+  test("projects and raycasts through front/blocking CAVE faces when mask is enabled", () => {
+    const centerScreen = { x: 50, y: 50 };
+
+    // With mask disabled: center screen hit should be on the front wall (z = 1.1)
+    const hitWithoutMask = sourceCaveDirectionFromScreenPoint(centerScreen, {
+      ...frontProjection,
+      showCaveMask: false,
+    });
+    expect(hitWithoutMask).not.toBeNull();
+    expectVectorClose(hitWithoutMask, [0, 0, 1]);
+
+    // With mask enabled: center screen hit should pass through front wall and hit back wall (z = -1.1)
+    const hitWithMask = sourceCaveDirectionFromScreenPoint(centerScreen, {
+      ...frontProjection,
+      showCaveMask: true,
+    });
+    expect(hitWithMask).not.toBeNull();
+    expectVectorClose(hitWithMask, [0, 0, -1]);
+  });
 });
 
 function expectVectorClose(actual: Vec3 | null, expected: Vec3): void {

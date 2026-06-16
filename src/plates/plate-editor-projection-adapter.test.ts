@@ -4,6 +4,7 @@ import { domePointFromSourceDirection } from "../geometry/dome-view.js";
 import { sourceDirectionToMapPoint } from "../geometry/source-projection.js";
 import { createPlateEditorProjectionAdapter } from "./plate-editor-projection-adapter.js";
 import { defaultPlateEditorCamera } from "./plate-editor-view.js";
+import { quaternionFromLookAt } from "../geometry/camera-rig.js";
 import { directionToPlateLocal, preparePlatePlacement } from "./plate-placement.js";
 import type { SourceProjectionMode } from "../geometry/source-projection.js";
 import type { Vec3 } from "../projection.js";
@@ -12,7 +13,7 @@ import type { PlateEditorViewMode } from "./plate-editor-view.js";
 const rect = { x: 0, y: 0, width: 768, height: 768 };
 
 describe("plate editor projection adapter", () => {
-  const domePovDirection = normalize([-0.58, 0.48, 0.66]);
+  const domePovDirection = normalize([-0.58, 0.48, -0.66]);
   const caveDirection = normalize([0, 0, 1]);
 
   test.each([
@@ -23,10 +24,18 @@ describe("plate editor projection adapter", () => {
   ] satisfies Array<[PlateEditorViewMode, SourceProjectionMode, Vec3]>)(
     "round-trips source directions in %s / %s",
     (mode, sourceProjectionMode, direction) => {
+      let camera = defaultPlateEditorCamera(sourceProjectionMode);
+      if (mode === "dome-pov") {
+        camera = {
+          ...camera,
+          position: [0, 0, 0],
+          orientation: quaternionFromLookAt([0, 0, 0], direction),
+        };
+      }
       const adapter = createPlateEditorProjectionAdapter({
         mode,
         sourceProjectionMode,
-        camera: defaultPlateEditorCamera(sourceProjectionMode),
+        camera,
         rect,
       });
 
@@ -47,10 +56,18 @@ describe("plate editor projection adapter", () => {
   ] satisfies Array<[PlateEditorViewMode, SourceProjectionMode]>)(
     "round-trips projected plate uv handles through source local coordinates in %s",
     (mode, sourceProjectionMode) => {
+      let camera = defaultPlateEditorCamera(sourceProjectionMode);
+      if (mode === "dome-pov") {
+        camera = {
+          ...camera,
+          position: [0, 0, 0],
+          orientation: quaternionFromLookAt([0, 0, 0], domePovDirection),
+        };
+      }
       const adapter = createPlateEditorProjectionAdapter({
         mode,
         sourceProjectionMode,
-        camera: defaultPlateEditorCamera(sourceProjectionMode),
+        camera,
         rect,
         domeGuideSemanticSplit: 0.5,
       });

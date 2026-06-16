@@ -54,6 +54,8 @@ export type PlateSketchRenderOptions = PlateRenderOptions & {
   projectionViewMode?: PlateEditorViewMode;
   projectionCamera?: Partial<PlateEditorCamera>;
   showProjectionGuides?: boolean;
+  showCaveMask?: boolean;
+  invertCaveMask?: boolean;
 };
 
 export type PlateSketchGpuRenderer = {
@@ -211,7 +213,7 @@ export async function createPlateSketchGpuRenderer(canvas: HTMLCanvasElement): P
     },
   });
   const projectionUniformBuffer = device.createBuffer({
-    size: 176,
+    size: 192,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
   const caveGeometry = buildCaveRoomGeometry();
@@ -228,7 +230,9 @@ export async function createPlateSketchGpuRenderer(canvas: HTMLCanvasElement): P
     const size = Math.max(1, Math.round(options.size || 768));
     if (canvas.width !== size) canvas.width = size;
     if (canvas.height !== size) canvas.height = size;
-    const texture = compositor.render(options);
+    // Render the compositor texture at a constant high resolution (2048x2048)
+    // so that the 3D projection passes have enough pixel density to prevent scaling artifacts
+    const texture = compositor.render({ ...options, size: 2048 });
     if (options.projectionViewMode && options.projectionViewMode !== "source-map") {
       renderProjectionPreview(texture, size, options);
       return;
@@ -349,7 +353,7 @@ export async function createPlateSketchGpuRenderer(canvas: HTMLCanvasElement): P
     const mvp = multiplyMat4(projection, view);
     const profile = sourceProjectionProfileForMode(sourceProjectionMode, size, size, 1);
     const showGuides = options.showProjectionGuides ? 1 : 0;
-    const data = new Float32Array(44);
+    const data = new Float32Array(48);
     data.set(mvp, 0);
     data[16] = profile.fisheyeScaleX;
     data[17] = profile.fisheyeScaleY;
@@ -375,6 +379,10 @@ export async function createPlateSketchGpuRenderer(canvas: HTMLCanvasElement): P
     );
     data.set(profile.imageRightAxis, 36);
     data.set(profile.imageUpAxis, 40);
+    data[44] = options.showCaveMask ? (options.invertCaveMask ? 2 : 1) : 0;
+    data[45] = camera.position[0];
+    data[46] = camera.position[1];
+    data[47] = camera.position[2];
     device.queue.writeBuffer(projectionUniformBuffer, 0, data);
   }
 
