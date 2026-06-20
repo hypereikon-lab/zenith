@@ -9,7 +9,7 @@ type ProgressEvent = {
   error?: string;
   result?: unknown;
   stage?: string;
-  progress?: number;
+  progress?: unknown;
 };
 
 export async function readProgressStream(response: Response, options: ProgressOptions = {}): Promise<unknown> {
@@ -58,7 +58,7 @@ function handleProgressLine(
   { errorPrefix, defaultStage, onProgress }: Required<Pick<ProgressOptions, "errorPrefix" | "defaultStage" | "onProgress">>,
 ): unknown | null {
   if (!line.trim()) return null;
-  const event = JSON.parse(line) as ProgressEvent;
+  const event = parseProgressEvent(line, errorPrefix);
   if (event.type === "error") {
     throw new Error(event.error || `${errorPrefix}.`);
   }
@@ -66,6 +66,21 @@ function handleProgressLine(
     onProgress("Complete", 1);
     return event.result;
   }
-  onProgress(event.stage || defaultStage, Number(event.progress) || 0);
+  onProgress(event.stage || defaultStage, normalizeProgress(event.progress));
   return null;
+}
+
+function parseProgressEvent(line: string, errorPrefix: string): ProgressEvent {
+  try {
+    const event = JSON.parse(line) as unknown;
+    return event && typeof event === "object" ? (event as ProgressEvent) : {};
+  } catch {
+    throw new Error(`${errorPrefix}: received malformed progress event.`);
+  }
+}
+
+function normalizeProgress(value: unknown): number {
+  const progress = Number(value);
+  if (!Number.isFinite(progress)) return 0;
+  return Math.max(0, Math.min(1, progress));
 }

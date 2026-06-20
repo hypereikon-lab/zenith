@@ -2,6 +2,8 @@
 
 Zenith is now structured as a full SvelteKit application. SvelteKit owns page routing, API endpoints, server-only integrations, SSR, build output, and the production Node server. There is no separate Express-style sidecar server.
 
+This document describes the architecture Zenith currently targets and maintains. For the more ambitious end-state roadmap covering durable projects, jobs, assets, and production operations, see `docs/ultimate-architecture-roadmap.md`.
+
 ## Target Architecture
 
 The ideal shape for this project is:
@@ -9,7 +11,7 @@ The ideal shape for this project is:
 - `src/routes`: SvelteKit route tree. `+page.svelte` renders the workbench UI, `+layout.svelte` owns app shell concerns, and `+server.ts` files expose API endpoints.
 - `src/lib/server`: server-only modules. Anything in this folder is excluded from browser bundles by SvelteKit and is the right place for secrets, request validation, Runway API calls, Codex SDK calls, filesystem access, uploads, polling, and streaming helpers.
 - `src/runway/client.ts`: browser-safe API client. UI and pipeline code call local SvelteKit endpoints, never Runway directly.
-- `src/app`, `src/lanes`, `src/ui`, `src/graphics`, `src/media`, `src/sketch`, `src/inpaint`: browser-side workbench, rendering, media, and workflow modules.
+- `src/app`, `src/stages`, `src/ui`, `src/graphics`, `src/media`, `src/sketch`, `src/inpaint`: browser-side workbench, rendering, media, and workflow modules.
 - `svelte.config.js`: Node adapter configuration. `npm run build` produces the SvelteKit server bundle; `npm run start` runs it.
 
 This is idiomatic SvelteKit because framework boundaries match the framework's ownership model: route files handle HTTP, server modules hold private effects, and browser modules stay browser-only.
@@ -29,7 +31,7 @@ The Runway and Codex flow is:
 1. A Svelte component or workflow command calls a helper in `src/runway/client.ts`.
 2. The helper sends JSON to a local endpoint such as `/api/runway/inpaint-stream`.
 3. The endpoint in `src/routes/api/.../+server.ts` calls `streamPost` or `jsonPost` from `src/lib/server/route-utils.ts`.
-4. `readJsonPayload` parses the request body and rejects bodies larger than `128 MB`.
+4. `readJsonPayload` parses object-shaped JSON, rejects malformed JSON with `400`, and rejects bodies larger than `128 MB` before service code runs.
 5. The endpoint invokes a typed server procedure from the focused module it needs, such as `src/lib/server/runway/runway-jobs.ts`, `src/lib/server/runway/codex-planner.ts`, or `src/lib/server/runway/status.ts`.
 6. The server procedure validates the payload with Zod, normalizes operational fields, reads private environment variables, performs Runway/Codex work, and writes progress events.
 7. `streamProgressResponse` returns `application/x-ndjson` events to the browser.
@@ -45,7 +47,7 @@ Streaming endpoints emit one JSON object per line:
 {"type":"error","stage":"Failed","progress":1,"error":"Runway task failed.","status":502}
 ```
 
-`progress` is normalized to `0..1`. Request parse failures return normal JSON HTTP errors before a stream starts. Job failures after a stream starts are sent as `type: "error"` records inside the NDJSON stream.
+`progress` is normalized to `0..1`. Request parse failures return normal JSON HTTP errors before a stream starts. Job failures after a stream starts are sent as `type: "error"` records inside the NDJSON stream. If the browser cancels a stream or the request signal aborts, the server aborts the underlying job signal so uploads, polling, downloads, and Codex prompt planning can stop promptly.
 
 ## Server Module Layout
 
@@ -69,7 +71,7 @@ Zod is used at the server boundary, not deep inside rendering code. The goal is 
 
 Validation procedure:
 
-1. `readJsonPayload` parses JSON and enforces the `128 MB` body cap.
+1. `readJsonPayload` parses object-shaped JSON, rejects malformed/non-object JSON as invalid input, and enforces the `128 MB` body cap with a content-length preflight and streamed byte counting.
 2. The selected service calls a route-specific Zod parser from `src/lib/server/runway/schemas.ts`.
 3. Zod checks the structural contract: required data URLs, prompt shape, ratios, optional references, and Codex planning context.
 4. Media parsers still perform byte-level checks: base64 requirement, MIME type, minimum file size, and Seedance video size limit.
@@ -110,7 +112,7 @@ Codex prompt planning is also server-only:
 - Oversized JSON uses `413`.
 - Upstream Runway failures keep their HTTP status when available.
 - Long-running task timeouts use `504`.
-- Client aborts propagate through `AbortSignal` and are represented internally as `499`.
+- Client aborts and cancelled response streams propagate through `AbortSignal` and are represented internally as `499`.
 
 ## Environment Boundary
 
@@ -124,7 +126,7 @@ Playwright covers browser/server integration that unit tests do not:
 
 - the SSR page returns a SvelteKit page response and hydrates enough for the workbench shell to be visible;
 - `/api/runway/status` returns the expected local API contract;
-- invalid Runway payloads are rejected by local validation before upstream Runway work starts.
+- invalid Runway payloads and malformed JSON are rejected by local validation before upstream Runway work starts.
 
 These tests live in `tests/e2e`. They use a dedicated local dev-server port so they do not accidentally reuse a stale manual dev server.
 

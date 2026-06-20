@@ -41,7 +41,7 @@ On Windows PowerShell, use `Copy-Item .env.example .env.local` instead of `cp`.
 
 Open the printed local URL, usually `http://127.0.0.1:5173/`. SvelteKit serves both the workbench and the Runway/Codex API routes.
 
-For the full routing, server-only module, streaming, and data-handling contract, see `docs/sveltekit-architecture.md`.
+For the full routing, server-only module, streaming, and data-handling contract, see `docs/sveltekit-architecture.md`. For the longer-term durable project/job/asset target, see `docs/ultimate-architecture-roadmap.md`.
 
 ## Environment
 
@@ -71,7 +71,7 @@ npm run start
 - `src/routes`: SvelteKit pages and API routes for the fulldome workbench.
 - `src/lib/server`: server-only Runway/Codex integration, Zod request validation, streaming progress, uploads, depth/inpaint/Seedance handoffs, and Codex prompt planning.
 - `src/app`: pipeline state, artifact DAG, command bridge, defaults, and view state.
-- `src/lanes`: Svelte lane components for Source, Sketch, Repair, Depth, Motion, Bridge, Video, and Deliver.
+- `src/stages`: Svelte stage context components for Start State, Motion Draft, End State, Video Take, and Deliverables.
 - `src/artifacts`: artifact graph nodes, dependencies, and status logic.
 - `src/graphics`: WebGPU/WebGL-style dome rendering, projection geometry, shaders, view cameras.
 - `src/plates`: image plate loading, spherical placement, plate-map baking.
@@ -82,4 +82,5 @@ npm run start
 - `docs/seedance_prompt_pack`: prompt-planning context for repairing 2.5D/depth-warp motion plates with Seedance.
 - `docs/seedance_image_prompt_pack`: prompt-planning context for direct Seedance image-to-video from a still dome image.
 - `docs/sveltekit-architecture.md`: SvelteKit architecture, SSR/API boundaries, streaming contract, and Runway/Codex data procedures.
+- `docs/ultimate-architecture-roadmap.md`: end-state architecture roadmap for durable projects, assets, jobs, and production operations.
 - `docs/default-depth-motion-config.json`: the default dome placement, inpaint, depth-motion, and Seedance settings captured from the current working profile.

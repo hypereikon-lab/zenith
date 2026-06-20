@@ -35,3 +35,16 @@ test("rejects invalid Runway payloads before upstream work", async ({ request })
   expect(body.error).toContain("Runway inpaint");
   expect(body.error).toContain("imageDataUrl");
 });
+
+test("rejects malformed JSON at the API boundary", async ({ request }) => {
+  const response = await request.post("/api/runway/inpaint", {
+    data: Buffer.from("{"),
+    headers: {
+      "content-type": "application/json",
+    },
+  });
+
+  expect(response.status()).toBe(400);
+  const body = await response.json();
+  expect(body.error).toBe("Request body must be valid JSON.");
+});
