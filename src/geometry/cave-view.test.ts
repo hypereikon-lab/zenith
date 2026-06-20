@@ -46,6 +46,19 @@ describe("CAVE view projection", () => {
     expectVectorClose(sourceCaveDirectionFromScreenPoint(screen, projection), source);
   });
 
+  test("round-trips CAVE source directions through orthographic screen projection", () => {
+    const projection: CaveViewProjection = {
+      ...frontProjection,
+      projectionMode: "orthographic",
+      orthographicViewHeight: 5,
+    };
+    const source = normalize([0.24, -0.35, 0.91]);
+    const screen = sourceCaveDirectionToScreenPoint(source, projection);
+    if (!screen) throw new Error("Expected source direction to hit a CAVE face");
+
+    expectVectorClose(sourceCaveDirectionFromScreenPoint(screen, projection), source);
+  });
+
   test("projects and raycasts through front/blocking CAVE faces when mask is enabled", () => {
     const centerScreen = { x: 50, y: 50 };
 

@@ -4,12 +4,16 @@ import {
   viewMatrixFromCameraRigPose,
 } from "../geometry/camera-rig.js";
 import type { CameraRigPose } from "../geometry/camera-rig.js";
+import { clamp, orthographicLH } from "../projection.js";
 import type { Mat4, Rect, Vec3 } from "../projection.js";
 import type { CaveViewProjection } from "../geometry/cave-view.js";
 import type { DomeViewProjection } from "../geometry/dome-view.js";
 import type { SourceProjectionMode } from "../geometry/source-projection.js";
 
 export const PLATE_EDITOR_VIEW_MODES = ["source-map", "dome-orbit", "dome-pov", "cave-room"] as const;
+export const PLATE_EDITOR_ORTHOGRAPHIC_VIEW_HEIGHT_PER_DISTANCE = 1.62;
+const MIN_ORTHOGRAPHIC_VIEW_HEIGHT = 0.35;
+const MAX_ORTHOGRAPHIC_VIEW_HEIGHT = 120;
 
 export type PlateEditorViewMode = (typeof PLATE_EDITOR_VIEW_MODES)[number];
 export type PlateEditorCameraMode = "inside" | "orbit" | "fly";
@@ -94,6 +98,39 @@ export function plateEditorViewMatrix(
   });
 }
 
+export function plateEditorOrthographicViewHeight(
+  camera: Partial<PlateEditorCamera>,
+  sourceProjectionMode: SourceProjectionMode,
+): number {
+  const normalized = normalizePlateEditorCamera(camera as Partial<PlateEditorCamera> & Record<string, unknown>);
+  const pivot = normalized.pivot || defaultPlateEditorPivot(sourceProjectionMode);
+  const distance = Math.hypot(
+    normalized.position[0] - pivot[0],
+    normalized.position[1] - pivot[1],
+    normalized.position[2] - pivot[2],
+  );
+  return clamp(
+    Math.max(0.08, distance) * PLATE_EDITOR_ORTHOGRAPHIC_VIEW_HEIGHT_PER_DISTANCE,
+    MIN_ORTHOGRAPHIC_VIEW_HEIGHT,
+    MAX_ORTHOGRAPHIC_VIEW_HEIGHT,
+  );
+}
+
+export function plateEditorProjectionMatrix(
+  camera: Partial<PlateEditorCamera>,
+  sourceProjectionMode: SourceProjectionMode,
+  aspect = 1,
+): Mat4 {
+  const normalized = normalizePlateEditorCamera(camera as Partial<PlateEditorCamera> & Record<string, unknown>);
+  const viewHeight = plateEditorOrthographicViewHeight(normalized, sourceProjectionMode);
+  return orthographicLH(
+    viewHeight * Math.max(0.000001, aspect),
+    viewHeight,
+    normalized.nearMeters || 0.01,
+    normalized.farMeters || 80,
+  );
+}
+
 export function plateEditorDomeProjection(
   mode: "dome-orbit" | "dome-pov",
   camera: Partial<PlateEditorCamera>,
@@ -106,6 +143,8 @@ export function plateEditorDomeProjection(
     rect,
     viewMatrix: plateEditorViewMatrix(mode, normalized, sourceProjectionMode),
     fovDegrees: normalized.fovDegrees,
+    projectionMode: "orthographic",
+    orthographicViewHeight: plateEditorOrthographicViewHeight(normalized, sourceProjectionMode),
     sourceRotationRadians: 0,
     domeTiltRadians: 0,
     mirror: false,
@@ -125,6 +164,8 @@ export function plateEditorCaveProjection(
     rect,
     viewMatrix: plateEditorViewMatrix("cave-room", normalized, sourceProjectionMode),
     fovDegrees: normalized.fovDegrees,
+    projectionMode: "orthographic",
+    orthographicViewHeight: plateEditorOrthographicViewHeight(normalized, sourceProjectionMode),
     sourceRotationRadians: 0,
     domeTiltRadians: 0,
     mirror: false,

@@ -2461,10 +2461,6 @@ progress {
   align-items: center;
 }
 
-.fov-row {
-  grid-template-columns: 32px 1fr 36px;
-}
-
 .transform-label {
   font-size: 10px;
   font-weight: 700;
@@ -2488,18 +2484,6 @@ progress {
 .transform-row input[type="number"]:focus {
   border-color: var(--cyan);
   outline: none;
-}
-
-.fov-row input[type="range"] {
-  width: 100%;
-  accent-color: var(--cyan);
-}
-
-.fov-value {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--muted);
-  text-align: right;
 }
 
 .nudge-pad {

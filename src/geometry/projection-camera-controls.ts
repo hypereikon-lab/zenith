@@ -42,7 +42,7 @@ const MAX_ORBIT_DISTANCE = 80;
 const PAN_WORLD_FRACTION_PER_VIEW_HEIGHT = 1.35;
 const DOLLY_DISTANCE_FRACTION_PER_VIEW_HEIGHT = 3.0;
 const WHEEL_DISTANCE_FRACTION = 0.12;
-const WHEEL_FOV_DEGREES_PER_PIXEL = 0.035;
+const ORTHOGRAPHIC_VIEW_HEIGHT_PER_DISTANCE = 1.62;
 const ORBIT_DEGREES_PER_PIXEL = 0.45;
 const LOOK_DEGREES_PER_PIXEL = 0.25;
 
@@ -103,9 +103,6 @@ export function applyProjectionCameraWheel<Mode extends string>(
   input: ProjectionCameraWheelInput<Mode>,
 ): CameraRigPose<Mode> {
   if (input.viewMode === "source-map") return cloneCameraRigPose(input.camera);
-  if (input.modifiers?.ctrlKey || input.modifiers?.metaKey) {
-    return zoomProjectionCameraFov(input.camera, input.deltaY * WHEEL_FOV_DEGREES_PER_PIXEL);
-  }
   const distance = cameraFocusDistance(input.camera);
   const rawAmount = -input.deltaY * WHEEL_DISTANCE_FRACTION * Math.max(0.08, distance) / 120;
   const amount = clamp(rawAmount, -distance * 0.65, distance * 0.65);
@@ -173,16 +170,6 @@ export function nudgeProjectionCamera<Mode extends string>(
   return normalizeCameraRigPose<Mode>(next);
 }
 
-export function zoomProjectionCameraFov<Mode extends string>(
-  pose: CameraRigPose<Mode>,
-  deltaDegrees: number,
-): CameraRigPose<Mode> {
-  return normalizeCameraRigPose<Mode>({
-    ...pose,
-    fovDegrees: clamp(pose.fovDegrees + deltaDegrees, 18, 132),
-  });
-}
-
 export function relockProjectionCameraToPivot<Mode extends string>(pose: CameraRigPose<Mode>): CameraRigPose<Mode> {
   return lookAtPivot(pose);
 }
@@ -195,13 +182,13 @@ export function cameraFocusDistance<Mode extends string>(pose: CameraRigPose<Mod
 export function projectionCameraControlHelp(viewMode: ProjectionCameraViewMode): string {
   if (viewMode === "source-map") return "Source Map is edited in flat source coordinates.";
   const primary = viewMode === "dome-pov" ? "Drag to look from the camera." : "Drag to orbit around the pivot.";
-  return `${primary} Shift or middle-drag pans. Option or right-drag dollies. Wheel dollies. Command/Ctrl+wheel changes FOV.`;
+  return `${primary} Shift or middle-drag pans. Option or right-drag dollies. Wheel zooms the orthographic view.`;
 }
 
 function panMetersPerPixel<Mode extends string>(pose: CameraRigPose<Mode>, viewport: { width: number; height: number }): number {
   const distance = cameraFocusDistance(pose);
   const height = Math.max(1, viewport.height);
-  const visibleHeight = 2 * Math.tan((pose.fovDegrees * Math.PI) / 360) * Math.max(0.08, distance);
+  const visibleHeight = Math.max(0.08, distance) * ORTHOGRAPHIC_VIEW_HEIGHT_PER_DISTANCE;
   return (visibleHeight * PAN_WORLD_FRACTION_PER_VIEW_HEIGHT) / height;
 }
 

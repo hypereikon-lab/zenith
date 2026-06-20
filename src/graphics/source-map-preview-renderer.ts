@@ -7,9 +7,10 @@ import {
 } from "../geometry/source-projection.js";
 import { sourceGuideCarrierHorizonRadius } from "../geometry/source-guide-semantics.js";
 import { normalizeDomeGuideSemanticSplit } from "../geometry/dome-handoff-guide.js";
-import { multiplyMat4, perspectiveLH } from "../projection.js";
+import { multiplyMat4 } from "../projection.js";
 import {
   normalizePlateEditorCamera,
+  plateEditorProjectionMatrix,
   plateEditorViewMatrix,
   type PlateEditorCamera,
   type PlateEditorViewMode,
@@ -351,7 +352,7 @@ export async function createSourceMapPreviewRenderer(canvas: HTMLCanvasElement):
     const camera = normalizePlateEditorCamera(options.projectionCamera || {});
     const projectionViewMode =
       options.projectionViewMode === "source-map" ? "dome-orbit" : options.projectionViewMode;
-    const projection = perspectiveLH((camera.fovDegrees * Math.PI) / 180, width / Math.max(1, height), 0.01, 24);
+    const projection = plateEditorProjectionMatrix(camera, sourceProjectionMode, width / Math.max(1, height));
     const view = plateEditorViewMatrix(projectionViewMode, camera, sourceProjectionMode);
     const profile = sourceProjectionProfileForMode(sourceProjectionMode, sourceWidth, sourceHeight, 1);
     const showGuides = options.showProjectionGuides ? 1 : 0;

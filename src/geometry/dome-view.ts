@@ -4,6 +4,7 @@ import {
   multiplyMat4,
   multiplyMat4Vec4,
   normalize,
+  orthographicLH,
   perspectiveLH,
   scaleVec3,
 } from "../projection.js";
@@ -21,6 +22,8 @@ export type DomeViewProjection = {
   rect: Rect;
   viewMatrix: Mat4;
   fovDegrees: number;
+  projectionMode?: "perspective" | "orthographic";
+  orthographicViewHeight?: number;
   sourceRotationRadians: number;
   domeTiltRadians: number;
   mirror: boolean;
@@ -61,8 +64,7 @@ export function sourceDomeDirectionToScreenPoint(
     return null;
   }
 
-  const aspect = projection.rect.width / Math.max(projection.rect.height, 0.000001);
-  const cameraProjection = perspectiveLH((projection.fovDegrees * Math.PI) / 180, aspect, 0.01, 20);
+  const cameraProjection = cameraProjectionMatrix(projection);
   const mvp = multiplyMat4(cameraProjection, projection.viewMatrix);
   const clip = multiplyMat4Vec4(mvp, [physical[0], physical[1], physical[2], 1]);
   if (clip[3] <= 0.0001) {
@@ -160,19 +162,14 @@ function physicalDomeDirectionFromScreenPoint(point: Point2D, projection: DomeVi
 
 function worldRayFromScreenPoint(
   point: Point2D,
-  projection: Pick<DomeViewProjection, "rect" | "viewMatrix" | "fovDegrees">,
+  projection: Pick<DomeViewProjection, "rect" | "viewMatrix" | "fovDegrees" | "projectionMode" | "orthographicViewHeight">,
 ): { origin: Vec3; direction: Vec3 } | null {
   const { rect, viewMatrix } = projection;
   if (rect.width <= 0 || rect.height <= 0) return null;
 
   const ndcX = ((point.x - rect.x) / rect.width) * 2 - 1;
   const ndcY = 1 - ((point.y - rect.y) / rect.height) * 2;
-  const fovRadians = (projection.fovDegrees * Math.PI) / 180;
-  const tanHalfFov = Math.tan(fovRadians * 0.5);
-  if (!Number.isFinite(tanHalfFov) || tanHalfFov <= 0) return null;
-
   const aspect = rect.width / Math.max(rect.height, 0.000001);
-  const cameraDirection: Vec3 = normalize([ndcX * tanHalfFov * aspect, ndcY * tanHalfFov, 1]);
   const xAxis: Vec3 = [viewMatrix[0], viewMatrix[4], viewMatrix[8]];
   const yAxis: Vec3 = [viewMatrix[1], viewMatrix[5], viewMatrix[9]];
   const zAxis: Vec3 = [viewMatrix[2], viewMatrix[6], viewMatrix[10]];
@@ -180,10 +177,39 @@ function worldRayFromScreenPoint(
     addVec3(scaleVec3(xAxis, -viewMatrix[12]), scaleVec3(yAxis, -viewMatrix[13])),
     scaleVec3(zAxis, -viewMatrix[14]),
   );
+
+  if (projection.projectionMode === "orthographic") {
+    const viewHeight = Math.max(0.000001, projection.orthographicViewHeight ?? 2);
+    const viewWidth = viewHeight * aspect;
+    return {
+      origin: addVec3(
+        addVec3(origin, scaleVec3(xAxis, ndcX * viewWidth * 0.5)),
+        scaleVec3(yAxis, ndcY * viewHeight * 0.5),
+      ),
+      direction: normalize(zAxis),
+    };
+  }
+
+  const fovRadians = (projection.fovDegrees * Math.PI) / 180;
+  const tanHalfFov = Math.tan(fovRadians * 0.5);
+  if (!Number.isFinite(tanHalfFov) || tanHalfFov <= 0) return null;
+
+  const cameraDirection: Vec3 = normalize([ndcX * tanHalfFov * aspect, ndcY * tanHalfFov, 1]);
   const direction = normalize(
     addVec3(addVec3(scaleVec3(xAxis, cameraDirection[0]), scaleVec3(yAxis, cameraDirection[1])), scaleVec3(zAxis, cameraDirection[2])),
   );
   return { origin, direction };
+}
+
+function cameraProjectionMatrix(
+  projection: Pick<DomeViewProjection, "rect" | "fovDegrees" | "projectionMode" | "orthographicViewHeight">,
+): Mat4 {
+  const aspect = projection.rect.width / Math.max(projection.rect.height, 0.000001);
+  if (projection.projectionMode === "orthographic") {
+    const viewHeight = Math.max(0.000001, projection.orthographicViewHeight ?? 2);
+    return orthographicLH(viewHeight * aspect, viewHeight, 0.001, 1000);
+  }
+  return perspectiveLH((projection.fovDegrees * Math.PI) / 180, aspect, 0.01, 20);
 }
 
 function physicalDirectionInProjectionRange(

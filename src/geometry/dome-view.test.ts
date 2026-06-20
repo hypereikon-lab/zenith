@@ -38,6 +38,21 @@ describe("dome view pointer projection", () => {
     expectVectorClose(direction, source);
   });
 
+  test("round-trips visible dome points through orthographic screen projection", () => {
+    const source = normalize([0.22, 0.18, 0.96]);
+    const projection: DomeViewProjection = {
+      ...baseProjection,
+      projectionMode: "orthographic",
+      orthographicViewHeight: 2.4,
+    };
+
+    const screen = sourceDomeDirectionToScreenPoint(source, projection);
+    expect(screen).not.toBeNull();
+    const direction = sourceDomeDirectionFromScreenPoint(screen!, projection);
+
+    expectVectorClose(direction, source);
+  });
+
   test("does not project the hidden back side through the front dome surface", () => {
     expect(sourceDomeDirectionToScreenPoint([0, 0, -1], baseProjection)).toBeNull();
   });

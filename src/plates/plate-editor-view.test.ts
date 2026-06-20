@@ -6,6 +6,8 @@ import {
   normalizePlateEditorCamera,
   plateEditorCaveProjection,
   plateEditorDomeProjection,
+  plateEditorOrthographicViewHeight,
+  plateEditorProjectionMatrix,
   plateEditorViewDisabledReason,
   plateEditorViewLabel,
   plateEditorViewMatrix,
@@ -71,6 +73,10 @@ describe("plate editor projection views", () => {
     expect(dome.sourceProjectionMode).toBe("cave-270");
     expect(cave.sourceProjectionMode).toBe("cave-270");
     expect(dome.fovDegrees).toBe(camera.fovDegrees);
+    expect(dome.projectionMode).toBe("orthographic");
+    expect(dome.orthographicViewHeight).toBeCloseTo(plateEditorOrthographicViewHeight(camera, "cave-270"), 6);
+    expect(Array.from(plateEditorProjectionMatrix(camera, "cave-270")).every(Number.isFinite)).toBe(true);
     expect(cave.rect).toEqual(rect);
+    expect(cave.projectionMode).toBe("orthographic");
   });
 });

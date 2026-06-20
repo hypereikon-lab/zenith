@@ -11,7 +11,6 @@
     plateEditorViewDisabledReason,
     plateEditorViewLabel,
   } from "../plates/plate-editor-view.js";
-  import { clamp } from "../projection.js";
   import { nudgeProjectionCamera } from "../geometry/projection-camera-controls.js";
   import type { PlateEditorViewMode, PlateEditorCamera } from "../plates/plate-editor-view.js";
   import type { SourceProjectionMode } from "../geometry/source-projection.js";
@@ -199,11 +198,6 @@
               <input type="number" step="0.1" title="Pivot X" value={Number((viewCamera.pivot?.[0] ?? 0).toFixed(2))} onchange={(e) => updateCameraPivot(0, Number(e.currentTarget.value))} />
               <input type="number" step="0.1" title="Pivot Y" value={Number((viewCamera.pivot?.[1] ?? 0).toFixed(2))} onchange={(e) => updateCameraPivot(1, Number(e.currentTarget.value))} />
               <input type="number" step="0.1" title="Pivot Z" value={Number((viewCamera.pivot?.[2] ?? 0).toFixed(2))} onchange={(e) => updateCameraPivot(2, Number(e.currentTarget.value))} />
-            </div>
-            <div class="transform-row fov-row">
-              <span class="transform-label">FOV</span>
-              <input type="range" min="42" max="128" step="1" title={`FOV ${Math.round(viewCamera.fovDegrees)}°`} value={viewCamera.fovDegrees} oninput={(e) => viewCamera = { ...viewCamera, fovDegrees: clamp(Number(e.currentTarget.value), 42, 128) }} />
-              <span class="fov-value">{Math.round(viewCamera.fovDegrees)}°</span>
             </div>
             <div class="nudge-pad">
               <button type="button" class="nudge-btn" title="Truck Left" onclick={() => handleNudge(-0.2, 0, 0)}>←</button>

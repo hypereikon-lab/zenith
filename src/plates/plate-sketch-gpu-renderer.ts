@@ -1,9 +1,10 @@
 import { PlateGpuCompositor } from "./plate-gpu-compositor.js";
 import { buildCaveRoomGeometry, buildDomeGeometry } from "../graphics/geometry.js";
 import { caveShaderCode, domeShaderCode } from "../graphics/shaders.js";
-import { multiplyMat4, perspectiveLH } from "../projection.js";
+import { multiplyMat4 } from "../projection.js";
 import {
   normalizePlateEditorCamera,
+  plateEditorProjectionMatrix,
   plateEditorViewMatrix,
   type PlateEditorCamera,
   type PlateEditorViewMode,
@@ -348,7 +349,7 @@ export async function createPlateSketchGpuRenderer(canvas: HTMLCanvasElement): P
     const sourceProjectionMode = options.sourceProjectionMode || "zenith-180";
     const camera = normalizePlateEditorCamera(options.projectionCamera || {});
     const projectionViewMode = options.projectionViewMode === "cave-room" ? "cave-room" : options.projectionViewMode || "dome-orbit";
-    const projection = perspectiveLH((camera.fovDegrees * Math.PI) / 180, 1, 0.01, 24);
+    const projection = plateEditorProjectionMatrix(camera, sourceProjectionMode, 1);
     const view = plateEditorViewMatrix(projectionViewMode === "source-map" ? "dome-orbit" : projectionViewMode, camera, sourceProjectionMode);
     const mvp = multiplyMat4(projection, view);
     const profile = sourceProjectionProfileForMode(sourceProjectionMode, size, size, 1);
