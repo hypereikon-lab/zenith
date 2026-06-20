@@ -1,0 +1,7 @@
+# Project-scoped Codex orchestration settings.
+# Codex loads this only when the repository is trusted.
+
+[agents]
+max_threads = 6
+max_depth = 1
+job_max_runtime_seconds = 1800
