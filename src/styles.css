@@ -472,6 +472,15 @@ figure {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+button.lineage-stage {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
 .lineage-stage.collapsed {
   opacity: 0.5;
   cursor: pointer;

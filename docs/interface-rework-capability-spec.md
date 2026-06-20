@@ -21,12 +21,12 @@ Evidence labels:
 
 Repo boundary:
 
-- `confirmed`: Vite/TypeScript SPA mounted from `index.html` through `src/main.ts`.
-- `confirmed`: local Node/Vite server in `server.mjs`.
+- `confirmed`: SvelteKit app mounted through `src/routes`.
+- `confirmed`: SvelteKit server routes live under `src/routes/api`, with Runway/Codex implementation split under `src/lib/server/runway`.
 - `confirmed`: Runway API proxy endpoints and Codex prompt-planning endpoints are server-side.
 - `confirmed`: WebGPU/WebCodecs client paths exist for dome rendering, plate compositing, depth motion preview/export, and view capture.
 - `confirmed`: IndexedDB/localStorage session persistence exists in `src/workspace`.
-- `confirmed`: Svelte is not currently installed.
+- `confirmed`: Svelte 5 and SvelteKit are installed.
 
 Svelte 5 implementation facts:
 
@@ -264,7 +264,8 @@ UI need:
 Owner modules:
 
 - `src/inpaint/inpaint-controller.ts`
-- `server.mjs`
+- `src/routes/api`
+- `src/lib/server/runway/runway-jobs.ts`
 - `src/runway/client.ts`
 
 Models:
@@ -295,7 +296,8 @@ UI need:
 Owner modules:
 
 - `src/sketch/depth-motion-controller.ts`
-- `server.mjs`
+- `src/routes/api`
+- `src/lib/server/runway/runway-jobs.ts`
 
 Model:
 
@@ -409,7 +411,9 @@ UI need:
 
 Owner modules:
 
-- `server.mjs`
+- `src/routes/api`
+- `src/lib/server/runway/codex-planner.ts`
+- `src/lib/server/runway/runway-jobs.ts`
 - `docs/seedance_prompt_pack`
 - `docs/seedance_image_prompt_pack`
 
@@ -441,7 +445,8 @@ UI need:
 Owner modules:
 
 - `src/sketch/depth-motion-controller.ts`
-- `server.mjs`
+- `src/routes/api`
+- `src/lib/server/runway/runway-jobs.ts`
 
 Workflows:
 
@@ -1046,16 +1051,15 @@ Failure:
 
 ### Framework choice
 
-Use Svelte 5 with Vite first, not SvelteKit, unless routing/server integration needs grow.
+Use SvelteKit as the app framework, with SvelteKit server routes owning Runway/Codex integration.
 
 Reason:
 
-- current app is already a Vite SPA served by a custom Node/Vite middleware server
-- Runway/Codex endpoints already live in `server.mjs`
-- keeping the server stable reduces rewrite risk
-- Svelte can be added directly to a Vite app
+- the app now needs first-class server endpoints for Runway/Codex proxying and streaming
+- SvelteKit keeps page routing, API routing, builds, and preview behind one framework boundary
+- `src/lib/server` keeps API secrets and local prompt-pack reads out of browser bundles
 
-SvelteKit can be revisited later if the app needs route-level loading, deployments beyond local server, or server actions.
+Route-level loading and server actions can be added as artifact persistence and shareable project flows mature.
 
 ### State model
 

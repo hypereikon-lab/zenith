@@ -29,25 +29,13 @@
   {#each WORKFLOW_STAGES as stage}
     {@const isActive = workbench.selectedStageId === stage.id}
     {@const shouldExpand = showAll || isActive}
-    <section
-      class="lineage-stage"
-      class:active={isActive}
-      class:collapsed={!shouldExpand}
-      aria-label={stage.label}
-      onclick={() => { if (!shouldExpand) selectStage(stage.id); }}
-      onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { selectStage(stage.id); e.preventDefault(); } }}
-      tabindex={!shouldExpand ? 0 : undefined}
-      role={!shouldExpand ? "button" : undefined}
-    >
-      <div class="lineage-stage-header">
-        <div class="lineage-stage-dot">{stage.number}</div>
-        <h2>{stage.label}</h2>
-        {#if !shouldExpand}
-          <strong class="stage-badge">{getStageSummary(stage.id)}</strong>
-        {/if}
-      </div>
+    {#if shouldExpand}
+      <section class="lineage-stage" class:active={isActive} aria-label={stage.label}>
+        <div class="lineage-stage-header">
+          <div class="lineage-stage-dot">{stage.number}</div>
+          <h2>{stage.label}</h2>
+        </div>
 
-      {#if shouldExpand}
         <p>{stage.summary}</p>
         <div class="artifact-stack">
           {#each artifacts.filter((artifact) => artifact.stage === stage.id) as artifact}
@@ -58,17 +46,27 @@
               data-status={artifact.status}
               aria-pressed={workbench.selectedArtifactId === artifact.id ? "true" : "false"}
               aria-label={`Select ${artifact.label}. Status ${statusLabel(artifact.status, artifact.stale)}.`}
-              onclick={(e) => {
-                e.stopPropagation(); // prevent triggering stage selection
-                selectArtifact(artifact.id);
-              }}
+              onclick={() => selectArtifact(artifact.id)}
             >
               <span>{artifact.label}</span>
               <strong>{statusLabel(artifact.status, artifact.stale)}</strong>
             </button>
           {/each}
         </div>
-      {/if}
-    </section>
+      </section>
+    {:else}
+      <button
+        type="button"
+        class="lineage-stage collapsed"
+        aria-label={`Open ${stage.label}`}
+        onclick={() => selectStage(stage.id)}
+      >
+        <div class="lineage-stage-header">
+          <div class="lineage-stage-dot">{stage.number}</div>
+          <h2>{stage.label}</h2>
+          <strong class="stage-badge">{getStageSummary(stage.id)}</strong>
+        </div>
+      </button>
+    {/if}
   {/each}
 </nav>

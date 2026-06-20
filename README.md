@@ -21,7 +21,7 @@ Zenith reframes the pipeline as image-to-space-to-motion instead of blind prompt
 
 ## Codex Prompt Planning
 
-Zenith can use Codex as a local prompt planner for Seedance handoffs. The SvelteKit app sends the current domemaster image, depth/motion context, and the repo-local prompt packs to `server.mjs`, then streams back a structured Seedance prompt, diagnosis, variants, negative terms, and practical warnings.
+Zenith can use Codex as a local prompt planner for Seedance handoffs. The SvelteKit app sends the current domemaster image, depth/motion context, and the repo-local prompt packs to SvelteKit server routes, then streams back a structured Seedance prompt, diagnosis, variants, negative terms, and practical warnings.
 
 The prompt packs live in:
 
@@ -39,7 +39,9 @@ npm run dev
 
 On Windows PowerShell, use `Copy-Item .env.example .env.local` instead of `cp`.
 
-Open the printed local URL, usually `http://127.0.0.1:5173/`. The custom server keeps the Runway/Codex API routes and serves the SvelteKit workbench.
+Open the printed local URL, usually `http://127.0.0.1:5173/`. SvelteKit serves both the workbench and the Runway/Codex API routes.
+
+For the full routing, server-only module, streaming, and data-handling contract, see `docs/sveltekit-architecture.md`.
 
 ## Environment
 
@@ -49,20 +51,25 @@ Open the printed local URL, usually `http://127.0.0.1:5173/`. The custom server 
 - `SEEDANCE_PROMPT_PACK_DIR`: optional override for prompt-pack files. By default the repo-local `docs/seedance_prompt_pack` is used.
 - `SEEDANCE_IMAGE_PROMPT_PACK_DIR`: optional override for still-image-to-video prompt-pack files. By default `docs/seedance_image_prompt_pack` is used.
 
-Do not expose `.env.local` or any API keys in browser code. The app keeps Runway API calls behind `server.mjs`.
+Do not expose `.env.local` or any API keys in browser code. The app keeps Runway API calls behind `src/routes/api` server endpoints.
+
+Development loads `.env.local` through Vite/SvelteKit. Production `npm run start` runs the built Node adapter, so deployment secrets must be present in the process environment.
 
 ## Useful Commands
 
 ```sh
-npm test
-npm run build
+npm run typecheck
 npm run lint
+npm test
+npm run test:e2e
+npm run build
+npm run start
 ```
 
 ## Project Structure
 
-- `server.mjs`: local server, Runway API routes, streaming progress, uploads, depth/inpaint/Seedance handoffs, Codex prompt planning.
-- `src/routes`: SvelteKit client-only shell for the fulldome workbench.
+- `src/routes`: SvelteKit pages and API routes for the fulldome workbench.
+- `src/lib/server`: server-only Runway/Codex integration, Zod request validation, streaming progress, uploads, depth/inpaint/Seedance handoffs, and Codex prompt planning.
 - `src/app`: pipeline state, artifact DAG, command bridge, defaults, and view state.
 - `src/lanes`: Svelte lane components for Source, Sketch, Repair, Depth, Motion, Bridge, Video, and Deliver.
 - `src/artifacts`: artifact graph nodes, dependencies, and status logic.
@@ -74,4 +81,5 @@ npm run lint
 - `src/ui`: Svelte UI pieces, DOM actions, HUD rendering, pointer tools, progress buttons.
 - `docs/seedance_prompt_pack`: prompt-planning context for repairing 2.5D/depth-warp motion plates with Seedance.
 - `docs/seedance_image_prompt_pack`: prompt-planning context for direct Seedance image-to-video from a still dome image.
+- `docs/sveltekit-architecture.md`: SvelteKit architecture, SSR/API boundaries, streaming contract, and Runway/Codex data procedures.
 - `docs/default-depth-motion-config.json`: the default dome placement, inpaint, depth-motion, and Seedance settings captured from the current working profile.

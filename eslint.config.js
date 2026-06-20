@@ -16,7 +16,7 @@ export default [
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ["src/**/*.ts", "server.mjs", "scripts/**/*.mjs", "*.config.js"],
+    files: ["src/**/*.ts", "src/lib/server/**/*.js", "scripts/**/*.mjs", "*.config.js"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",

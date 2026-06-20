@@ -11,6 +11,5 @@
     "strict": true,
     "target": "ES2022",
     "types": ["vitest/globals", "node", "@webgpu/types"]
-  },
-  "include": ["src/**/*.ts", "src/**/*.svelte", "vite.config.ts"]
+  }
 }

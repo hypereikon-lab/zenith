@@ -7,6 +7,8 @@ vite.*.log
 .codex/*.log
 .codex/tmp/
 .tmp-chrome-capture-profile/
+playwright-report/
+test-results/
 .env
 .env.local
 public/zenith-full-state-current.json
