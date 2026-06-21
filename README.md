@@ -11,7 +11,7 @@ The project was built for the Runway API Hackathon. Its core workflow is:
 5. Preview and export depth-aware motion locally with WebGPU and WebCodecs.
 6. Plan a Seedance motion-plate repair prompt with Codex.
 7. Send the exported MP4 guide to Runway Seedance video-to-video.
-8. Or plan a still-image motion prompt and send the inpainted image directly to Seedance image-to-video.
+8. Save or load a portable project snapshot and export delivery metadata for QC handoff.
 
 ## Why It Exists
 
@@ -41,7 +41,7 @@ On Windows PowerShell, use `Copy-Item .env.example .env.local` instead of `cp`.
 
 Open the printed local URL, usually `http://127.0.0.1:5173/`. SvelteKit serves both the workbench and the Runway/Codex API routes.
 
-For the full routing, server-only module, streaming, and data-handling contract, see `docs/sveltekit-architecture.md`. For the longer-term durable project/job/asset target, see `docs/ultimate-architecture-roadmap.md`.
+For the full routing, server-only module, shared-contract, streaming, and data-handling boundary, see `docs/sveltekit-architecture.md`. For the longer-term durable project/job/asset target, see `docs/ultimate-architecture-roadmap.md`.
 
 ## Environment
 
@@ -69,10 +69,11 @@ npm run start
 ## Project Structure
 
 - `src/routes`: SvelteKit pages and API routes for the fulldome workbench.
-- `src/lib/server`: server-only Runway/Codex integration, Zod request validation, streaming progress, uploads, depth/inpaint/Seedance handoffs, and Codex prompt planning.
-- `src/app`: pipeline state, artifact DAG, command bridge, defaults, and view state.
+- `src/lib/shared`: JSON-safe shared contracts for portable project snapshots and first-class job events/results.
+- `src/lib/server`: server-only Runway/Codex integration, Zod request validation, streaming progress, uploads, depth/inpaint/Seedance handoffs, Codex prompt planning, and in-memory depth jobs.
+- `src/app`: browser-side command bridge plus focused project persistence, paid operator orchestration, local render operators, defaults, and view state.
 - `src/stages`: Svelte stage context components for Start State, Motion Draft, End State, Video Take, and Deliverables.
-- `src/artifacts`: artifact graph nodes, dependencies, and status logic.
+- `src/artifacts`: primary workbench state, artifact graph nodes, dependencies, jobs, and status logic.
 - `src/graphics`: WebGPU/WebGL-style dome rendering, projection geometry, shaders, view cameras.
 - `src/plates`: image plate loading, spherical placement, plate-map baking.
 - `src/inpaint`: Runway inpaint handoff and generated-image selection.

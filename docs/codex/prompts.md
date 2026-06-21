@@ -1,6 +1,8 @@
 # Zenith Codex Prompts
 
-## 1. Recommended first task: roadmap Phase 1
+These prompts are reusable operating patterns. The Phase 1 project snapshot prompt is preserved as a completed historical example; do not treat it as the current recommended slice. For a fresh session, start with the architecture audit prompt and then execute the single next slice named by the current roadmap.
+
+## 1. Historical completed task: roadmap Phase 1
 
 ```text
 Use $zenith-roadmap-slice.

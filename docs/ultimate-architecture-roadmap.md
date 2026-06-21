@@ -18,13 +18,29 @@ What is already right:
 
 What is not ideal yet:
 
-- Project/workbench state is mostly module-level browser state. That is fine for one open cockpit, but weak for saved projects, multiple tabs, collaboration, resumable jobs, and cloud deployment.
-- Paid Runway/Codex operations are still shaped as request/response streams. That is usable, but not enough for production media jobs that should be durable, cancellable, retryable, inspectable, and recoverable after refresh.
+- Project/workbench state is still primarily browser module state. Portable project snapshots now exist, but Zenith does not yet have durable project records, multiple open projects, collaboration, resumable jobs, or cloud deployment semantics.
+- Most paid Runway/Codex operations still use local progress streams. Depth generation now has a first-class in-memory job boundary underneath the compatibility stream, but production media jobs should eventually be durable, cancellable, retryable, inspectable, and recoverable after refresh.
 - Artifact media is still often represented by object URLs, data URLs, blobs, canvases, and saved JSON snapshots. That works locally, but data URLs should not be the long-term artifact storage model.
-- `workbench-commands.ts` owns too many responsibilities: project import/export, local media operators, paid API operators, artifact mutation, and browser file IO.
+- `workbench-commands.ts` is now a public command bridge, with project persistence, paid operator execution, and local render orchestration extracted into focused browser modules. Artifact mutation, import commands, and UI thinning can still be improved incrementally.
 - Some UI components still contain too much orchestration logic. Large Svelte components should become thinner shells around tested domain modules.
-- There is no first-class API contract layer shared between browser and server.
+- Shared project and job contracts now exist under `src/lib/shared/contracts`; artifact, asset, event, and error contracts remain future work.
 - There is no server-wide request context: request IDs, structured logging, security headers, auth/session context, or rate limits.
+
+## Current Implementation Checkpoint
+
+In the current working tree based on `52f49e9207e6eb09e4f8b3f57d6d071c313acefa`, the roadmap has these landed boundaries:
+
+- Phase 1 project snapshot boundary: `ProjectSnapshotV1` lives in `src/lib/shared/contracts/projects.ts`, while browser-owned save/load creation, parsing, cleanup, and restore live in `src/app/project-persistence.ts`.
+- Phase 2 artifact workbench command ownership split: `src/app/workbench-commands.ts` keeps stable UI entry points and delegates paid operator execution to `src/app/paid-operator-execution.ts` and local render/export orchestration to `src/app/local-render-operators.ts`.
+- Phase 3 first job boundary: `src/lib/shared/contracts/jobs.ts` and `src/lib/server/jobs` implement in-memory start-depth and end-depth jobs, status reads, raw job-event streams, cancellation, and a depth-stream compatibility wrapper.
+
+Important limits remain:
+
+- First-class jobs currently cover `generate-start-depth` and `generate-end-depth` only.
+- `POST /api/projects/:projectId/jobs`, `GET /api/jobs/:jobId`, `GET /api/jobs/:jobId/events`, and `DELETE /api/jobs/:jobId` exist for the in-memory depth job boundary.
+- Inpaint, Seedance, and Codex prompt-planning routes still use direct local progress streams.
+- The RGBD Expansion Lab now routes paid request/confirm/cancel through `src/app/rgbd-lab-commands.ts`, but RGBD scene execution still follows its own browser-side local endpoint path under `src/scene` and `src/services`.
+- Jobs are process-memory only. There is no durable store, queue, worker, asset store, project CRUD API, auth, quota system, or production operations layer.
 
 ## Product Architecture Goal
 
@@ -469,7 +485,7 @@ Use Playwright for:
 - the workbench hydrates;
 - local API status contract;
 - one or two critical no-paid-call API validation paths;
-- basic project save/load/import flow when project persistence is added.
+- basic project save/load/import flow when that existing user path changes or needs smoke coverage.
 
 Avoid brittle UI scripting. Do not automate expensive media workflows or paid upstream calls in CI.
 
@@ -490,17 +506,17 @@ Goals:
 
 ### Phase 1: Shared Contracts And Project Boundary
 
-Highest-value next phase.
+Status: landed for portable project snapshots and the shared project contract.
 
 Deliverables:
 
-- Add `src/lib/shared/contracts`.
-- Move artifact/project/job API types into JSON-safe shared contracts.
-- Extract project snapshot import/export out of `workbench-commands.ts`.
-- Add project import/export tests around schema migration and invalid files.
-- Keep runtime behavior mostly unchanged.
+- `src/lib/shared/contracts/projects.ts` defines `ProjectSnapshotV1` and validates portable project data.
+- `src/app/project-persistence.ts` owns browser-side snapshot creation, parsing, runtime media cleanup, and restore.
+- `src/app/workbench-commands.ts` keeps the Save Project and Load Project UI entry points while delegating persistence.
+- Tests cover valid snapshots, invalid versions, malformed artifacts, JSON-safe media cleanup, state restoration, and atomic invalid import failure.
+- Runtime behavior and visible UI entry points remain mostly unchanged.
 
-Why this comes first:
+Why this came first:
 
 - It reduces ambiguity before adding jobs or storage.
 - It makes future API changes safer.
@@ -508,11 +524,13 @@ Why this comes first:
 
 ### Phase 2: Command Split And Thin UI
 
+Status: landed for artifact workbench project persistence, paid operator execution, and local render/export orchestration. Thin UI work and the separate RGBD lab orchestration path remain incremental.
+
 Deliverables:
 
-- Split `workbench-commands.ts` by responsibility.
-- Move paid API payload creation into focused operator modules.
-- Move local render operator orchestration into focused modules.
+- Keep `workbench-commands.ts` as the stable command bridge used by Svelte components.
+- Move paid API payload creation and result application into `src/app/paid-operator-execution.ts`.
+- Move local render, preview, capture, and export orchestration into `src/app/local-render-operators.ts`.
 - Keep Svelte components calling commands, not assembling complex payloads.
 - Add unit tests around operator result application.
 
@@ -524,14 +542,20 @@ Why this matters:
 
 ### Phase 3: First-Class In-Memory Jobs
 
+Status: partial. The depth-map path has first-class in-memory jobs with create, status, event-stream, and cancel routes; most paid paths remain direct progress streams.
+
 Deliverables:
 
-- Add a server-side job store interface.
-- Add job event types.
-- Add `POST /api/projects/:projectId/jobs` and `GET /api/jobs/:jobId/events`.
-- Back one paid path with jobs first, probably Start State repair or depth generation.
-- Keep existing stream endpoint as a compatibility wrapper.
-- Add no-paid-call tests for job create/cancel/events.
+- Add a server-side in-memory job store and job event types.
+- Add `POST /api/projects/:projectId/jobs`, `GET /api/jobs/:jobId`, `GET /api/jobs/:jobId/events`, and `DELETE /api/jobs/:jobId` for depth jobs.
+- Back `generate-start-depth` and `generate-end-depth` with first-class jobs.
+- Keep `/api/runway/depth-map-stream` as a compatibility wrapper for the active browser client.
+- Add no-paid-call tests for job create, events, cancellation, invalid input, and compatibility stream behavior.
+
+Remaining Phase 3 work:
+
+- Decide whether the active browser workbench should call first-class job routes directly or keep using compatibility streams until assets exist.
+- Expand first-class jobs to other paid paths only after the depth boundary is stable.
 
 Why this matters:
 
@@ -601,26 +625,25 @@ This phase only matters if Zenith becomes a hosted or team product. It is not ne
 
 ## Recommended Next Implementation Slice
 
-The best next code change is Phase 1, not a database and not a queue.
+The best next code change is Phase 4A: introduce the smallest JSON-safe asset reference and metadata contract, without adding storage.
 
 Concrete scope:
 
-1. Add `src/lib/shared/contracts/projects.ts`.
-2. Define `ProjectSnapshotV1` with a Zod schema.
-3. Move snapshot serialization/deserialization from `src/app/workbench-commands.ts` into a focused project persistence module.
-4. Add tests for:
-   - valid current snapshot;
-   - invalid version;
-   - missing artifacts;
-   - media fields cleaned to JSON-safe values;
-   - prompt/config/QC restoration.
-5. Keep UI behavior unchanged.
+1. Add a shared `AssetRef`/asset metadata contract under `src/lib/shared/contracts`.
+2. Cover valid refs, malformed refs, unsupported versions, runtime object URLs, and non-JSON-safe fields with focused Vitest tests.
+3. Document how future projects/jobs can point at assets without deciding storage yet.
+4. Keep current project snapshots, job results, Runway streams, browser media handles, and UI behavior unchanged.
+5. Do not add an asset store, uploads, signed URLs, database, queue, worker, or server-side media migration.
 
-This improves architecture immediately and creates the foundation for assets/jobs without forcing a storage decision yet.
+Why this is next:
+
+- Phase 1 and Phase 3 now have JSON-safe project/job contracts, but artifacts still lack a portable asset reference shape.
+- A contract-only asset slice clarifies the Phase 4 boundary before any storage decision.
+- It keeps browser runtime media handling separate from future durable binary storage.
 
 ## Decisions To Make Before Later Phases
 
-These do not need answers before Phase 1.
+These do not need answers before the current in-memory job boundary is hardened. They should be answered before durable storage, hosted deployment, or multi-user behavior.
 
 - Is Zenith primarily local-first, hosted, or both?
 - Should durable storage start with SQLite/local files or cloud object storage?

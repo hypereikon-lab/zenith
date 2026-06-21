@@ -3,6 +3,8 @@
 Date: 2026-06-09
 Status: brutally honest design memo
 
+Current status: historical/speculative product memo, not a current architecture source of truth. Some interface labels and implementation assumptions predate the current artifact workbench, shared-contract boundary, and in-memory depth job boundary. Use `docs/sveltekit-architecture.md` for current implementation facts and `docs/ultimate-architecture-roadmap.md` for migration order.
+
 ## Executive Take
 
 The DINO idea is good, but only if it is treated as a correspondence and confidence layer, not as the engine.
@@ -368,22 +370,22 @@ Purpose:
 
 ## Triage Table
 
-| Idea | Decision | Why |
-| --- | --- | --- |
-| Artifact lineage board | Promote P0 | It matches the real system and fixes the current control-rail problem. |
-| Svelte 5 rewrite | Promote P0 | Current DOM/controller architecture is too tangled for the next research phase. |
-| DINO feature anchors | Prototype P1/P2 | Valuable, but only after endpoint/depth artifacts are cleanly represented. |
-| DINO as depth model | Defer / likely reject | Dedicated depth or Gemini depth plus normalization is more relevant; DINO features can support alignment. |
-| Raw fisheye DINO matching | Reject | Projection distortion and repeated content will create false confidence. |
-| Spherical/cube/tangent feature atlas | Promote P1 | Necessary if dense features are going to be trustworthy. |
-| Global feature matching | Reject | Repeated flowers/rings will break it. Use geometry-bounded search. |
-| Current 2.5D motion as prior | Promote P0 | It knows dome projection and camera pose; DINO does not. |
-| Endpoint Bridge lane | Promote P1 | Correct home for dual RGBD, feature anchors, confidence maps. |
-| Create/Review/Ship tabs | Replace | They are too vague and have caused the current junk-drawer layout. |
-| Hidden prompt planning | Delete/restructure | Prompt planning must be visible or it is not trustworthy. |
-| Demo buttons in production flow | Move to debug | They pollute the real workflow. |
-| CAVE remap in Ship panel | Move to Deliver | It is delivery/export, not generation. |
-| Long motion settings grid | Collapse/restructure | It should be a recipe with preview/QC, not a spreadsheet of knobs. |
+| Idea                                 | Decision              | Why                                                                                                       |
+| ------------------------------------ | --------------------- | --------------------------------------------------------------------------------------------------------- |
+| Artifact lineage board               | Promote P0            | It matches the real system and fixes the current control-rail problem.                                    |
+| Svelte 5 rewrite                     | Promote P0            | Current DOM/controller architecture is too tangled for the next research phase.                           |
+| DINO feature anchors                 | Prototype P1/P2       | Valuable, but only after endpoint/depth artifacts are cleanly represented.                                |
+| DINO as depth model                  | Defer / likely reject | Dedicated depth or Gemini depth plus normalization is more relevant; DINO features can support alignment. |
+| Raw fisheye DINO matching            | Reject                | Projection distortion and repeated content will create false confidence.                                  |
+| Spherical/cube/tangent feature atlas | Promote P1            | Necessary if dense features are going to be trustworthy.                                                  |
+| Global feature matching              | Reject                | Repeated flowers/rings will break it. Use geometry-bounded search.                                        |
+| Current 2.5D motion as prior         | Promote P0            | It knows dome projection and camera pose; DINO does not.                                                  |
+| Endpoint Bridge lane                 | Promote P1            | Correct home for dual RGBD, feature anchors, confidence maps.                                             |
+| Create/Review/Ship tabs              | Replace               | They are too vague and have caused the current junk-drawer layout.                                        |
+| Hidden prompt planning               | Delete/restructure    | Prompt planning must be visible or it is not trustworthy.                                                 |
+| Demo buttons in production flow      | Move to debug         | They pollute the real workflow.                                                                           |
+| CAVE remap in Ship panel             | Move to Deliver       | It is delivery/export, not generation.                                                                    |
+| Long motion settings grid            | Collapse/restructure  | It should be a recipe with preview/QC, not a spreadsheet of knobs.                                        |
 
 ## Minimal DINO Prototype Scope
 

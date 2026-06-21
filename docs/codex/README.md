@@ -4,16 +4,16 @@ This repository harness is designed for Codex CLI and Codex subagents. It does n
 
 ## Components
 
-| Artifact | Function |
-|---|---|
-| `AGENTS.md` | Persistent repository constitution and quality bar |
-| `PLANS.md` | Durable state format for multi-file or long-running work |
-| `.codex/config.toml` | Bounded subagent concurrency |
-| `.codex/agents/*.toml` | Narrow read-only specialists |
-| `.agents/skills/zenith-roadmap-slice` | Repeatable implementation procedure |
-| `.agents/skills/zenith-architecture-audit` | Read-only discovery and prioritization procedure |
-| `docs/codex/prompts.md` | Ready-to-paste operating prompts |
-| `docs/codex/change-receipt-template.md` | Evidence-oriented completion record |
+| Artifact                                   | Function                                                 |
+| ------------------------------------------ | -------------------------------------------------------- |
+| `AGENTS.md`                                | Persistent repository constitution and quality bar       |
+| `PLANS.md`                                 | Durable state format for multi-file or long-running work |
+| `.codex/config.toml`                       | Bounded subagent concurrency                             |
+| `.codex/agents/*.toml`                     | Narrow read-only specialists                             |
+| `.agents/skills/zenith-roadmap-slice`      | Repeatable implementation procedure                      |
+| `.agents/skills/zenith-architecture-audit` | Read-only discovery and prioritization procedure         |
+| `docs/codex/prompts.md`                    | Ready-to-paste operating prompts                         |
+| `docs/codex/change-receipt-template.md`    | Evidence-oriented completion record                      |
 
 ## Why this shape
 
@@ -32,7 +32,9 @@ Project-scoped `.codex/config.toml` and `.codex/agents/` are loaded only when Co
 
 ## Recommended first run
 
-Start Codex from the repository root, then paste the Phase 1 prompt from `docs/codex/prompts.md`.
+Start Codex from the repository root, then paste the architecture-audit prompt from `docs/codex/prompts.md`.
+
+The original Phase 1 prompt is preserved as a historical example because the project snapshot and shared-contract boundary has landed. Use the current roadmap recommendation in `docs/ultimate-architecture-roadmap.md` before executing a new implementation slice.
 
 The prompt explicitly requests subagents because Codex does not spawn them implicitly.
 

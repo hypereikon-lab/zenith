@@ -9,9 +9,11 @@ This document describes the architecture Zenith currently targets and maintains.
 The ideal shape for this project is:
 
 - `src/routes`: SvelteKit route tree. `+page.svelte` renders the workbench UI, `+layout.svelte` owns app shell concerns, and `+server.ts` files expose API endpoints.
-- `src/lib/server`: server-only modules. Anything in this folder is excluded from browser bundles by SvelteKit and is the right place for secrets, request validation, Runway API calls, Codex SDK calls, filesystem access, uploads, polling, and streaming helpers.
+- `src/lib/shared`: side-effect-free, JSON-safe contracts importable from browser and server code. Current contracts cover portable project snapshots and first-class job records/events.
+- `src/lib/server`: server-only modules. Anything in this folder is excluded from browser bundles by SvelteKit and is the right place for secrets, request validation, Runway API calls, Codex SDK calls, filesystem access, uploads, polling, streaming helpers, and in-memory job services.
 - `src/runway/client.ts`: browser-safe API client. UI and pipeline code call local SvelteKit endpoints, never Runway directly.
-- `src/app`, `src/stages`, `src/ui`, `src/graphics`, `src/media`, `src/sketch`, `src/inpaint`: browser-side workbench, rendering, media, and workflow modules.
+- `src/app`: browser-side command bridge and focused application modules for project persistence, paid operator orchestration, local render operators, defaults, and view state.
+- `src/artifacts`, `src/stages`, `src/ui`, `src/graphics`, `src/media`, `src/sketch`, `src/inpaint`: browser-side workbench state, rendering, media, and workflow modules.
 - `svelte.config.js`: Node adapter configuration. `npm run build` produces the SvelteKit server bundle; `npm run start` runs it.
 
 This is idiomatic SvelteKit because framework boundaries match the framework's ownership model: route files handle HTTP, server modules hold private effects, and browser modules stay browser-only.
@@ -26,16 +28,25 @@ This is idiomatic SvelteKit because framework boundaries match the framework's o
 
 ## Request Flow
 
-The Runway and Codex flow is:
+Most active paid and prompt-planning UI flows still use local progress streams:
 
-1. A Svelte component or workflow command calls a helper in `src/runway/client.ts`.
-2. The helper sends JSON to a local endpoint such as `/api/runway/inpaint-stream`.
-3. The endpoint in `src/routes/api/.../+server.ts` calls `streamPost` or `jsonPost` from `src/lib/server/route-utils.ts`.
-4. `readJsonPayload` parses object-shaped JSON, rejects malformed JSON with `400`, and rejects bodies larger than `128 MB` before service code runs.
+1. A Svelte component calls `src/app/workbench-commands.ts`, which delegates to focused browser modules such as `src/app/paid-operator-execution.ts`.
+2. The browser module calls a helper in `src/runway/client.ts`.
+3. The helper sends JSON to a local endpoint such as `/api/runway/inpaint-stream`, `/api/runway/seedance-stream`, or `/api/codex/seedance-prompt-stream`.
+4. The endpoint in `src/routes/api/.../+server.ts` uses `readJsonPayload` from `src/lib/server/runway/route-response.ts` to parse object-shaped JSON, reject malformed JSON with `400`, and enforce the `128 MB` body cap before service code runs.
 5. The endpoint invokes a typed server procedure from the focused module it needs, such as `src/lib/server/runway/runway-jobs.ts`, `src/lib/server/runway/codex-planner.ts`, or `src/lib/server/runway/status.ts`.
 6. The server procedure validates the payload with Zod, normalizes operational fields, reads private environment variables, performs Runway/Codex work, and writes progress events.
 7. `streamProgressResponse` returns `application/x-ndjson` events to the browser.
 8. `readProgressStream` in the browser consumes progress lines and resolves with the final `type: "complete"` result.
+
+Depth generation now has a first-class in-memory job boundary underneath the compatibility stream:
+
+1. The active workbench still calls `requestRunwayDepthMap`, preserving the visible Save/Load and operator UI behavior.
+2. `/api/runway/depth-map-stream` delegates to `createDepthMapCompatibilityStreamResponse` in `src/lib/server/jobs/depth-map-job.ts`.
+3. The compatibility handler validates the payload, creates an in-memory `generate-start-depth` job, starts the server-side Runway depth operation, and maps `JobEventV1` records back to the legacy progress stream shape.
+4. Direct job clients can create start-depth or end-depth jobs with `POST /api/projects/:projectId/jobs`, read the current `JobV1` with `GET /api/jobs/:jobId`, stream raw `JobEventV1` records with `GET /api/jobs/:jobId/events`, and cancel jobs with `DELETE /api/jobs/:jobId`.
+
+There is not yet a durable job store, queue, worker, or asset-backed job output model.
 
 ## Progress Event Contract
 
@@ -47,7 +58,33 @@ Streaming endpoints emit one JSON object per line:
 {"type":"error","stage":"Failed","progress":1,"error":"Runway task failed.","status":502}
 ```
 
-`progress` is normalized to `0..1`. Request parse failures return normal JSON HTTP errors before a stream starts. Job failures after a stream starts are sent as `type: "error"` records inside the NDJSON stream. If the browser cancels a stream or the request signal aborts, the server aborts the underlying job signal so uploads, polling, downloads, and Codex prompt planning can stop promptly.
+`progress` is normalized to `0..1`. Request parse failures return normal JSON HTTP errors before a stream starts. Failures after a stream starts are sent as `type: "error"` records inside the NDJSON stream. For legacy progress streams and the depth compatibility stream, request abort or response cancellation aborts the underlying operation so uploads, polling, downloads, and Codex prompt planning can stop promptly.
+
+First-class job event streams emit the shared `JobEventV1` contract from `src/lib/shared/contracts/jobs.ts`. The current first-class job operators are `generate-start-depth` and `generate-end-depth`. Closing `GET /api/jobs/:jobId/events` only unsubscribes that stream; `DELETE /api/jobs/:jobId` is the cancellation boundary for direct job clients. The depth compatibility stream intentionally hides queued/started events and converts progress, complete, error, and cancelled job events back into the legacy stream contract expected by `src/runway/client.ts`.
+
+## Shared Contract Layout
+
+Shared contracts live under `src/lib/shared` and must remain JSON-safe, side-effect free, and importable from browser and server code:
+
+- `src/lib/shared/contracts/projects.ts`: `ProjectSnapshotV1`, portable artifact records, prompt drafts, motion configuration, QC state, projection/view state, and Zod validation for project snapshot import/export.
+- `src/lib/shared/contracts/jobs.ts`: `CreateJobRequestV1`, `JobV1`, `JobEventV1`, `JobResultV1`, and operator/artifact mappings for `generate-start-depth` and `generate-end-depth`.
+
+Shared contracts must not import Svelte stores, DOM APIs, Blob/File/canvas objects, Node filesystem modules, private environment variables, server clients, or network code.
+
+## Browser Workbench Ownership
+
+The browser remains the owner of interactive state and runtime media handles:
+
+- `src/artifacts/artifact-store.svelte.ts` owns the current in-browser workbench state, selected artifact/stage, artifact graph state, UI job indicators, QC state, and runtime media handles.
+- `src/app/workbench-commands.ts` is the public command bridge used by Svelte components. It keeps existing UI entry points stable and delegates specialized work.
+- `src/app/project-persistence.ts` creates, parses, downloads, and restores `ProjectSnapshotV1` values in the browser.
+- `src/app/paid-operator-execution.ts` assembles browser-safe payloads for paid API endpoints and applies returned artifact results.
+- `src/app/local-render-operators.ts` owns local WebGPU/WebCodecs preview, capture, and export orchestration.
+- `src/app/rgbd-lab-commands.ts` owns RGBD lab paid-action request, confirm, and cancel routing while delegating execution to the existing browser RGBD scene commands.
+
+The RGBD Expansion Lab remains a separate browser-owned path. `src/ui/RgbdExpansionLab.svelte` renders lab state and calls app/scene commands, `src/app/rgbd-lab-commands.ts` coordinates paid confirmation routing, `src/scene/rgbd-scene-commands.ts` applies RGBD state changes, and `src/services/gpt-image-reconstruction-service.ts` plus `src/services/gemini-depth-service.ts` call local Runway endpoint helpers. RGBD execution remains local-endpoint-only and browser-owned; it is not yet centralized behind the main `src/app/paid-operator-execution.ts` artifact operator path or first-class job routes.
+
+Portable snapshots and job contracts do not store runtime handles. Browser media handles such as object URLs, Blob/File values, canvases, and preview objects stay in browser-owned state and are converted or cleared at persistence boundaries.
 
 ## Server Module Layout
 
@@ -62,8 +99,35 @@ The Runway/Codex server boundary is split by responsibility:
 - `src/lib/server/runway/codex-planner.ts`: Codex prompt planning, prompt-pack reads, temporary image files, output schema normalization.
 - `src/lib/server/runway/route-response.ts`: request body parsing and NDJSON streaming responses.
 - `src/lib/server/runway/errors.ts`: HTTP-like errors, abort propagation, and public error formatting.
+- `src/lib/server/jobs/in-memory-job-store.ts`: process-local job records, event history, listeners, cancellation, and runtime-only abort controllers.
+- `src/lib/server/jobs/depth-map-job.ts`: first-class depth job creation for start-depth and end-depth operators plus the legacy depth-stream compatibility wrapper.
+- `src/lib/server/jobs/job-event-stream.ts`: raw job event NDJSON streams and compatibility conversion for depth progress streams.
 
 This layout keeps each route explicit about the server capability it uses while making individual services easier to test and change.
+
+## Project Snapshot Boundary
+
+Save Project and Load Project are browser-owned persistence operations:
+
+1. `src/app/project-persistence.ts` serializes the current artifact graph, selected artifact/stage, projection/view state, prompts, motion configuration, and QC checklist into `ProjectSnapshotV1`.
+2. Runtime-only media fields are converted to portable data URLs when possible or removed when they are only transient object URLs.
+3. `parseProjectSnapshot` validates the complete imported snapshot before `applyProjectSnapshot` mutates live workbench state.
+4. Restore replaces artifacts, prompt drafts, motion configuration, QC items, viewer/projection state, and selected artifact/stage only after validation succeeds.
+5. Old runtime object URLs are revoked after a successful restore.
+
+There is no server-side project database, durable project API, asset store, or generic migration framework in the current architecture.
+
+## In-Memory Job Boundary
+
+First-class jobs currently exist only for depth-map generation:
+
+- `POST /api/projects/:projectId/jobs` accepts `CreateJobRequestV1` for `generate-start-depth` and `generate-end-depth`, validates the request, creates an in-memory job, and returns `202` with `JobV1`.
+- `GET /api/jobs/:jobId` returns the current in-memory `JobV1` snapshot, or `404` when the job is unknown or no longer present.
+- `GET /api/jobs/:jobId/events` streams raw `JobEventV1` records.
+- `DELETE /api/jobs/:jobId` cancels an in-memory job and returns the latest `JobV1`, or `404` when the job is unknown.
+- `/api/runway/depth-map-stream` remains a compatibility endpoint for the active browser client and maps job events back to legacy progress records.
+
+These jobs are process-memory only. They do not survive a server restart, do not run in a worker process, and do not provide durable event logs or asset-backed outputs yet.
 
 ## Zod Validation
 

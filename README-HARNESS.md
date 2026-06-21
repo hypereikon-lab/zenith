@@ -8,7 +8,9 @@ Start with:
 
 1. `docs/codex/README.md`
 2. `AGENTS.md`
-3. the Phase 1 prompt in `docs/codex/prompts.md`
+3. the architecture-audit prompt in `docs/codex/prompts.md`
+
+The original Phase 1 prompt is now historical. Use the current roadmap recommendation before asking Codex to execute a new slice.
 
 The design is intentionally conservative:
 

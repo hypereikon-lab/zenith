@@ -1,7 +1,7 @@
 # Design Rationale for the Zenith Codex Harness
 
-Version: 0.1.0  
-Repository basis reviewed: `a8438f114a36aad56bc674be63a45920b5f6a337`  
+Version: 0.1.1
+Repository basis reviewed: `52f49e9207e6eb09e4f8b3f57d6d071c313acefa`
 Review date: 2026-06-20
 
 This harness is external to Zenith's application. It is a repository-level control system for Codex CLI and its subagents.
@@ -65,11 +65,13 @@ The parent thread reconciles evidence and performs all edits. This keeps one own
 
 The harness does not organize everything around tests, but it treats verification as an independent function. The test strategist defines evidence before implementation, while fresh post-change reviewers examine the actual diff after implementation.
 
-## Why Phase 1 is the first operating prompt
+## Why Phase 1 was the first operating prompt
 
-The roadmap identifies the project snapshot/shared-contract boundary as the highest-value next phase. It removes ambiguity between runtime browser objects and portable project data while avoiding premature decisions about assets, jobs, databases, or hosting.
+The roadmap identified the project snapshot/shared-contract boundary as the highest-value first phase. It removed ambiguity between runtime browser objects and portable project data while avoiding premature decisions about assets, jobs, databases, or hosting.
 
-The existing `workbench-commands.ts` is a useful pressure point because snapshot import/export currently shares a module with local media operations, paid operators, artifact mutation, and browser file IO. The harness narrows the first change to extraction of the persistence boundary only; the broader command split remains Phase 2.
+At the time, `workbench-commands.ts` was a useful pressure point because snapshot import/export shared a module with local media operations, paid operators, artifact mutation, and browser file IO. The harness narrowed the first change to extraction of the persistence boundary only; later Phase 2 slices handled paid operator execution and local render orchestration.
+
+Current status: that original Phase 1 slice has landed, and later slices extracted paid operator execution, local render orchestration, and a partial Phase 3 in-memory depth job boundary. Future sessions should begin with the architecture audit prompt and the current roadmap recommendation rather than assuming Phase 1 is still next.
 
 ## Why there are no nested `AGENTS.md` files
 
