@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { requestRunwayDepthMap } from "$lib/server/runway/runway-jobs";
+import { httpError } from "$lib/server/runway/errors";
 import { serverJobStore } from "$lib/server/jobs/in-memory-job-store";
-import { DELETE as cancelJobRoute } from "./[jobId]/+server.js";
+import { DELETE as cancelJobRoute, GET as getJobRoute } from "./[jobId]/+server.js";
 import { GET as getJobEventsRoute } from "./[jobId]/events/+server.js";
 import { POST as createJobRoute } from "../projects/[projectId]/jobs/+server.js";
 
@@ -81,6 +82,32 @@ describe("job API routes", () => {
     expect(requestRunwayDepthMap).toHaveBeenCalledTimes(1);
   });
 
+  test("reads a current job status without invoking the paid runner", async () => {
+    const job = serverJobStore.createJob({
+      projectId: "project_route_status_current",
+      operatorId: "generate-start-depth",
+    });
+
+    const response = await getJobStatus(job.id);
+    const status = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(status).toMatchObject({
+      version: 1,
+      id: job.id,
+      projectId: "project_route_status_current",
+      operatorId: "generate-start-depth",
+      status: "queued",
+      stage: "Queued",
+      progress: 0,
+      inputArtifactIds: ["start-state"],
+      outputArtifactIds: ["start-depth"],
+    });
+    expectPortableJobJson(status);
+    expect(requestRunwayDepthMap).not.toHaveBeenCalled();
+  });
+
   test("creates an end-depth job through the same route boundary", async () => {
     vi.mocked(requestRunwayDepthMap).mockImplementationOnce(async (payload, onProgress) => {
       onProgress({ type: "progress", stage: "Generating end depth", progress: 0.35, taskId: "task_route_end_1" });
@@ -121,6 +148,22 @@ describe("job API routes", () => {
     });
 
     await waitFor(() => serverJobStore.getJob(job.id)?.status === "succeeded");
+
+    const statusResponse = await getJobStatus(job.id);
+    const status = await statusResponse.json();
+    expect(statusResponse.status).toBe(200);
+    expect(statusResponse.headers.get("cache-control")).toBe("no-store");
+    expect(status).toMatchObject({
+      id: job.id,
+      status: "succeeded",
+      stage: "Complete",
+      progress: 1,
+      result: {
+        outputArtifactId: "end-depth",
+        outputs: [{ dataUri: PNG_DATA_URL, contentType: "image/png", name: "end-depth.png" }],
+      },
+    });
+    expectPortableJobJson(status);
 
     const eventsResponse = await getJobEventsRoute(
       routeEvent<typeof getJobEventsRoute>({
@@ -181,9 +224,37 @@ describe("job API routes", () => {
     expect(requestRunwayDepthMap).not.toHaveBeenCalled();
   });
 
+  test("reads failed job status without invoking the paid runner", async () => {
+    const job = serverJobStore.createJob({
+      projectId: "project_route_status_failed",
+      operatorId: "generate-start-depth",
+    });
+    serverJobStore.failJob(job.id, httpError(502, "Runway task failed."));
+
+    const response = await getJobStatus(job.id);
+    const status = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(status).toMatchObject({
+      id: job.id,
+      status: "failed",
+      stage: "Failed",
+      progress: 1,
+      error: {
+        message: "Runway task failed.",
+        status: 502,
+        code: "upstream_failed",
+      },
+    });
+    expectPortableJobJson(status);
+    expect(requestRunwayDepthMap).not.toHaveBeenCalled();
+  });
+
   test("returns 404 for unknown event streams and cancels", async () => {
     const missingJobId = "job_route_missing_404";
 
+    const statusResponse = await getJobStatus(missingJobId);
     const eventsResponse = await getJobEventsRoute(
       routeEvent<typeof getJobEventsRoute>({
         params: { jobId: missingJobId },
@@ -197,6 +268,9 @@ describe("job API routes", () => {
       }),
     );
 
+    expect(statusResponse.status).toBe(404);
+    expect(statusResponse.headers.get("cache-control")).toBe("no-store");
+    expect(await statusResponse.json()).toEqual({ error: `Job ${missingJobId} was not found.` });
     expect(eventsResponse.status).toBe(404);
     expect(await eventsResponse.json()).toEqual({ error: `Job ${missingJobId} was not found.` });
     expect(cancelResponse.status).toBe(404);
@@ -251,6 +325,22 @@ describe("job API routes", () => {
     });
     expect(runnerSignal?.aborted).toBe(true);
     await waitFor(() => serverJobStore.getJob(job.id)?.status === "cancelled");
+
+    const statusResponse = await getJobStatus(job.id);
+    const status = await statusResponse.json();
+    expect(statusResponse.status).toBe(200);
+    expect(statusResponse.headers.get("cache-control")).toBe("no-store");
+    expect(status).toMatchObject({
+      id: job.id,
+      status: "cancelled",
+      stage: "Cancelled",
+      progress: 1,
+      error: {
+        status: 499,
+        code: "cancelled",
+      },
+    });
+    expectPortableJobJson(status);
     expect(requestRunwayDepthMap).toHaveBeenCalledTimes(1);
   });
 });
@@ -308,6 +398,31 @@ function jsonRequest(body: unknown): Request {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
+}
+
+async function getJobStatus(jobId: string): Promise<Response> {
+  return getJobRoute(
+    routeEvent<typeof getJobRoute>({
+      params: { jobId },
+      request: new Request(`http://localhost/api/jobs/${jobId}`),
+    }),
+  );
+}
+
+function expectPortableJobJson(payload: unknown): void {
+  const json = JSON.stringify(payload);
+  for (const forbidden of [
+    "controller",
+    "signal",
+    "events",
+    "listeners",
+    "promise",
+    "objectUrl",
+    "debugCanvas",
+    "blob:",
+  ]) {
+    expect(json).not.toContain(forbidden);
+  }
 }
 
 function routeEvent<T extends (event: never) => unknown>(event: Partial<Parameters<T>[0]>): Parameters<T>[0] {
