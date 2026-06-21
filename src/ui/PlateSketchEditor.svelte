@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import {
+    changeViewerMode,
     changeProjectionProfile,
     installPlateSketchCommitHandler,
     setDomeGuideHorizonSplit,
@@ -35,6 +36,7 @@
     sourceProjectionHorizonRadius,
     sourceProjectionLabel,
     sourceProjectionSummary,
+    type SourceProjectionMode,
   } from "../geometry/source-projection.js";
   import { canvasToBlob, downloadBlob } from "../media/canvas-utils.js";
   import {
@@ -1113,8 +1115,9 @@
     return Math.hypot(a.x - b.x, a.y - b.y);
   }
 
-  function handleProjectionChange() {
-    changeProjectionProfile(workbench.projectionProfile);
+  function handleProjectionChange(event: Event) {
+    const profile = (event.currentTarget as HTMLSelectElement).value as SourceProjectionMode;
+    changeProjectionProfile(profile);
   }
 
   function handleGuideRailPointerDown(event: PointerEvent) {
@@ -1218,7 +1221,7 @@
   }
 
   function setViewerMode(mode: typeof workbench.viewerMode) {
-    workbench.viewerMode = mode;
+    changeViewerMode(mode);
   }
 
   function setPlateProjectionViewMode(mode: PlateEditorViewMode) {
@@ -1267,7 +1270,7 @@
 
     <label class="field-row" for="plate-editor-projection">
       <span>Projection profile</span>
-      <select id="plate-editor-projection" bind:value={workbench.projectionProfile} onchange={handleProjectionChange}>
+      <select id="plate-editor-projection" value={workbench.projectionProfile} onchange={handleProjectionChange}>
         {#each SOURCE_PROJECTION_MODES as mode}
           <option value={mode}>{sourceProjectionLabel(mode)}</option>
         {/each}

@@ -3,7 +3,6 @@
     getArtifact,
     getSelectedArtifact,
     getSelectedStage,
-    selectSurfaceMode,
     selectStage,
     setDropActive,
     workbench,
@@ -11,6 +10,8 @@
   } from "../artifacts/artifact-store.svelte.js";
   import {
     changeProjectionProfile,
+    changeSurfaceMode,
+    changeViewerMode,
     executeOperator,
     importPreviewMediaFile,
     importProjectSnapshotFile,
@@ -19,6 +20,7 @@
     SOURCE_PROJECTION_MODES,
     sourceProjectionLabel,
     sourceProjectionSummary,
+    type SourceProjectionMode,
   } from "../geometry/source-projection.js";
   import ArtifactInspector from "./ArtifactInspector.svelte";
   import ArtifactLineage from "./ArtifactLineage.svelte";
@@ -77,8 +79,9 @@
     return getArtifact(id).label;
   }
 
-  function handleProjectionChange() {
-    changeProjectionProfile(workbench.projectionProfile);
+  function handleProjectionChange(event: Event) {
+    const profile = (event.currentTarget as HTMLSelectElement).value as SourceProjectionMode;
+    changeProjectionProfile(profile);
   }
 </script>
 
@@ -99,7 +102,7 @@
     <div class="workbench-actions" aria-label="Workbench view and persistence controls">
       <label class="header-field" for="workbench-projection-profile">
         <span>Projection profile</span>
-        <select id="workbench-projection-profile" bind:value={workbench.projectionProfile} onchange={handleProjectionChange}>
+        <select id="workbench-projection-profile" value={workbench.projectionProfile} onchange={handleProjectionChange}>
           {#each SOURCE_PROJECTION_MODES as mode}
             <option value={mode}>{sourceProjectionLabel(mode)}</option>
           {/each}
@@ -110,7 +113,7 @@
           type="button"
           class:selected={workbench.viewerMode === "domemaster"}
           aria-pressed={workbench.viewerMode === "domemaster" ? "true" : "false"}
-          onclick={() => (workbench.viewerMode = "domemaster")}
+          onclick={() => changeViewerMode("domemaster")}
         >
           Domemaster
         </button>
@@ -118,7 +121,7 @@
           type="button"
           class:selected={workbench.viewerMode === "dome-check"}
           aria-pressed={workbench.viewerMode === "dome-check" ? "true" : "false"}
-          onclick={() => (workbench.viewerMode = "dome-check")}
+          onclick={() => changeViewerMode("dome-check")}
         >
           Dome Check
         </button>
@@ -126,7 +129,7 @@
           type="button"
           class:selected={workbench.viewerMode === "rim-check"}
           aria-pressed={workbench.viewerMode === "rim-check" ? "true" : "false"}
-          onclick={() => (workbench.viewerMode = "rim-check")}
+          onclick={() => changeViewerMode("rim-check")}
         >
           Rim Check
         </button>
@@ -136,7 +139,7 @@
           type="button"
           class:selected={workbench.surfaceMode === "artifact"}
           aria-pressed={workbench.surfaceMode === "artifact" ? "true" : "false"}
-          onclick={() => selectSurfaceMode("artifact")}
+          onclick={() => changeSurfaceMode("artifact")}
         >
           Artifact Workbench
         </button>
@@ -144,7 +147,7 @@
           type="button"
           class:selected={workbench.surfaceMode === "media-preview"}
           aria-pressed={workbench.surfaceMode === "media-preview" ? "true" : "false"}
-          onclick={() => selectSurfaceMode("media-preview")}
+          onclick={() => changeSurfaceMode("media-preview")}
         >
           Media Preview
         </button>
@@ -152,7 +155,7 @@
           type="button"
           class:selected={workbench.surfaceMode === "rgbd-lab"}
           aria-pressed={workbench.surfaceMode === "rgbd-lab" ? "true" : "false"}
-          onclick={() => selectSurfaceMode("rgbd-lab")}
+          onclick={() => changeSurfaceMode("rgbd-lab")}
         >
           RGBD Expansion Lab
         </button>

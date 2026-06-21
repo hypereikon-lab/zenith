@@ -8,6 +8,8 @@ import { executePaidOperator } from "./paid-operator-execution.js";
 import {
   cancelPendingPaidAction,
   changeProjectionProfile,
+  changeSurfaceMode,
+  changeViewerMode,
   confirmPendingPaidAction,
   executeOperator,
   importProjectSnapshotFile as importProjectSnapshotFileCommand,
@@ -97,6 +99,18 @@ describe("artifact-first workbench commands", () => {
     expectNoPaidOperatorCalls();
   });
 
+  test("routes global view state through the public command layer", () => {
+    changeViewerMode("rim-check");
+    changeSurfaceMode("rgbd-lab");
+
+    expect(workbench.viewerMode).toBe("rim-check");
+    expect(workbench.surfaceMode).toBe("rgbd-lab");
+    expectNoPaidOperatorCalls();
+
+    changeViewerMode("domemaster");
+    changeSurfaceMode("artifact");
+  });
+
   test("refreshes generated repair prompts when projection changes", () => {
     workbench.promptDrafts.repair = inpaintPromptForProjection("zenith-180");
     workbench.domeGuideSemanticSplit = 1 / 3;
@@ -106,6 +120,17 @@ describe("artifact-first workbench commands", () => {
     expect(workbench.projectionProfile).toBe("cave-270");
     expect(workbench.promptDrafts.repair).toBe(inpaintPromptForProjection("cave-270"));
     expect(workbench.promptDrafts.repair).toContain("square projection-source map");
+  });
+
+  test("defaults carrier horizon when changing from a non-carrier projection", () => {
+    changeProjectionProfile("zenith-180");
+    setDomeGuideSemanticSplit(1 / 3);
+
+    changeProjectionProfile("cave-270");
+
+    expect(workbench.projectionProfile).toBe("cave-270");
+    expect(workbench.domeGuideHorizonSplit).toBeCloseTo(2 / 3, 5);
+    expectNoPaidOperatorCalls();
   });
 
   test("refreshes generated dome repair prompts when the semantic split changes", () => {
@@ -135,7 +160,11 @@ describe("artifact-first workbench commands", () => {
 
   test("refreshes generated multi-anchor prompts when the horizon carrier changes", () => {
     changeProjectionProfile("cave-270");
-    workbench.promptDrafts.repair = inpaintPromptForProjection("cave-270", workbench.domeGuideSemanticSplit, workbench.domeGuideHorizonSplit);
+    workbench.promptDrafts.repair = inpaintPromptForProjection(
+      "cave-270",
+      workbench.domeGuideSemanticSplit,
+      workbench.domeGuideHorizonSplit,
+    );
 
     setDomeGuideSemanticSplit(1 / 3);
     setDomeGuideHorizonSplit(0.58);
@@ -153,6 +182,19 @@ describe("artifact-first workbench commands", () => {
 
     expect(workbench.projectionProfile).toBe("zenith-180");
     expect(workbench.promptDrafts.repair).toBe("Keep this custom CAVE source-map experiment prompt.");
+  });
+
+  test("keeps manually edited repair prompts when guide breakpoints change", () => {
+    changeProjectionProfile("cave-270");
+    workbench.promptDrafts.repair = "Keep this custom guide authoring prompt.";
+
+    setDomeGuideSemanticSplit(0.5);
+    setDomeGuideHorizonSplit(0.8);
+
+    expect(workbench.domeGuideSemanticSplit).toBe(0.5);
+    expect(workbench.domeGuideHorizonSplit).toBe(0.8);
+    expect(workbench.promptDrafts.repair).toBe("Keep this custom guide authoring prompt.");
+    expectNoPaidOperatorCalls();
   });
 
   test("imports dropped media into isolated Media Preview", async () => {

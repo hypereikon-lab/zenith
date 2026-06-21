@@ -1,5 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import {
+    changeViewerMode,
+    setDomeGuideHorizonSplit,
+    setDomeGuideSemanticSplit,
+  } from "../app/workbench-commands.js";
   import { workbench } from "../artifacts/artifact-store.svelte.js";
   import {
     eulerDegreesFromQuaternion,
@@ -265,7 +270,7 @@
   }
 
   function setViewerMode(mode: typeof workbench.viewerMode) {
-    workbench.viewerMode = mode;
+    changeViewerMode(mode);
   }
 
   function updateViewCamera(patch: Partial<typeof viewCamera>) {
@@ -538,9 +543,9 @@
 
   function setGuideBreakpointRadius(breakpointId: GuideBreakpointId, radius: number) {
     if (breakpointId === "inner-split") {
-      workbench.domeGuideSemanticSplit = clamp(radius, 0.05, 0.95);
+      setDomeGuideSemanticSplit(radius);
     } else if (breakpointId === "carrier-horizon" || breakpointId === "physical-horizon") {
-      workbench.domeGuideHorizonSplit = clamp(radius, 0.05, 0.95);
+      setDomeGuideHorizonSplit(radius);
     }
   }
 

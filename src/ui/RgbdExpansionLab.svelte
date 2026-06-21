@@ -3,9 +3,12 @@
     buildRgbdSceneFromWorkbench,
     downloadRgbdSceneManifest,
     fuseCurrentRgbdView,
-    generateRgbdDepthWithApi,
-    reconstructRgbdProxyWithApi,
   } from "../scene/rgbd-scene-commands.js";
+  import {
+    cancelRgbdPaidAction,
+    confirmRgbdPaidAction,
+    requestRgbdPaidAction,
+  } from "../app/rgbd-lab-commands.js";
   import { artifactIsReady } from "../artifacts/artifact-store.svelte.js";
   import {
     canAlignRgbdDepth,
@@ -39,29 +42,6 @@
   let proxyDisabledReason = $derived(canRenderRgbdProxy() ? null : "Needs a seeded RGBD scene and selected camera keyframe.");
   let alignDisabledReason = $derived(canAlignRgbdDepth() ? null : "Needs proxy, reconstruction, and relative depth artifacts.");
   let fuseDisabledReason = $derived(canFuseRgbdView() ? null : "Needs successful depth alignment before fusion.");
-
-  function requestPaidAction(id: "reconstruct-proxy-view" | "generate-proxy-depth") {
-    rgbdLab.pendingPaidAction =
-      id === "reconstruct-proxy-view"
-        ? {
-            id,
-            label: "Reconstruct Proxy View",
-            body: "This will send the RGBD proxy view, masks, confidence preview, and visible reconstruction prompt to GPT-image-2.",
-          }
-        : {
-            id,
-            label: "Generate Proxy Depth",
-            body: "This will send the reconstructed proxy view and visible depth prompt to the configured Gemini depth endpoint.",
-          };
-  }
-
-  async function confirmPaidAction() {
-    const pending = rgbdLab.pendingPaidAction;
-    rgbdLab.pendingPaidAction = null;
-    if (!pending) return;
-    if (pending.id === "reconstruct-proxy-view") await reconstructRgbdProxyWithApi();
-    if (pending.id === "generate-proxy-depth") await generateRgbdDepthWithApi();
-  }
 </script>
 
 <section class="rgbd-lab" aria-label="RGBD Scene Expansion Lab">
@@ -127,9 +107,9 @@
       {:else if rgbdLab.selectedStep === "proxy"}
         <ProxyRenderPanel disabledReason={proxyDisabledReason} />
       {:else if rgbdLab.selectedStep === "reconstruct"}
-        <ReconstructionPanel onPaidRequest={() => requestPaidAction("reconstruct-proxy-view")} />
+        <ReconstructionPanel onPaidRequest={() => requestRgbdPaidAction("reconstruct-proxy-view")} />
       {:else if rgbdLab.selectedStep === "depth"}
-        <DepthAlignmentPanel mode="depth" onPaidDepthRequest={() => requestPaidAction("generate-proxy-depth")} />
+        <DepthAlignmentPanel mode="depth" onPaidDepthRequest={() => requestRgbdPaidAction("generate-proxy-depth")} />
       {:else if rgbdLab.selectedStep === "align"}
         <DepthAlignmentPanel mode="align" disabledReason={alignDisabledReason} />
       {:else if rgbdLab.selectedStep === "fuse"}
@@ -195,8 +175,8 @@
         <p>{rgbdLab.pendingPaidAction.body}</p>
         <p class="disabled-reason">Review the visible prompt in this lab before confirming. Browser smoke tests do not click this.</p>
         <div class="confirm-actions">
-          <button type="button" class="secondary-action" onclick={() => (rgbdLab.pendingPaidAction = null)}>Cancel</button>
-          <button type="button" class="operator-action" onclick={confirmPaidAction}>Confirm Paid/API Run</button>
+          <button type="button" class="secondary-action" onclick={cancelRgbdPaidAction}>Cancel</button>
+          <button type="button" class="operator-action" onclick={confirmRgbdPaidAction}>Confirm Paid/API Run</button>
         </div>
       </dialog>
     </div>

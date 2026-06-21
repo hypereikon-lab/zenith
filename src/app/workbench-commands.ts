@@ -5,6 +5,7 @@ import {
   getMediaPreviewHandle,
   recordWorkbenchError,
   selectArtifact,
+  selectSurfaceMode,
   setMediaPreview,
   setMediaPreviewHandle,
   setArtifactMediaHandle,
@@ -29,6 +30,9 @@ import {
   downloadProjectSnapshot,
   importProjectSnapshotFile as importProjectSnapshotFileFromPersistence,
 } from "./project-persistence.js";
+
+type WorkbenchViewerMode = typeof workbench.viewerMode;
+type WorkbenchSurfaceMode = typeof workbench.surfaceMode;
 
 let plateSketchCommitHandler: (() => Promise<void>) | null = null;
 
@@ -208,7 +212,9 @@ async function importMediaToArtifact(
     },
     warnings:
       artifactId === "motion-draft" && kind !== "video"
-        ? ["Motion Draft is normally a video proxy. A still image can be inspected, but it will not drive video choreography."]
+        ? [
+            "Motion Draft is normally a video proxy. A still image can be inspected, but it will not drive video choreography.",
+          ]
         : [],
   });
   addArtifactResult(artifactId, {
@@ -233,10 +239,7 @@ export function changeProjectionProfile(profile: SourceProjectionMode): void {
       nextHorizon,
     );
   } else {
-    workbench.domeGuideHorizonSplit = defaultSourceGuideCarrierHorizonRadius(
-      profile,
-      workbench.domeGuideSemanticSplit,
-    );
+    workbench.domeGuideHorizonSplit = defaultSourceGuideCarrierHorizonRadius(profile, workbench.domeGuideSemanticSplit);
   }
   if (refreshRepairPrompt) {
     workbench.promptDrafts.repair = inpaintPromptForProjection(
@@ -249,6 +252,14 @@ export function changeProjectionProfile(profile: SourceProjectionMode): void {
     operatorId: "choose-projection",
     summary: `${projectionLabel(profile)} profile selected.`,
   });
+}
+
+export function changeViewerMode(mode: WorkbenchViewerMode): void {
+  workbench.viewerMode = mode;
+}
+
+export function changeSurfaceMode(mode: WorkbenchSurfaceMode): void {
+  selectSurfaceMode(mode);
 }
 
 export function setDomeGuideSemanticSplit(value: number | string | null | undefined): void {

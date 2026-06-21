@@ -2,7 +2,7 @@
   import { getSelectedArtifact, workbench } from "../artifacts/artifact-store.svelte.js";
   import { changeProjectionProfile, executeOperator, importDepthFile, importPlateSketchFile, importSourceFile } from "../app/workbench-commands.js";
   import { operatorsForArtifact } from "../app/operator-registry.js";
-  import { SOURCE_PROJECTION_MODES, sourceProjectionLabel } from "../geometry/source-projection.js";
+  import { SOURCE_PROJECTION_MODES, sourceProjectionLabel, type SourceProjectionMode } from "../geometry/source-projection.js";
   import PromptEditor from "./PromptEditor.svelte";
 
   let artifact = $derived(getSelectedArtifact());
@@ -30,6 +30,11 @@
       operatorId === "import-start-depth" ||
       operatorId === "import-end-depth"
     );
+  }
+
+  function handleProjectionChange(event: Event) {
+    const profile = (event.currentTarget as HTMLSelectElement).value as SourceProjectionMode;
+    changeProjectionProfile(profile);
   }
 
   function importAccept(operatorId: string) {
@@ -70,9 +75,9 @@
               <span>Projection profile</span>
               <select
                 id="projection-profile"
-                bind:value={workbench.projectionProfile}
+                value={workbench.projectionProfile}
                 aria-describedby="projection-profile-help"
-                onchange={() => changeProjectionProfile(workbench.projectionProfile)}
+                onchange={handleProjectionChange}
               >
                 {#each SOURCE_PROJECTION_MODES as mode}
                   <option value={mode}>{sourceProjectionLabel(mode)}</option>
