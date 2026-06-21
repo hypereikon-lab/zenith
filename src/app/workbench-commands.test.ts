@@ -1,8 +1,16 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import {
+  downloadProjectSnapshot,
+  importProjectSnapshotFile as importProjectSnapshotFileFromPersistence,
+} from "./project-persistence.js";
+import { executeLocalRenderOperator } from "./local-render-operators.js";
+import { executePaidOperator } from "./paid-operator-execution.js";
 import {
   cancelPendingPaidAction,
   changeProjectionProfile,
+  confirmPendingPaidAction,
   executeOperator,
+  importProjectSnapshotFile as importProjectSnapshotFileCommand,
   importPreviewMediaFile,
   promotePreviewMedia,
   setDomeGuideHorizonSplit,
@@ -11,14 +19,82 @@ import {
 import { inpaintPromptForProjection } from "./app-state.js";
 import { workbench } from "../artifacts/artifact-store.svelte.js";
 
+vi.mock("./project-persistence.js", () => ({
+  downloadProjectSnapshot: vi.fn().mockResolvedValue(undefined),
+  importProjectSnapshotFile: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("./local-render-operators.js", () => ({
+  executeLocalRenderOperator: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("./paid-operator-execution.js", () => ({
+  executePaidOperator: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe("artifact-first workbench commands", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
   test("opens confirmation before paid operators run", async () => {
     await executeOperator("repair-start-state");
 
     expect(workbench.pendingPaidAction?.operatorId).toBe("repair-start-state");
     expect(workbench.jobs.some((job) => job.operatorId === "repair-start-state" && job.busy)).toBe(false);
+    expectNoPaidOperatorCalls();
 
     cancelPendingPaidAction();
+  });
+
+  test("confirms and cancels paid actions through the public command layer", async () => {
+    await executeOperator("repair-start-state");
+
+    await confirmPendingPaidAction();
+
+    expect(workbench.pendingPaidAction).toBeNull();
+    expect(executePaidOperator).toHaveBeenCalledTimes(1);
+    expect(executePaidOperator).toHaveBeenCalledWith("repair-start-state");
+
+    await executeOperator("generate-start-depth");
+    cancelPendingPaidAction();
+
+    expect(workbench.pendingPaidAction).toBeNull();
+    expect(executePaidOperator).toHaveBeenCalledTimes(1);
+  });
+
+  test("routes project save and load entry points through persistence without paid clients", async () => {
+    const file = new File(["{}"], "zenith-project.json", { type: "application/json" });
+
+    await executeOperator("save-project");
+    await executeOperator("load-project");
+    await importProjectSnapshotFileCommand(file);
+
+    expect(downloadProjectSnapshot).toHaveBeenCalledTimes(1);
+    expect(importProjectSnapshotFileFromPersistence).toHaveBeenCalledTimes(1);
+    expect(importProjectSnapshotFileFromPersistence).toHaveBeenCalledWith(file);
+    expectNoPaidOperatorCalls();
+  });
+
+  test("routes local render and render-export operators through the local render module", async () => {
+    const operatorIds = [
+      "preview-motion-draft",
+      "export-motion-proxy",
+      "export-motion-config",
+      "capture-displaced-endpoint",
+      "export-start-depth",
+      "export-end-depth",
+    ] as const;
+
+    for (const operatorId of operatorIds) {
+      await executeOperator(operatorId);
+    }
+
+    expect(executeLocalRenderOperator).toHaveBeenCalledTimes(operatorIds.length);
+    for (const operatorId of operatorIds) {
+      expect(executeLocalRenderOperator).toHaveBeenCalledWith(operatorId);
+    }
+    expectNoPaidOperatorCalls();
   });
 
   test("refreshes generated repair prompts when projection changes", () => {
@@ -89,6 +165,7 @@ describe("artifact-first workbench commands", () => {
     expect(workbench.mediaPreview.media.kind).toBe("image");
     expect(workbench.mediaPreview.media.name).toBe("outside-generation.png");
     expect(workbench.artifacts["plate-sketch"].media.url).toBe(plateSketchUrl);
+    expectNoPaidOperatorCalls();
   });
 
   test("promotes Media Preview only after an explicit target selection", async () => {
@@ -101,5 +178,10 @@ describe("artifact-first workbench commands", () => {
     expect(workbench.surfaceMode).toBe("artifact");
     expect(workbench.artifacts["end-state"].media.name).toBe("manual-end-state.png");
     expect(workbench.artifacts["end-state"].summary).toContain("from Media Preview");
+    expectNoPaidOperatorCalls();
   });
 });
+
+function expectNoPaidOperatorCalls(): void {
+  expect(executePaidOperator).not.toHaveBeenCalled();
+}

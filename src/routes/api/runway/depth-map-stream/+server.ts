@@ -1,7 +1,6 @@
-import { streamPost } from "$lib/server/route-utils";
-import { requestRunwayDepthMap } from "$lib/server/runway/runway-jobs";
+import { createDepthMapCompatibilityStreamResponse } from "$lib/server/jobs/depth-map-job";
 import type { RequestHandler } from "./$types";
 
 export const POST: RequestHandler = async ({ request }) => {
-  return streamPost(request, requestRunwayDepthMap, "Runway depth request failed");
+  return createDepthMapCompatibilityStreamResponse(request);
 };
