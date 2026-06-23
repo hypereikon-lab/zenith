@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { caveShaderCode, domeShaderCode, flatShaderCode } from "./shaders.js";
+import { caveShaderCode, domeShaderCode, flatShaderCode } from "./projection-preview-shaders.js";
 
 describe("dome shader", () => {
   test("uses one equidistant domemaster path instead of a projection-mode branch", () => {
@@ -56,7 +56,9 @@ describe("flat shader", () => {
     expect(flatShaderCode).toContain("sourceCarrierSplit: f32");
     expect(flatShaderCode).toContain("sourceCarrierHorizon: f32");
     expect(flatShaderCode).toContain("fn carrierRadiusToPhysicalRadius(carrierRadius: f32, thetaMax: f32) -> f32");
-    expect(flatShaderCode).toContain("let theta = carrierRadiusToPhysicalRadius(radius, max(uniforms.sourceCenterTheta.w, 0.0001))");
+    expect(flatShaderCode).toContain(
+      "let theta = carrierRadiusToPhysicalRadius(radius, max(uniforms.sourceCenterTheta.w, 0.0001))",
+    );
     expect(flatShaderCode).toContain("lineAt(theta, PI / 12.0");
     expect(flatShaderCode).toContain("abs(theta - HALF_PI)");
     expect(flatShaderCode).toContain("let eyeHorizon = (1.0 - smoothstep");
@@ -77,7 +79,9 @@ describe("cave shader", () => {
     expect(caveShaderCode).toContain("fn continuityPhysicalDirectionFromCavePoint");
     expect(caveShaderCode).toContain("fn caveFloorContinuityDirection");
     expect(caveShaderCode).toContain("return caveFloorContinuityDirection(point)");
-    expect(caveShaderCode).toContain("let continuityPhysicalDir = continuityPhysicalDirectionFromCavePoint(in.world, in.faceUv, in.face)");
+    expect(caveShaderCode).toContain(
+      "let continuityPhysicalDir = continuityPhysicalDirectionFromCavePoint(in.world, in.faceUv, in.face)",
+    );
     expect(caveShaderCode).toContain("textureSample(domeTexture, domeSampler");
     expect(caveShaderCode).toContain("edgeLine(in.faceUv.x)");
     expect(caveShaderCode).not.toContain("projectionMode");

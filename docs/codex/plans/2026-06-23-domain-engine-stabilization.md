@@ -19,17 +19,17 @@ The broader roadmap's generic next phase mentions asset contracts, but this task
 
 - Baseline repo state: `git status --short --branch` reported `## main...origin/main`; `git rev-parse HEAD` reported `40842f6161cceaf07f45545e8aaae3151fcffed2`.
 - Baseline targeted check passed: `npm test -- src/graphics/shaders.test.ts src/geometry/projection-shader-parity.test.ts src/sketch/depth-webgpu-renderer.test.ts src/plates/plate-gpu-compositor.test.ts` with 4 files and 20 tests passing.
-- `src/graphics/shaders.ts` currently exports `domeShaderCode`, `flatShaderCode`, `caveShaderCode`, and `roomShaderCode`.
+- `src/graphics/shaders.ts` previously exported `domeShaderCode`, `flatShaderCode`, `caveShaderCode`, and `roomShaderCode`.
 - `src/graphics/source-map-preview-renderer.ts` imports `flatShaderCode`, `domeShaderCode`, and `caveShaderCode`; it creates WebGPU pipelines and packs a 48-float uniform array in `writeUniforms`.
 - `src/plates/plate-sketch-gpu-renderer.ts` imports `domeShaderCode` and `caveShaderCode`; it renders plate composition through `PlateGpuCompositor`, then packs the same 48-float uniform array in `writeProjectionUniforms`.
 - The uniform ABI is `192` bytes and carries: MVP matrix, fisheye scale, rotation/exposure/guide flags, shell shade, source carrier split/horizon, source center/theta, source axes, cave mask mode, and camera position.
 - `src/graphics/shaders.test.ts` asserts shader string invariants. `src/geometry/projection-shader-parity.test.ts` asserts CPU/WGSL-equivalent projection math. `src/architecture/import-boundaries.test.ts` guards browser/server/shared import boundaries.
-- `roomShaderCode` appears to be residue: static search found the export but no active import under `src` or tests. Removal is deferred until the active projection-preview split is complete and a dedicated dead-code proof can be kept small.
+- `roomShaderCode` appeared to be residue: static search found the export but no active import under `src` or tests.
 
 ## Invariants
 
 - Preserve current UI-visible source-map, dome orbit, dome POV, and CAVE Room projection preview behavior.
-- Preserve shader math, projection formulas, guide line semantics, CAVE carrier behavior, render ordering, and public compatibility imports.
+- Preserve shader math, projection formulas, guide line semantics, CAVE carrier behavior, and render ordering.
 - Keep WebGPU, canvas, DOM, image/video elements, textures, buffers, and source media handling in browser-owned modules.
 - Keep `src/lib/shared` JSON-safe and side-effect free; do not move typed GPU buffers or shader/runtime contracts there.
 - Keep server secrets, filesystem effects, SDK clients, and paid upstream calls under `src/lib/server` or SvelteKit server routes.
@@ -42,11 +42,11 @@ The broader roadmap's generic next phase mentions asset contracts, but this task
 ### In scope
 
 - Extract active projection preview WGSL ownership from the broad shader module into a concrete browser-owned graphics module.
-- Keep `src/graphics/shaders.ts` as a compatibility facade for existing imports and tests.
+- Delete the broad `src/graphics/shaders.ts` module instead of keeping a compatibility facade.
 - Add a projection-preview uniform ABI module with named float offsets, float count, byte size, and a single packer used by source-map preview and plate sketch preview.
 - Add focused tests for the uniform ABI and packer.
 - Update targeted renderers to use the shared projection-preview uniform owner.
-- Record `roomShaderCode` as unused evidence, but remove it only if the implementation remains tightly scoped and compatibility risk is lower than leaving it.
+- Remove the unused `roomShaderCode` residue after static import evidence confirms it is not active.
 
 ### Explicit non-goals
 
@@ -59,7 +59,7 @@ The broader roadmap's generic next phase mentions asset contracts, but this task
 
 ## Proposed design
 
-Add `src/graphics/projection-preview-shaders.ts` as the owner of active projection preview WGSL: `domeShaderCode`, `flatShaderCode`, and `caveShaderCode`. Keep `src/graphics/shaders.ts` as a compatibility facade that re-exports the active shader names and, if still present, `roomShaderCode`.
+Add `src/graphics/projection-preview-shaders.ts` as the owner of active projection preview WGSL: `domeShaderCode`, `flatShaderCode`, and `caveShaderCode`. Delete the old broad `src/graphics/shaders.ts` module rather than keeping a facade.
 
 Add `src/graphics/projection-preview-uniforms.ts` as the owner of the runtime shader ABI. It exports:
 
@@ -71,7 +71,7 @@ Add `src/graphics/projection-preview-uniforms.ts` as the owner of the runtime sh
 
 The packer stays in `src/graphics` because it returns a typed array for WebGPU upload and is not a portable project contract. Renderers remain responsible for WebGPU device, context, texture, pipeline, geometry, source media, and canvas lifecycles. They compute view/projection/profile data in their existing contexts, call the shared packer, then write the returned typed array to their own uniform buffer.
 
-Compatibility behavior is explicit: existing imports from `src/graphics/shaders.ts` continue to work, and public renderer APIs do not change. Reversal is straightforward because the extracted shader and uniform modules can be collapsed back into the facade without changing user-facing behavior.
+Compatibility behavior is explicit at the renderer API level: public renderer APIs do not change. Reversal is straightforward because the extracted shader and uniform modules can be collapsed back into a broad shader module without changing user-facing behavior.
 
 ## Alternatives considered
 
@@ -84,7 +84,7 @@ Compatibility behavior is explicit: existing imports from `src/graphics/shaders.
 
 | Concern                        | Evidence required                                                                       | Command/test                                                                                         |
 | ------------------------------ | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Shader behavior                | Existing dome/flat/CAVE shader text invariants still pass through compatibility exports | `npm test -- src/graphics/shaders.test.ts`                                                           |
+| Shader behavior                | Existing dome/flat/CAVE shader text invariants still pass through the real shader owner | `npm test -- src/graphics/shaders.test.ts`                                                           |
 | Projection math                | CPU/WGSL-equivalent projection formulas remain unchanged                                | `npm test -- src/geometry/projection-shader-parity.test.ts`                                          |
 | Uniform ABI                    | Packer exposes 48 floats, 192 bytes, named offsets, and expected slot values            | `npm test -- src/graphics/projection-preview-uniforms.test.ts`                                       |
 | Renderer parity                | Source-map preview and plate sketch preview write the same ABI through one packer       | Typecheck plus uniform packer tests                                                                  |
@@ -94,7 +94,7 @@ Compatibility behavior is explicit: existing imports from `src/graphics/shaders.
 
 ## Implementation sequence
 
-1. Extract active projection preview shader source to a focused module and preserve `src/graphics/shaders.ts` compatibility exports.
+1. Extract active projection preview shader source to a focused module and delete `src/graphics/shaders.ts`.
 2. Add projection-preview uniform constants, named offsets, and packer tests.
 3. Replace duplicated inline uniform packing in `source-map-preview-renderer.ts` and `plate-sketch-gpu-renderer.ts`.
 4. Run targeted shader/parity/uniform/boundary tests.
@@ -104,9 +104,9 @@ Compatibility behavior is explicit: existing imports from `src/graphics/shaders.
 
 ## Risks and recovery
 
-- Risk: mechanical shader move changes WGSL contents. Detection: shader string tests and final diff review. Recovery: restore shader facade contents from baseline.
+- Risk: mechanical shader move changes WGSL contents. Detection: shader string tests and final diff review. Recovery: restore shader source from baseline.
 - Risk: one renderer computes slightly different inputs and the shared packer hides an intended distinction. Detection: packer input names and tests for square plate and rectangular source-map fixtures. Recovery: keep separate input builders while retaining one ABI packer.
-- Risk: `roomShaderCode` removal breaks an undocumented public import. Detection: typecheck, full test suite, and static import search. Recovery: keep it quarantined in the facade or restore it.
+- Risk: `roomShaderCode` removal breaks an undocumented public import. Detection: typecheck, full test suite, and static import search. Recovery: restore the deleted module from the prior commit if needed.
 - Risk: typed-array helper is mistaken for shared contract. Detection: import-boundary tests and final boundary audit. Recovery: keep module under `src/graphics` only.
 
 ## Progress log
@@ -125,7 +125,7 @@ Compatibility behavior is explicit: existing imports from `src/graphics/shaders.
 ## Decisions and discoveries
 
 - Current evidence supports priority 1 over editor/controller extraction: the same projection uniform ABI is duplicated in two active renderers.
-- `roomShaderCode` is currently unused by static search, but removal is not required to complete this projection-preview ownership slice.
+- `roomShaderCode` was unused by static search and was removed after the user clarified not to keep facades.
 - The uniform packer stays in `src/graphics` because it produces runtime typed-array data for WebGPU, not JSON-safe shared project data.
 - `npm run test:e2e` is not required unless this slice changes hydration or visible UI behavior; `npm run smoke:prod:built` is only needed if the final change materially affects production-demo bundling beyond the standard build.
 - Final read-only reviewers found no material code issue. Both identified this plan receipt as stale before the final update; the receipt was updated before commit.
@@ -136,7 +136,7 @@ Compatibility behavior is explicit: existing imports from `src/graphics/shaders.
 Delivered:
 
 - `src/graphics/projection-preview-shaders.ts` now owns the active dome, flat, and CAVE projection-preview WGSL.
-- `src/graphics/shaders.ts` is now a compatibility facade that re-exports the active shader names and quarantines the unused `roomShaderCode` legacy export.
+- `src/graphics/shaders.ts` was deleted; active shader imports point directly to `src/graphics/projection-preview-shaders.ts`.
 - `src/graphics/projection-preview-uniforms.ts` now owns the projection-preview uniform ABI with named offsets, `48` floats, `192` bytes, and a single `buildProjectionPreviewUniformArray` packer.
 - `src/graphics/source-map-preview-renderer.ts` and `src/plates/plate-sketch-gpu-renderer.ts` now use the same projection-preview ABI owner while retaining their own WebGPU, canvas, texture, pipeline, geometry, and media lifecycles.
 - `src/graphics/projection-preview-uniforms.test.ts` covers the ABI length, byte size, key offsets, guide flags, optional boolean slots, CAVE mask slot, and camera position slots.
@@ -150,13 +150,13 @@ Verification:
 - `npm test` passed with 51 files and 281 tests.
 - `npm run build` passed with existing Vite large-chunk and plugin-timing warnings.
 - `git diff --check` passed.
-- `npx prettier --check docs/codex/plans/2026-06-23-domain-engine-stabilization.md src/graphics/shaders.ts src/graphics/projection-preview-shaders.ts src/graphics/projection-preview-uniforms.ts src/graphics/projection-preview-uniforms.test.ts src/graphics/source-map-preview-renderer.ts src/plates/plate-sketch-gpu-renderer.ts` passed.
+- `npx prettier --check docs/codex/plans/2026-06-23-domain-engine-stabilization.md src/graphics/projection-preview-shaders.ts src/graphics/projection-preview-uniforms.ts src/graphics/projection-preview-uniforms.test.ts src/graphics/shaders.test.ts src/graphics/source-map-preview-renderer.ts src/plates/plate-sketch-gpu-renderer.ts` passed.
 - `npm run smoke:prod:built` passed against the built adapter-node app.
 - `npm run test:e2e` was not run because this slice did not change hydration, visible UI controls, route behavior, or user-flow logic.
 
 Deferred:
 
-- Remove `roomShaderCode` only in a dedicated dead-code proof slice.
+- `roomShaderCode` has been removed in this follow-up because the user clarified that no facade should remain.
 - Add renderer-private square/rectangular write-path tests if future changes touch projection-preview renderer internals.
 - Thin `PlateSketchEditor.svelte` or `SourceMapMediaViewer.svelte` only after this shader/uniform boundary lands cleanly.
-- Do not continue into another slice in this patch; the next highest-value safe slice is a narrow `roomShaderCode` dead-code proof/removal or a renderer-private uniform fixture test, depending on whether compatibility risk or test coverage is more valuable next.
+- Do not continue into another slice in this patch; the next highest-value safe slice is a renderer-private uniform fixture test or the first editor session/controller extraction, depending on whether test coverage or UI thinning is more valuable next.
