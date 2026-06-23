@@ -1,20 +1,22 @@
 import { z, ZodError } from "zod";
+import {
+  PROJECT_ARTIFACT_INPUTS_BY_ID,
+  PROJECT_ARTIFACT_SLOT_IDS,
+  PROJECT_ARTIFACT_STAGE_BY_ID,
+  PROJECT_WORKFLOW_STAGE_IDS,
+  type ProjectArtifactSlotId,
+} from "./artifact-topology.js";
+
+export {
+  PROJECT_ARTIFACT_INPUTS_BY_ID,
+  PROJECT_ARTIFACT_SLOT_IDS,
+  PROJECT_ARTIFACT_STAGE_BY_ID,
+  PROJECT_WORKFLOW_STAGE_IDS,
+} from "./artifact-topology.js";
+export type { ProjectArtifactSlotId, ProjectWorkflowStageId } from "./artifact-topology.js";
 
 export const PROJECT_SNAPSHOT_VERSION = 1;
 
-export const PROJECT_ARTIFACT_SLOT_IDS = [
-  "plate-sketch",
-  "start-state",
-  "start-depth",
-  "motion-draft",
-  "displaced-endpoint",
-  "end-state",
-  "end-depth",
-  "video-take",
-  "deliverables",
-] as const;
-
-export const PROJECT_WORKFLOW_STAGE_IDS = ["start", "motion", "end", "video", "deliver"] as const;
 export const PROJECT_ARTIFACT_STATUSES = ["missing", "ready", "working", "done", "warning", "stale"] as const;
 export const PROJECT_MEDIA_KINDS = ["none", "image", "video"] as const;
 export const PROJECT_PROJECTION_MODES = ["zenith-180", "zenith-230", "nadir-180", "cave-270"] as const;
@@ -33,34 +35,8 @@ export const PROJECT_QC_ITEM_IDS = [
   "provenance-prompt",
 ] as const;
 
-export type ProjectArtifactSlotId = (typeof PROJECT_ARTIFACT_SLOT_IDS)[number];
-export type ProjectWorkflowStageId = (typeof PROJECT_WORKFLOW_STAGE_IDS)[number];
 export type ProjectProjectionMode = (typeof PROJECT_PROJECTION_MODES)[number];
 export type ProjectMediaKind = (typeof PROJECT_MEDIA_KINDS)[number];
-
-export const PROJECT_ARTIFACT_STAGE_BY_ID = {
-  "plate-sketch": "start",
-  "start-state": "start",
-  "start-depth": "start",
-  "motion-draft": "motion",
-  "displaced-endpoint": "motion",
-  "end-state": "end",
-  "end-depth": "end",
-  "video-take": "video",
-  deliverables: "deliver",
-} as const satisfies Record<ProjectArtifactSlotId, ProjectWorkflowStageId>;
-
-export const PROJECT_ARTIFACT_INPUTS_BY_ID = {
-  "plate-sketch": [],
-  "start-state": ["plate-sketch"],
-  "start-depth": ["start-state"],
-  "motion-draft": ["start-state", "start-depth"],
-  "displaced-endpoint": ["start-state", "start-depth", "motion-draft"],
-  "end-state": ["start-state", "displaced-endpoint"],
-  "end-depth": ["end-state"],
-  "video-take": ["start-state", "end-state", "motion-draft"],
-  deliverables: ["video-take"],
-} as const satisfies Record<ProjectArtifactSlotId, readonly ProjectArtifactSlotId[]>;
 
 export type ProjectArtifactMediaV1 = {
   kind: ProjectMediaKind;

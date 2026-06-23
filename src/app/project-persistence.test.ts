@@ -12,34 +12,15 @@ import {
   restoreProjectSnapshot,
   restoreProjectSnapshotText,
 } from "./project-persistence.js";
-import { PROJECT_ARTIFACT_SLOT_IDS, type ProjectSnapshotV1 } from "../lib/shared/contracts/projects.js";
+import {
+  PROJECT_ARTIFACT_INPUTS_BY_ID,
+  PROJECT_ARTIFACT_STAGE_BY_ID,
+  PROJECT_ARTIFACT_SLOT_IDS,
+  type ProjectSnapshotV1,
+} from "../lib/shared/contracts/projects.js";
 import type { ArtifactSlotId } from "../artifacts/artifact-types.js";
 
 type ProjectArtifactSlotId = (typeof PROJECT_ARTIFACT_SLOT_IDS)[number];
-
-const STAGE_BY_ARTIFACT: Record<ProjectArtifactSlotId, ProjectSnapshotV1["selectedStageId"]> = {
-  "plate-sketch": "start",
-  "start-state": "start",
-  "start-depth": "start",
-  "motion-draft": "motion",
-  "displaced-endpoint": "motion",
-  "end-state": "end",
-  "end-depth": "end",
-  "video-take": "video",
-  deliverables: "deliver",
-};
-
-const INPUTS_BY_ARTIFACT: Record<ProjectArtifactSlotId, ProjectArtifactSlotId[]> = {
-  "plate-sketch": [],
-  "start-state": ["plate-sketch"],
-  "start-depth": ["start-state"],
-  "motion-draft": ["start-state", "start-depth"],
-  "displaced-endpoint": ["start-state", "start-depth", "motion-draft"],
-  "end-state": ["start-state", "displaced-endpoint"],
-  "end-depth": ["end-state"],
-  "video-take": ["start-state", "end-state", "motion-draft"],
-  deliverables: ["video-take"],
-};
 
 describe("project persistence", () => {
   beforeEach(() => {
@@ -376,11 +357,11 @@ function artifact(id: ProjectArtifactSlotId): ProjectSnapshotV1["artifacts"][Pro
   return {
     id,
     type: id,
-    stage: STAGE_BY_ARTIFACT[id],
+    stage: PROJECT_ARTIFACT_STAGE_BY_ID[id],
     label: `Fixture ${id}`,
     summary: `Fixture summary for ${id}`,
     status: id === "plate-sketch" || id === "motion-draft" ? "ready" : "missing",
-    inputs: INPUTS_BY_ARTIFACT[id],
+    inputs: [...PROJECT_ARTIFACT_INPUTS_BY_ID[id]],
     projectionProfile: "zenith-180",
     prompt: id === "motion-draft" ? "Motion artifact prompt" : undefined,
     config: { note: id, enabled: true },

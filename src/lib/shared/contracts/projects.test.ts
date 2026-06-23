@@ -1,36 +1,14 @@
 import { describe, expect, test } from "vitest";
 import {
+  PROJECT_ARTIFACT_INPUTS_BY_ID,
   parseProjectSnapshot,
+  PROJECT_ARTIFACT_STAGE_BY_ID,
   PROJECT_ARTIFACT_SLOT_IDS,
   ProjectSnapshotParseError,
   ProjectSnapshotV1Schema,
 } from "./projects.js";
 
 type ProjectArtifactSlotId = (typeof PROJECT_ARTIFACT_SLOT_IDS)[number];
-
-const STAGE_BY_ARTIFACT: Record<ProjectArtifactSlotId, string> = {
-  "plate-sketch": "start",
-  "start-state": "start",
-  "start-depth": "start",
-  "motion-draft": "motion",
-  "displaced-endpoint": "motion",
-  "end-state": "end",
-  "end-depth": "end",
-  "video-take": "video",
-  deliverables: "deliver",
-};
-
-const INPUTS_BY_ARTIFACT: Record<ProjectArtifactSlotId, ProjectArtifactSlotId[]> = {
-  "plate-sketch": [],
-  "start-state": ["plate-sketch"],
-  "start-depth": ["start-state"],
-  "motion-draft": ["start-state", "start-depth"],
-  "displaced-endpoint": ["start-state", "start-depth", "motion-draft"],
-  "end-state": ["start-state", "displaced-endpoint"],
-  "end-depth": ["end-state"],
-  "video-take": ["start-state", "end-state", "motion-draft"],
-  deliverables: ["video-take"],
-};
 
 describe("ProjectSnapshotV1 contract", () => {
   test("accepts a valid current snapshot and strips legacy null runtime media fields", () => {
@@ -219,11 +197,11 @@ function artifact(id: ProjectArtifactSlotId): Record<string, unknown> {
   return {
     id,
     type: id,
-    stage: STAGE_BY_ARTIFACT[id],
+    stage: PROJECT_ARTIFACT_STAGE_BY_ID[id],
     label: `Fixture ${id}`,
     summary: `Fixture summary for ${id}`,
     status: id === "plate-sketch" ? "ready" : "missing",
-    inputs: INPUTS_BY_ARTIFACT[id],
+    inputs: [...PROJECT_ARTIFACT_INPUTS_BY_ID[id]],
     projectionProfile: "cave-270",
     prompt: id === "start-state" ? "artifact prompt" : undefined,
     config: { nested: { enabled: true, gain: 0.7, notes: ["portable"] } },

@@ -13,6 +13,7 @@ import { inpaintPromptForProjection } from "../inpaint/inpaint-prompts.js";
 import { DOME_HANDOFF_GUIDE } from "../geometry/dome-handoff-guide.js";
 import { defaultSourceGuideCarrierHorizonRadius } from "../geometry/source-guide-semantics.js";
 import type { SourceProjectionMode } from "../geometry/source-projection.js";
+import { PROJECT_ARTIFACT_INPUTS_BY_ID, PROJECT_ARTIFACT_STAGE_BY_ID } from "../lib/shared/contracts/artifact-topology.js";
 
 export type ArtifactMediaHandle = {
   blob?: Blob | null;
@@ -304,21 +305,19 @@ function markDownstreamStale(changed: ArtifactSlotId): void {
 
 function artifact(
   id: ArtifactSlotId,
-  stage: WorkflowStageId,
   label: string,
   summary: string,
-  inputs: ArtifactSlotId[],
   media: ArtifactRecord["media"],
   status: ArtifactRecord["status"] = "missing",
 ): ArtifactRecord {
   return {
     id,
     type: id,
-    stage,
+    stage: PROJECT_ARTIFACT_STAGE_BY_ID[id],
     label,
     summary,
     status,
-    inputs,
+    inputs: [...PROJECT_ARTIFACT_INPUTS_BY_ID[id]],
     projectionProfile: "zenith-180",
     media,
     results: [],
@@ -334,10 +333,8 @@ function createInitialArtifacts(): Record<ArtifactSlotId, ArtifactRecord> {
   const records: Record<ArtifactSlotId, ArtifactRecord> = {
     "plate-sketch": artifact(
       "plate-sketch",
-      "start",
       "Plate Sketch",
       "Default fulldome Plate Sketch handoff loaded. This is the first artifact for inpaint.",
-      [],
       {
         kind: "image",
         url: DEFAULT_PLATE_SKETCH,
@@ -351,73 +348,57 @@ function createInitialArtifacts(): Record<ArtifactSlotId, ArtifactRecord> {
     ),
     "start-state": artifact(
       "start-state",
-      "start",
       "Start State",
       "Repair/inpaint the Plate Sketch or import a clean square domemaster Start State.",
-      ["plate-sketch"],
       { kind: "none", blob: null, file: null, canvas: null },
       "missing",
     ),
     "start-depth": artifact(
       "start-depth",
-      "start",
       "Start Depth",
       "Import or generate a depth map from the Start State before real 2.5D motion.",
-      ["start-state"],
       { kind: "none", blob: null, file: null, canvas: null },
       "missing",
     ),
     "motion-draft": artifact(
       "motion-draft",
-      "motion",
       "Motion Draft",
       "Create a real local 2.5D guide from Start State + Start Depth. This is not final production quality.",
-      ["start-state", "start-depth"],
       { kind: "none", blob: null, file: null, canvas: null },
       "missing",
     ),
     "displaced-endpoint": artifact(
       "displaced-endpoint",
-      "motion",
       "Displaced Endpoint",
       "Capture this from the real local 2.5D depth-motion engine.",
-      ["start-state", "start-depth", "motion-draft"],
       { kind: "none", blob: null, file: null, canvas: null },
       "missing",
     ),
     "end-state": artifact(
       "end-state",
-      "end",
       "End State",
       "Reconstruct the displaced endpoint into a clean final domemaster still.",
-      ["start-state", "displaced-endpoint"],
       { kind: "none", blob: null, file: null, canvas: null },
       "missing",
     ),
     "end-depth": artifact(
       "end-depth",
-      "end",
       "End Depth",
       "Optional depth map for the reconstructed endpoint.",
-      ["end-state"],
       { kind: "none", blob: null, file: null, canvas: null },
       "missing",
     ),
     "video-take": artifact(
       "video-take",
-      "video",
       "Video Take",
       "Generate from Image 1, Image 2, and the real WebGPU/WebCodecs Motion Draft.",
-      ["start-state", "end-state", "motion-draft"],
       { kind: "none", blob: null, file: null, canvas: null },
       "missing",
     ),
     deliverables: artifact(
       "deliverables",
-      "deliver",
       "Deliverables",
       "Run QC and export after a real Video Take exists.",
-      ["video-take"],
       { kind: "none", blob: null, file: null, canvas: null },
       "missing",
     ),

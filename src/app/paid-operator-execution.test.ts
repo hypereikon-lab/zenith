@@ -7,7 +7,12 @@ import {
   requestRunwaySeedanceVideo,
   type RunwayStreamResult,
 } from "../runway/client.js";
-import { PROJECT_ARTIFACT_SLOT_IDS, type ProjectSnapshotV1 } from "../lib/shared/contracts/projects.js";
+import {
+  PROJECT_ARTIFACT_INPUTS_BY_ID,
+  PROJECT_ARTIFACT_STAGE_BY_ID,
+  PROJECT_ARTIFACT_SLOT_IDS,
+  type ProjectSnapshotV1,
+} from "../lib/shared/contracts/projects.js";
 import { restoreProjectSnapshot } from "./project-persistence.js";
 import { executeOperator } from "./workbench-commands.js";
 import { executePaidOperator } from "./paid-operator-execution.js";
@@ -40,30 +45,6 @@ const PROMPTS = {
   reconstruct: "Reconstruct prompt",
   endDepth: "End depth prompt",
   video: "Video prompt",
-};
-
-const STAGE_BY_ARTIFACT: Record<ProjectArtifactSlotId, ProjectSnapshotV1["selectedStageId"]> = {
-  "plate-sketch": "start",
-  "start-state": "start",
-  "start-depth": "start",
-  "motion-draft": "motion",
-  "displaced-endpoint": "motion",
-  "end-state": "end",
-  "end-depth": "end",
-  "video-take": "video",
-  deliverables: "deliver",
-};
-
-const INPUTS_BY_ARTIFACT: Record<ProjectArtifactSlotId, ProjectArtifactSlotId[]> = {
-  "plate-sketch": [],
-  "start-state": ["plate-sketch"],
-  "start-depth": ["start-state"],
-  "motion-draft": ["start-state", "start-depth"],
-  "displaced-endpoint": ["start-state", "start-depth", "motion-draft"],
-  "end-state": ["start-state", "displaced-endpoint"],
-  "end-depth": ["end-state"],
-  "video-take": ["start-state", "end-state", "motion-draft"],
-  deliverables: ["video-take"],
 };
 
 const PAID_SCENARIOS: PaidScenario[] = [
@@ -392,11 +373,11 @@ function artifact(id: ProjectArtifactSlotId): ProjectSnapshotV1["artifacts"][Pro
   return {
     id,
     type: id,
-    stage: STAGE_BY_ARTIFACT[id],
+    stage: PROJECT_ARTIFACT_STAGE_BY_ID[id],
     label: `Fixture ${id}`,
     summary: `Fixture summary for ${id}`,
     status: media.kind === "none" ? "missing" : "ready",
-    inputs: INPUTS_BY_ARTIFACT[id],
+    inputs: [...PROJECT_ARTIFACT_INPUTS_BY_ID[id]],
     projectionProfile: "zenith-180",
     media,
     results: [],
