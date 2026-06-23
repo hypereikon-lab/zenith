@@ -1,9 +1,6 @@
 import {
-  finishJob,
   getArtifact,
   getArtifactMediaHandle,
-  replaceArtifactMedia,
-  selectArtifact,
   startJob,
   updateJob,
   workbench,
@@ -19,6 +16,7 @@ import {
   type DepthMotionWorkbenchConfig,
 } from "../services/depth-motion-service.js";
 import { getOperator } from "./operator-registry.js";
+import { applyOperatorArtifactResult } from "./operator-artifact-results.js";
 
 export async function executeLocalRenderOperator(operatorId: OperatorId): Promise<void> {
   switch (operatorId) {
@@ -66,25 +64,16 @@ async function createMotionDraft(operatorId: OperatorId): Promise<void> {
     file: null,
     canvas: null,
   };
-  replaceArtifactMedia("motion-draft", {
-    patch: {
-      status: "ready",
-      stale: false,
-      summary: "Real local WebGPU 2.5D motion proxy ready. This is still a guide, not final production quality.",
-      operatorId,
-      config: exportableDepthMotionConfig(workbench.motionConfig as DepthMotionWorkbenchConfig),
-      media,
-      warnings: ["Motion Draft is a spatial guide/proxy, not a final production render."],
-    },
+  applyOperatorArtifactResult({
+    artifactId: "motion-draft",
+    operatorId,
+    media,
     handle: { blob: result.blob, file: null, canvas: null },
-    result: {
-      label: `2.5D proxy ${result.settings.frameCount} frames`,
-      media,
-      operatorId,
-    },
+    resultLabel: `2.5D proxy ${result.settings.frameCount} frames`,
+    summary: "Real local WebGPU 2.5D motion proxy ready. This is still a guide, not final production quality.",
+    config: exportableDepthMotionConfig(workbench.motionConfig as DepthMotionWorkbenchConfig),
+    warnings: ["Motion Draft is a spatial guide/proxy, not a final production render."],
   });
-  finishJob(operatorId, "Complete");
-  selectArtifact("motion-draft");
 }
 
 async function createDisplacedEndpoint(operatorId: OperatorId): Promise<void> {
@@ -108,25 +97,16 @@ async function createDisplacedEndpoint(operatorId: OperatorId): Promise<void> {
     file: null,
     canvas: null,
   };
-  replaceArtifactMedia("displaced-endpoint", {
-    patch: {
-      status: "ready",
-      stale: false,
-      summary: "Displaced endpoint captured from the real local 2.5D depth-motion engine.",
-      operatorId,
-      config: exportableDepthMotionConfig(workbench.motionConfig as DepthMotionWorkbenchConfig),
-      media,
-      warnings: ["Endpoint is structurally useful but should be reconstructed before video generation."],
-    },
+  applyOperatorArtifactResult({
+    artifactId: "displaced-endpoint",
+    operatorId,
+    media,
     handle: { blob: result.blob, file: null, canvas: result.canvas },
-    result: {
-      label: "Captured 2.5D endpoint",
-      media,
-      operatorId,
-    },
+    resultLabel: "Captured 2.5D endpoint",
+    summary: "Displaced endpoint captured from the real local 2.5D depth-motion engine.",
+    config: exportableDepthMotionConfig(workbench.motionConfig as DepthMotionWorkbenchConfig),
+    warnings: ["Endpoint is structurally useful but should be reconstructed before video generation."],
   });
-  finishJob(operatorId, "Complete");
-  selectArtifact("displaced-endpoint");
 }
 
 async function artifactImageCanvas(artifactId: ArtifactSlotId): Promise<HTMLCanvasElement> {

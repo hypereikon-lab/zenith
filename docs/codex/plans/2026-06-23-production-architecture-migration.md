@@ -154,8 +154,9 @@ Reversal path:
 - [x] Commit 1 implementation verified locally with targeted artifact/media, boundary, typecheck, lint, full unit, and build checks.
 - [x] Commit 1: artifact graph/runtime media ownership.
 - [x] Commit 2 implementation verified locally with command tests, import boundary, typecheck, lint, Prettier check, and diff check.
-- [ ] Commit 2: workbench command split.
-- [ ] Commit 3: paid operator runtime cleanup, if prior commits remain healthy.
+- [x] Commit 2: workbench command split.
+- [x] Commit 3 implementation verified locally with paid/local/operator tests, import boundary, typecheck, lint, Prettier check, and diff check.
+- [ ] Commit 3: paid and local operator result application cleanup.
 - [ ] Final boundary and diff review.
 - [ ] Push and sync.
 

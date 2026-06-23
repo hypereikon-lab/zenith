@@ -1,17 +1,15 @@
 import {
-  finishJob,
   getArtifact,
   getArtifactMediaHandle,
-  replaceArtifactMedia,
-  selectArtifact,
   startJob,
   updateJob,
   workbench,
 } from "../artifacts/artifact-store.svelte.js";
-import type { ArtifactMedia, ArtifactSlotId, OperatorId } from "../artifacts/artifact-types.js";
+import type { ArtifactSlotId, OperatorId } from "../artifacts/artifact-types.js";
 import { readArtifactMediaAsDataUrl } from "../artifacts/artifact-runtime-media.js";
 import { requestRunwayDepthMap, requestRunwayInpaint, requestRunwaySeedanceVideo } from "../runway/client.js";
 import type { RunwayStreamResult } from "../runway/client.js";
+import { applyOperatorArtifactResult, runwayOutputArtifactMedia } from "./operator-artifact-results.js";
 import { getOperator } from "./operator-registry.js";
 
 export async function executePaidOperator(operatorId: OperatorId): Promise<void> {
@@ -128,33 +126,20 @@ function applyImageResult(
   prompt: string,
   label: string,
 ): void {
-  const output = result.outputs?.find((item) => item.dataUri || item.url);
-  if (!output) throw new Error("API returned no image output.");
-  const media: ArtifactMedia = {
-    kind: "image",
-    url: output.dataUri || output.url,
-    name: output.name || label,
-    mime: output.contentType || "image/png",
-    alt: label,
-    blob: null,
-    file: null,
-    canvas: null,
-  };
-  replaceArtifactMedia(artifactId, {
-    patch: {
-      status: "ready",
-      stale: false,
-      summary: `${label} ready from ${result.model || "API"}.`,
-      operatorId,
-      prompt,
-      media,
-      warnings: [],
-    },
-    handle: { blob: null, file: null, canvas: null },
-    result: { label, media, prompt, operatorId },
+  applyOperatorArtifactResult({
+    artifactId,
+    operatorId,
+    media: runwayOutputArtifactMedia({
+      result,
+      kind: "image",
+      label,
+      fallbackMime: "image/png",
+      emptyMessage: "API returned no image output.",
+    }),
+    resultLabel: label,
+    summary: `${label} ready from ${result.model || "API"}.`,
+    prompt,
   });
-  finishJob(operatorId, "Complete");
-  selectArtifact(artifactId);
 }
 
 function applyVideoResult(
@@ -164,33 +149,20 @@ function applyVideoResult(
   prompt: string,
   label: string,
 ): void {
-  const output = result.outputs?.find((item) => item.dataUri || item.url);
-  if (!output) throw new Error("API returned no video output.");
-  const media: ArtifactMedia = {
-    kind: "video",
-    url: output.dataUri || output.url,
-    name: output.name || label,
-    mime: output.contentType || "video/mp4",
-    alt: label,
-    blob: null,
-    file: null,
-    canvas: null,
-  };
-  replaceArtifactMedia(artifactId, {
-    patch: {
-      status: "ready",
-      stale: false,
-      summary: `${label} ready from ${result.model || "Seedance"}.`,
-      operatorId,
-      prompt,
-      media,
-      warnings: [],
-    },
-    handle: { blob: null, file: null, canvas: null },
-    result: { label, media, prompt, operatorId },
+  applyOperatorArtifactResult({
+    artifactId,
+    operatorId,
+    media: runwayOutputArtifactMedia({
+      result,
+      kind: "video",
+      label,
+      fallbackMime: "video/mp4",
+      emptyMessage: "API returned no video output.",
+    }),
+    resultLabel: label,
+    summary: `${label} ready from ${result.model || "Seedance"}.`,
+    prompt,
   });
-  finishJob(operatorId, "Complete");
-  selectArtifact(artifactId);
 }
 
 async function mediaToDataUrl(artifactId: ArtifactSlotId): Promise<string> {
