@@ -48,6 +48,7 @@ Read the relevant skill references:
 - `references/architecture-boundaries.md`;
 - `references/verification-matrix.md`;
 - `references/phase-1-project-contracts.md` when working on Phase 1.
+- `references/domain-engine-stabilization.md` when working on WebGPU, WebCodecs, canvas, media preview, projection preview, large Svelte editors, or browser engine modules.
 
 The design must identify:
 

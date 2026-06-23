@@ -36,6 +36,8 @@ Start Codex from the repository root, then paste the architecture-audit prompt f
 
 The original Phase 1 prompt is preserved as a historical example because the project snapshot and shared-contract boundary has landed. Use the current roadmap recommendation in `docs/ultimate-architecture-roadmap.md` before executing a new implementation slice.
 
+For the current domain-heavy engine/editor stabilization stage, use the prompt named "Current next-stage prompt: domain-heavy engine stabilization" in `docs/codex/prompts.md`. That prompt points the next instance at the domain-engine reference and the current hotspot list.
+
 The prompt explicitly requests subagents because Codex does not spawn them implicitly.
 
 ## Minimal installation

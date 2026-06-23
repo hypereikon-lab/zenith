@@ -80,7 +80,78 @@ Explicitly spawn and wait for:
 Reconcile their findings against the actual code and test output. Report only concrete findings with severity, path/symbol, failure mechanism, and proposed evidence. Separate blockers from optional improvements. If I then authorize fixes, keep the parent thread as sole writer and rerun the affected checks.
 ```
 
-## 5. Standalone prompt when no harness files are installed
+## 5. Current next-stage prompt: domain-heavy engine stabilization
+
+```text
+Use $zenith-roadmap-slice.
+
+You are Codex 5.5 working in /Users/constanzaloboscatalan/Documents/zenith.
+
+Mission: continue Zenith's domain-heavy browser engine/editor stabilization from the actual current HEAD. Start from the repository state only. The goal is production-demonstrable, idiomatic SvelteKit/Svelte 5 architecture for the existing fulldome cockpit, not a broad rewrite.
+
+Before editing:
+1. Record `git status --short --branch` and `git rev-parse HEAD`.
+2. Read `AGENTS.md`, `PLANS.md`, `README.md`, `docs/sveltekit-architecture.md`, `docs/ultimate-architecture-roadmap.md`, `docs/codex/plans/2026-06-23-plate-gpu-compositor-ownership.md`, `.agents/skills/zenith-roadmap-slice/references/domain-engine-stabilization.md`, `.agents/skills/zenith-roadmap-slice/references/architecture-boundaries.md`, `.agents/skills/zenith-roadmap-slice/references/verification-matrix.md`, and `package.json`.
+3. Inspect these hotspots before choosing the first edit:
+   - `src/graphics/shaders.ts`
+   - `src/graphics/shaders.test.ts`
+   - `src/geometry/projection-shader-parity.test.ts`
+   - `src/plates/plate-sketch-gpu-renderer.ts`
+   - `src/graphics/source-map-preview-renderer.ts`
+   - `src/sketch/depth-webgpu-renderer.ts`
+   - `src/sketch/depth-webgpu-renderer.test.ts`
+   - `src/ui/PlateSketchEditor.svelte`
+   - `src/ui/SourceMapMediaViewer.svelte`
+   - `src/ui/CameraPathEditor.svelte`
+   - `src/scene/camera-gizmo.ts`
+   - `src/geometry/camera-rig.ts`
+   - `src/scene/rgbd-scene-commands.ts`
+4. Create or update a plan under `docs/codex/plans/` using `PLANS.md`.
+5. Spawn read-only subagents if available and wait for them:
+   - repo mapper: trace current projection preview, source-map preview, plate sketch, depth renderer, and shader import paths;
+   - roadmap architect: identify the smallest roadmap-safe ownership boundary and deferred decisions;
+   - test strategist: define acceptance tests and no-paid-call evidence;
+   - simplifier: challenge any generic engine/framework extraction;
+   - boundary auditor: check browser/server/shared risks in the proposed boundary.
+
+Prioritized target sequence:
+1. Split projection preview shader source and uniform packing out of the broad shader module while preserving shader math and public compatibility.
+2. Prove whether `roomShaderCode` is active; remove it only if imports and behavior prove it is dead.
+3. Extract small GPU lifecycle/resource helpers only where duplicated ownership is already visible.
+4. Thin `PlateSketchEditor.svelte` by moving projection-preview session logic into a browser-only owner.
+5. Thin `SourceMapMediaViewer.svelte` by moving media/projection runtime state into a browser-only owner.
+6. Narrow `src/scene/rgbd-scene-commands.ts` only if command construction, validation, and artifact mutation are still entangled.
+7. Defer broad `camera-rig.ts` rewrites unless current evidence shows a concrete bug or extraction point.
+
+Hard constraints:
+- Preserve current UI behavior and artifact-first workflow unless the plan explicitly scopes a behavior change.
+- Keep WebGPU, WebCodecs, canvas, DOM, object URLs, Blob/File handles, and local media runtime state in browser-only modules.
+- Keep shared contracts JSON-safe and side-effect free.
+- Keep secrets, filesystem access, Runway clients, Codex SDK use, and paid effects server-only.
+- Do not add `src/engine`, a generic renderer framework, workflow framework, durable asset system, queue, worker process, sidecar server, database, collaboration model, or new dependency.
+- Do not invoke paid Runway/Codex/model APIs.
+- Do not inspect or print `.env.local` or process secrets.
+- The parent thread is the sole writer. Preserve unrelated user changes.
+
+Implementation standard:
+- Make one small, reversible ownership slice at a time.
+- Keep compatibility facades where they avoid broad churn.
+- Add or update focused tests around parity, imports, lifecycle behavior, and malformed input where relevant.
+- Use concrete module names that match product responsibilities.
+- Commit granularly after each coherent verified slice, then push and sync.
+
+Verification:
+- During iteration, run targeted tests relevant to touched files, especially:
+  `npm test -- src/graphics/shaders.test.ts src/geometry/projection-shader-parity.test.ts src/sketch/depth-webgpu-renderer.test.ts src/plates/plate-gpu-compositor.test.ts`
+- Run `npm test -- src/architecture/import-boundaries.test.ts` when imports or boundaries move.
+- Before final completion, run `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build`.
+- Run `npm run test:e2e` only for meaningful user-flow/hydration changes.
+- Run `npm run smoke:prod:built` after `npm run build` for production-demo changes.
+
+After implementation, spawn read-only final reviewers for boundaries and correctness, fix material findings, rerun affected checks, update the plan, commit/push/sync, and finish with a concise change receipt plus the next recommended slice.
+```
+
+## 6. Standalone prompt when no harness files are installed
 
 ```text
 You are improving the Zenith repository as an architecture-aware Codex lead. The current code and tests are factual truth; `docs/sveltekit-architecture.md` describes the present boundary; `docs/ultimate-architecture-roadmap.md` describes the target, migration order, deferred decisions, and non-goals.
