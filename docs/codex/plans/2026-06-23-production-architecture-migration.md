@@ -160,9 +160,9 @@ Reversal path:
 - [x] Commit 4 implementation verified locally with RGBD ownership tests, import boundary, typecheck, lint, Prettier check, and diff check.
 - [x] Commit 4: RGBD artifact, runtime media, and manifest ownership cleanup.
 - [x] Final review found RGBD proxy rerender object URL cleanup gap; follow-up fix implemented and covered by command-flow regression test.
-- [ ] Commit 5: RGBD proxy rerender cleanup follow-up.
-- [ ] Final boundary and diff review.
-- [ ] Push and sync.
+- [x] Commit 5: RGBD proxy rerender cleanup follow-up.
+- [x] Final boundary and diff review.
+- [x] Push and sync.
 
 ## Decisions and discoveries
 
@@ -173,4 +173,4 @@ Reversal path:
 
 ## Final result
 
-Pending final verification and sync after the RGBD cleanup follow-up.
+Completed and pushed. The migration landed artifact graph/runtime media ownership, workbench command ownership, operator artifact result ownership, RGBD artifact/runtime media/manifest ownership, and the final RGBD proxy rerender object URL cleanup found during review.
