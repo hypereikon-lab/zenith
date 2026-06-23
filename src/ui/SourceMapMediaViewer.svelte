@@ -16,20 +16,18 @@
     nudgeProjectionCamera,
     projectionCameraControlHelp,
   } from "../geometry/projection-camera-controls.js";
-  import { sourceProjectionLabel } from "../geometry/source-projection.js";
-  import { createSourceMapPreviewRenderer } from "../graphics/source-map-preview-renderer.js";
+  import { createSourceMapPreviewSession } from "../graphics/source-map-preview-session.js";
   import {
     PLATE_EDITOR_VIEW_MODES,
     defaultPlateEditorCamera,
     plateEditorViewDisabledReason,
-    plateEditorViewLabel,
   } from "../plates/plate-editor-view.js";
   import { clamp } from "../projection.js";
   import { sourceGuideBreakpoints, sourceGuideZones } from "../geometry/source-guide-semantics.js";
   import type { SourceGuideBreakpoint } from "../geometry/source-guide-semantics.js";
   import type { ArtifactMedia } from "../artifacts/artifact-types.js";
   import type { ProjectionCameraDragModifiers } from "../geometry/projection-camera-controls.js";
-  import type { SourceMapPreviewRenderer } from "../graphics/source-map-preview-renderer.js";
+  import type { SourceMapPreviewSession, SourceMapPreviewSessionUpdate } from "../graphics/source-map-preview-session.js";
   import type { PlateEditorViewMode } from "../plates/plate-editor-view.js";
   import CameraControlsPanel from "./CameraControlsPanel.svelte";
 
@@ -39,10 +37,7 @@
 
   let canvas = $state<HTMLCanvasElement | null>(null);
   let videoElement = $state.raw<HTMLVideoElement | null>(null);
-  let renderer = $state.raw<SourceMapPreviewRenderer | null>(null);
-  let rendererPromise: Promise<SourceMapPreviewRenderer> | null = null;
-  let imageBitmap = $state.raw<ImageBitmap | null>(null);
-  let loadedSourceKey = "";
+  let previewSession = $state.raw<SourceMapPreviewSession | null>(null);
   let imageSize = $state({ width: 0, height: 0 });
   let viewMode = $state<PlateEditorViewMode>("source-map");
   let showCaveMask = $state<boolean>(false);
@@ -53,9 +48,6 @@
   let videoTime = $state(0);
   let videoDuration = $state(0);
   let previousProjectionProfile = workbench.projectionProfile;
-  let renderSerial = 0;
-  let videoFrameRequest: number | null = null;
-  let videoFrameCallbackId: number | null = null;
   let activeCameraDrag = $state<{
     pointerId: number;
     startClient: { x: number; y: number };
@@ -81,14 +73,11 @@
 
   onMount(() => {
     if (canvas) {
-      void ensureRenderer().catch((error) => {
-        status = error instanceof Error ? error.message : "Could not initialize Media Preview renderer.";
-      });
+      previewSession = createSourceMapPreviewSession(canvas);
+      renderCurrentMedia();
     }
     return () => {
-      stopVideoRenderLoop();
-      renderer?.destroy();
-      imageBitmap?.close();
+      previewSession?.destroy();
     };
   });
 
@@ -124,149 +113,37 @@
 
   $effect(() => {
     const projectionProfile = workbench.projectionProfile;
-    const viewerMode = workbench.viewerMode;
-    const mediaUrl = media.url || "";
-    const mediaKind = media.kind;
-    const innerGuideSplit = workbench.domeGuideSemanticSplit;
-    const horizonGuideSplit = workbench.domeGuideHorizonSplit;
-    const sourceVideo = videoElement;
-    const selectedViewMode = effectiveViewMode();
-    const camera = viewCamera;
-    const caveMask = showCaveMask;
-    const invertMask = invertCaveMask;
-    const width = canvasWidth;
-    const height = canvasHeight;
+    workbench.viewerMode;
+    media.url;
+    media.kind;
+    workbench.domeGuideSemanticSplit;
+    workbench.domeGuideHorizonSplit;
+    videoElement;
+    viewMode;
+    viewCamera;
+    showCaveMask;
+    invertCaveMask;
+    canvasWidth;
+    canvasHeight;
     if (projectionProfile !== previousProjectionProfile) {
       previousProjectionProfile = projectionProfile;
       viewCamera = defaultPlateEditorCamera(projectionProfile);
     }
-    void renderMedia(
-      mediaUrl,
-      mediaKind,
-      sourceVideo,
-      projectionProfile,
-      viewerMode,
-      selectedViewMode,
-      camera,
-      innerGuideSplit,
-      horizonGuideSplit,
-      caveMask,
-      invertMask,
-      width,
-      height,
-    );
+    renderCurrentMedia();
   });
-
-  async function ensureRenderer(): Promise<SourceMapPreviewRenderer> {
-    if (renderer) return renderer;
-    if (!canvas) throw new Error("Media Preview WebGPU canvas is not mounted.");
-    if (!rendererPromise) {
-      rendererPromise = createSourceMapPreviewRenderer(canvas).then((created) => {
-        renderer = created;
-        return created;
-      });
-    }
-    return rendererPromise;
-  }
-
-  async function renderMedia(
-    mediaUrl: string,
-    mediaKind: ArtifactMedia["kind"],
-    sourceVideo: HTMLVideoElement | null,
-    projectionProfile: typeof workbench.projectionProfile,
-    viewerMode: typeof workbench.viewerMode,
-    selectedViewMode: PlateEditorViewMode,
-    camera: typeof viewCamera,
-    innerGuideSplit: number,
-    horizonGuideSplit: number,
-    showCaveMask: boolean,
-    invertCaveMask: boolean,
-    width: number = PREVIEW_SIZE,
-    height: number = PREVIEW_SIZE,
-  ) {
-    const serial = ++renderSerial;
-    if (!canvas) return;
-    if ((mediaKind !== "image" && mediaKind !== "video") || !mediaUrl) {
-      loadedSourceKey = "";
-      imageBitmap?.close();
-      imageBitmap = null;
-      stopVideoRenderLoop();
-      status = "No media loaded.";
-      return;
-    }
-    try {
-      const gpu = await ensureRenderer();
-      if (serial !== renderSerial) return;
-
-      if (mediaKind === "video") {
-        imageBitmap?.close();
-        imageBitmap = null;
-        if (!sourceVideo || sourceVideo.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !sourceVideo.videoWidth || !sourceVideo.videoHeight) {
-          loadedSourceKey = `video:${mediaUrl}`;
-          status = "Loading MP4 frame for WebGPU projection preview...";
-          return;
-        }
-        gpu.setSourceImage(sourceVideo);
-        imageSize = { width: sourceVideo.videoWidth, height: sourceVideo.videoHeight };
-        loadedSourceKey = `video:${mediaUrl}`;
-        gpu.render({
-          width,
-          height,
-          sourceProjectionMode: projectionProfile,
-          projectionViewMode: selectedViewMode,
-          projectionCamera: camera,
-          showProjectionGuides: viewerMode !== "domemaster",
-          domeGuideSemanticSplit: innerGuideSplit,
-          domeGuideHorizonSplit: horizonGuideSplit,
-          showCaveMask,
-          invertCaveMask,
-        });
-        updateVideoClock();
-        status = `${label} MP4 mapped as ${sourceProjectionLabel(projectionProfile)} / ${plateEditorViewLabel(selectedViewMode)}${
-          imageSize.width > 0 ? ` (${imageSize.width} x ${imageSize.height})` : ""
-        }.`;
-        return;
-      }
-
-      if (loadedSourceKey !== `image:${mediaUrl}`) {
-        stopVideoRenderLoop();
-        status = "Loading image into WebGPU Media Preview...";
-        const response = await fetch(mediaUrl);
-        if (!response.ok) throw new Error("Could not load Media Preview image.");
-        const bitmap = await createImageBitmap(await response.blob(), { imageOrientation: "from-image" });
-        if (serial !== renderSerial) {
-          bitmap.close();
-          return;
-        }
-        imageBitmap?.close();
-        imageBitmap = bitmap;
-        imageSize = { width: bitmap.width, height: bitmap.height };
-        gpu.setSourceImage(bitmap);
-        loadedSourceKey = `image:${mediaUrl}`;
-      }
-      gpu.render({
-        width,
-        height,
-        sourceProjectionMode: projectionProfile,
-        projectionViewMode: selectedViewMode,
-        projectionCamera: camera,
-        showProjectionGuides: viewerMode !== "domemaster",
-        domeGuideSemanticSplit: innerGuideSplit,
-        domeGuideHorizonSplit: horizonGuideSplit,
-        showCaveMask,
-        invertCaveMask,
-      });
-      status = `${label} mapped as ${sourceProjectionLabel(projectionProfile)} / ${plateEditorViewLabel(selectedViewMode)}${
-        imageSize.width > 0 ? ` (${imageSize.width} x ${imageSize.height})` : ""
-      }.`;
-    } catch (error) {
-      console.error(error);
-      status = error instanceof Error ? error.message : "Could not render Media Preview.";
-    }
-  }
 
   function effectiveViewMode(): PlateEditorViewMode {
     return plateEditorViewDisabledReason(viewMode, workbench.projectionProfile) ? "source-map" : viewMode;
+  }
+
+  function applySessionUpdate(update: SourceMapPreviewSessionUpdate | null) {
+    if (!update) return;
+    if (update.status) status = update.status;
+    if (update.imageSize) imageSize = update.imageSize;
+    if (update.videoClock) {
+      videoTime = update.videoClock.videoTime;
+      videoDuration = update.videoClock.videoDuration;
+    }
   }
 
   function setViewerMode(mode: typeof workbench.viewerMode) {
@@ -342,20 +219,24 @@
   }
 
   function renderCurrentMedia() {
-    void renderMedia(
-      media.url || "",
-      media.kind,
-      videoElement,
-      workbench.projectionProfile,
-      workbench.viewerMode,
-      effectiveViewMode(),
-      viewCamera,
-      workbench.domeGuideSemanticSplit,
-      workbench.domeGuideHorizonSplit,
-      showCaveMask,
-      invertCaveMask,
-      canvasWidth,
-      canvasHeight,
+    void previewSession?.renderMedia(
+      {
+        mediaUrl: media.url || "",
+        mediaKind: media.kind,
+        sourceVideo: videoElement,
+        projectionProfile: workbench.projectionProfile,
+        viewerMode: workbench.viewerMode,
+        selectedViewMode: effectiveViewMode(),
+        camera: viewCamera,
+        domeGuideSemanticSplit: workbench.domeGuideSemanticSplit,
+        domeGuideHorizonSplit: workbench.domeGuideHorizonSplit,
+        showCaveMask,
+        invertCaveMask,
+        width: canvasWidth,
+        height: canvasHeight,
+        label,
+      },
+      applySessionUpdate,
     );
   }
 
@@ -421,49 +302,20 @@
   }
 
   function updateVideoClock() {
-    const video = videoElement;
-    if (!video) return;
-    videoTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
-    videoDuration = Number.isFinite(video.duration) ? video.duration : 0;
+    applySessionUpdate({ videoClock: previewSession?.updateVideoClock(videoElement) ?? undefined });
   }
 
   function startVideoRenderLoop() {
     const video = videoElement;
-    if (!video) return;
-
-    if ("requestVideoFrameCallback" in video) {
-      if (videoFrameCallbackId !== null) return;
-      const tick = () => {
-        videoFrameCallbackId = null;
-        if (video.paused || video.ended) return;
-        updateVideoClock();
-        renderCurrentMedia();
-        videoFrameCallbackId = video.requestVideoFrameCallback(tick);
-      };
-      videoFrameCallbackId = video.requestVideoFrameCallback(tick);
-    } else {
-      if (videoFrameRequest !== null) return;
-      const tick = () => {
-        videoFrameRequest = null;
-        if (video.paused || video.ended) return;
-        updateVideoClock();
-        renderCurrentMedia();
-        videoFrameRequest = requestAnimationFrame(tick);
-      };
-      videoFrameRequest = requestAnimationFrame(tick);
-    }
+    if (!video || !previewSession) return;
+    previewSession.startVideoRenderLoop(video, () => {
+      updateVideoClock();
+      renderCurrentMedia();
+    });
   }
 
   function stopVideoRenderLoop() {
-    const video = videoElement;
-    if (videoFrameCallbackId !== null && video && "cancelVideoFrameCallback" in video) {
-      video.cancelVideoFrameCallback(videoFrameCallbackId);
-      videoFrameCallbackId = null;
-    }
-    if (videoFrameRequest !== null) {
-      cancelAnimationFrame(videoFrameRequest);
-      videoFrameRequest = null;
-    }
+    previewSession?.stopVideoRenderLoop();
   }
 
   function formatTime(seconds: number): string {
