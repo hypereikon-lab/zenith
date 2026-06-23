@@ -158,7 +158,9 @@ Reversal path:
 - [x] Commit 3 implementation verified locally with paid/local/operator tests, import boundary, typecheck, lint, Prettier check, and diff check.
 - [x] Commit 3: paid and local operator result application cleanup.
 - [x] Commit 4 implementation verified locally with RGBD ownership tests, import boundary, typecheck, lint, Prettier check, and diff check.
-- [ ] Commit 4: RGBD artifact, runtime media, and manifest ownership cleanup.
+- [x] Commit 4: RGBD artifact, runtime media, and manifest ownership cleanup.
+- [x] Final review found RGBD proxy rerender object URL cleanup gap; follow-up fix implemented and covered by command-flow regression test.
+- [ ] Commit 5: RGBD proxy rerender cleanup follow-up.
 - [ ] Final boundary and diff review.
 - [ ] Push and sync.
 
@@ -171,4 +173,4 @@ Reversal path:
 
 ## Final result
 
-Pending.
+Pending final verification and sync after the RGBD cleanup follow-up.

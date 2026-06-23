@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { artifactImageCanvasForRgbd, revokeRgbdMediaObjectUrl, rgbdMediaRefFromFile } from "./rgbd-runtime-media.js";
+import {
+  artifactImageCanvasForRgbd,
+  revokeRgbdMediaObjectUrl,
+  revokeRgbdProxyObjectUrls,
+  rgbdMediaRefFromFile,
+} from "./rgbd-runtime-media.js";
 import type { ArtifactRecord } from "../artifacts/artifact-types.js";
+import { defaultRgbdCameraPose } from "./camera-path.js";
 
 describe("RGBD runtime media ownership", () => {
   afterEach(() => {
@@ -29,6 +35,34 @@ describe("RGBD runtime media ownership", () => {
 
     expect(revokeSpy).toHaveBeenCalledTimes(1);
     expect(revokeSpy).toHaveBeenCalledWith("blob:http://127.0.0.1/rgbd-old");
+  });
+
+  test("revokes every object URL owned by a rendered proxy artifact", () => {
+    const revokeSpy = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+
+    revokeRgbdProxyObjectUrls({
+      id: "proxy",
+      keyframeId: "keyframe-expand",
+      label: "Proxy",
+      status: "ready",
+      pose: defaultRgbdCameraPose(),
+      projectionProfile: "zenith-180",
+      createdAt: "2026-06-23T12:00:00.000Z",
+      updatedAt: "2026-06-23T12:00:00.000Z",
+      rgb: { kind: "image", url: "blob:http://127.0.0.1/rgb" },
+      depthPreview: { kind: "image", url: "blob:http://127.0.0.1/depth" },
+      knownMask: { kind: "image", url: "blob:http://127.0.0.1/known" },
+      disocclusionMask: { kind: "image", url: "blob:http://127.0.0.1/hole" },
+      confidencePreview: { kind: "image", url: "data:image/png;base64,CONFIDENCE" },
+      warnings: [],
+    });
+
+    expect(revokeSpy.mock.calls.map(([url]) => url)).toEqual([
+      "blob:http://127.0.0.1/rgb",
+      "blob:http://127.0.0.1/depth",
+      "blob:http://127.0.0.1/known",
+      "blob:http://127.0.0.1/hole",
+    ]);
   });
 
   test("returns live canvas handles without serializing through URLs", async () => {

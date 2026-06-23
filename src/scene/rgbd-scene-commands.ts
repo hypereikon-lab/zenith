@@ -30,6 +30,7 @@ import { createRgbdSceneExportManifest } from "./rgbd-scene-manifest.js";
 import {
   artifactImageCanvasForRgbd,
   revokeRgbdMediaObjectUrl,
+  revokeRgbdProxyObjectUrls,
   rgbdImageFileToCanvas,
   rgbdMediaRefFromFile,
   rgbdMediaUrlToCanvas,
@@ -84,16 +85,13 @@ export async function renderSelectedRgbdProxy(): Promise<void> {
       innerGuideSplit: rgbdLab.scene.sourceMapGeometry.innerGuideSplit,
       carrierHorizonSplit: rgbdLab.scene.sourceMapGeometry.carrierHorizonSplit,
     });
+    resetRgbdProxyOutputs();
     rgbdLab.proxy = result.artifact;
     rgbdCanvasHandles.proxyRgbCanvas = result.canvases.rgb;
     rgbdCanvasHandles.proxyDepthCanvas = result.canvases.depthPreview;
     rgbdCanvasHandles.knownMaskCanvas = result.canvases.knownMask;
     rgbdCanvasHandles.disocclusionMaskCanvas = result.canvases.disocclusionMask;
     rgbdCanvasHandles.confidenceCanvas = result.canvases.confidencePreview;
-    rgbdLab.reconstruction = null;
-    rgbdLab.depth = null;
-    rgbdLab.alignment = null;
-    rgbdLab.fusedView = null;
     setRgbdStep("reconstruct");
     finishRgbdJob("render-proxy", "Proxy ready");
   } catch (error) {
@@ -106,12 +104,9 @@ export async function importRgbdReconstructionFile(file: File): Promise<void> {
     if (!rgbdLab.proxy) throw new Error("Render a proxy before importing a reconstructed view.");
     const canvas = await rgbdImageFileToCanvas(file);
     const media = rgbdMediaRefFromFile(file, "Imported reconstructed proxy view");
-    revokeRgbdMediaObjectUrl(rgbdLab.reconstruction?.media);
+    resetRgbdReconstructionOutputs();
     rgbdCanvasHandles.reconstructionCanvas = canvas;
     rgbdLab.reconstruction = createRgbdReconstruction(media);
-    rgbdLab.depth = null;
-    rgbdLab.alignment = null;
-    rgbdLab.fusedView = null;
     setRgbdStep("depth");
   } catch (error) {
     handleError(error, "import-reconstruction");
@@ -134,7 +129,7 @@ export async function reconstructRgbdProxyWithApi(): Promise<void> {
     if (!output) throw new Error("API returned no reconstructed proxy view.");
     const url = output.dataUri || output.url || "";
     const canvas = await rgbdMediaUrlToCanvas(url);
-    revokeRgbdMediaObjectUrl(rgbdLab.reconstruction?.media);
+    resetRgbdReconstructionOutputs();
     rgbdCanvasHandles.reconstructionCanvas = canvas;
     rgbdLab.reconstruction = createRgbdReconstruction(
       {
@@ -158,11 +153,9 @@ export async function importRgbdDepthFile(file: File): Promise<void> {
     if (!rgbdLab.reconstruction) throw new Error("Import or generate a reconstructed view before adding depth.");
     const canvas = await rgbdImageFileToCanvas(file);
     const media = rgbdMediaRefFromFile(file, "Imported proxy relative depth");
-    revokeRgbdMediaObjectUrl(rgbdLab.depth?.media);
+    resetRgbdDepthOutputs();
     rgbdCanvasHandles.generatedDepthCanvas = canvas;
     rgbdLab.depth = createRgbdDepth(media, "manual import");
-    rgbdLab.alignment = null;
-    rgbdLab.fusedView = null;
     setRgbdStep("align");
   } catch (error) {
     handleError(error, "import-depth");
@@ -186,7 +179,7 @@ export async function generateRgbdDepthWithApi(): Promise<void> {
     if (!output) throw new Error("API returned no depth map.");
     const url = output.dataUri || output.url || "";
     const canvas = await rgbdMediaUrlToCanvas(url);
-    revokeRgbdMediaObjectUrl(rgbdLab.depth?.media);
+    resetRgbdDepthOutputs();
     rgbdCanvasHandles.generatedDepthCanvas = canvas;
     rgbdLab.depth = createRgbdDepth(
       {
@@ -345,6 +338,34 @@ function createRgbdDepth(media: Parameters<typeof createRgbdDepthArtifact>[0]["m
     depthConvention: rgbdLab.scene.depthConvention,
     sourceLabel,
   });
+}
+
+function resetRgbdProxyOutputs(): void {
+  revokeRgbdProxyObjectUrls(rgbdLab.proxy);
+  resetRgbdReconstructionOutputs();
+  rgbdLab.proxy = null;
+  rgbdLab.featureReport = null;
+  rgbdCanvasHandles.proxyRgbCanvas = null;
+  rgbdCanvasHandles.proxyDepthCanvas = null;
+  rgbdCanvasHandles.knownMaskCanvas = null;
+  rgbdCanvasHandles.disocclusionMaskCanvas = null;
+  rgbdCanvasHandles.confidenceCanvas = null;
+}
+
+function resetRgbdReconstructionOutputs(): void {
+  revokeRgbdMediaObjectUrl(rgbdLab.reconstruction?.media);
+  resetRgbdDepthOutputs();
+  rgbdLab.reconstruction = null;
+  rgbdCanvasHandles.reconstructionCanvas = null;
+}
+
+function resetRgbdDepthOutputs(): void {
+  revokeRgbdMediaObjectUrl(rgbdLab.depth?.media);
+  rgbdLab.depth = null;
+  rgbdLab.alignment = null;
+  rgbdLab.fusedView = null;
+  rgbdCanvasHandles.generatedDepthCanvas = null;
+  rgbdCanvasHandles.alignedDepthCanvas = null;
 }
 
 function sampleDepthAlignmentPairs(input: {

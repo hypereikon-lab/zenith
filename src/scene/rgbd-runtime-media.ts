@@ -2,7 +2,7 @@ import { getArtifactMediaHandle } from "../artifacts/artifact-store.svelte.js";
 import type { ArtifactMediaHandle, ArtifactRecord, ArtifactSlotId } from "../artifacts/artifact-types.js";
 import { blobToDataUrl, readArtifactMediaAsDataUrl, revokeObjectUrls } from "../artifacts/artifact-runtime-media.js";
 import { loadCanvasFromImageSource } from "../media/canvas-utils.js";
-import type { RgbdMediaRef } from "./rgbd-scene-types.js";
+import type { RgbdMediaRef, RgbdProxyArtifact } from "./rgbd-scene-types.js";
 
 export async function artifactImageCanvasForRgbd(
   artifact: ArtifactRecord,
@@ -37,6 +37,18 @@ export function revokeRgbdMediaObjectUrl(media: RgbdMediaRef | null | undefined)
   if (media?.url?.startsWith("blob:")) {
     revokeObjectUrls([media.url]);
   }
+}
+
+export function revokeRgbdProxyObjectUrls(proxy: RgbdProxyArtifact | null | undefined): void {
+  if (!proxy) return;
+  const urls = [
+    proxy.rgb.url,
+    proxy.depthPreview.url,
+    proxy.knownMask.url,
+    proxy.disocclusionMask.url,
+    proxy.confidencePreview.url,
+  ].filter((url): url is string => Boolean(url?.startsWith("blob:")));
+  revokeObjectUrls(urls);
 }
 
 export async function rgbdUrlToDataUrl(url: string): Promise<string> {
