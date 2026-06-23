@@ -18,7 +18,7 @@ import {
   setDomeGuideHorizonSplit,
   setDomeGuideSemanticSplit,
 } from "./workbench-commands.js";
-import { inpaintPromptForProjection } from "./app-state.js";
+import { inpaintPromptForProjection } from "../inpaint/inpaint-prompts.js";
 import { workbench } from "../artifacts/artifact-store.svelte.js";
 
 vi.mock("./project-persistence.js", () => ({

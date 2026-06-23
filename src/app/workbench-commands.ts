@@ -14,7 +14,7 @@ import {
   workbench,
 } from "../artifacts/artifact-store.svelte.js";
 import { getOperator } from "./operator-registry.js";
-import { inpaintPromptForProjection, shouldReplaceWithProjectionInpaintPrompt } from "./app-state.js";
+import { inpaintPromptForProjection, shouldReplaceWithProjectionInpaintPrompt } from "../inpaint/inpaint-prompts.js";
 import { downloadBlob } from "../media/canvas-utils.js";
 import { normalizeDomeGuideSemanticSplit } from "../geometry/dome-handoff-guide.js";
 import {

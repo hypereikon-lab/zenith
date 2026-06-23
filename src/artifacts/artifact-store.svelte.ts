@@ -9,7 +9,7 @@ import type {
   WorkflowStage,
   WorkflowStageId,
 } from "./artifact-types.js";
-import { inpaintPromptForProjection } from "../app/app-state.js";
+import { inpaintPromptForProjection } from "../inpaint/inpaint-prompts.js";
 import { DOME_HANDOFF_GUIDE } from "../geometry/dome-handoff-guide.js";
 import { defaultSourceGuideCarrierHorizonRadius } from "../geometry/source-guide-semantics.js";
 import type { SourceProjectionMode } from "../geometry/source-projection.js";

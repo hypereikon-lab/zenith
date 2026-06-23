@@ -7,7 +7,7 @@
     setDomeGuideHorizonSplit,
     setDomeGuideSemanticSplit,
   } from "../app/workbench-commands.js";
-  import { DEFAULT_ACTIVE_PLATE_INDEX, DEFAULT_PLATE_PLACEMENTS, DEFAULT_PLATE_REFERENCES } from "../app/default-profile.js";
+  import { DEFAULT_ACTIVE_PLATE_INDEX, DEFAULT_PLATE_PLACEMENTS, DEFAULT_PLATE_REFERENCES } from "../plates/default-plate-profile.js";
   import {
     addArtifactResult,
     selectArtifact,

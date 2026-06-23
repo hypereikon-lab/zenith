@@ -1,17 +1,7 @@
-import { DEFAULT_CAMERA, DEFAULT_VIEW_MODE } from "./default-profile.js";
 import { CAVE_HANDOFF_GUIDE, caveGuideHorizonBand, caveGuidePromptClause } from "../geometry/cave-handoff-guide.js";
 import { domeGuidePromptClause } from "../geometry/dome-handoff-guide.js";
 import { normalizeSourceInnerGuideSplit } from "../geometry/source-guide-semantics.js";
-import type { SourceProjectionMode, ViewMode, ZenithState } from "./types.js";
-
-export const VIEW_LABELS = {
-  inside: "Center POV",
-  theater: "Theater interior",
-  orbit: "Orbit",
-  flat: "Flat domemaster",
-  split: "Flat + projected",
-  cave: "CAVE room",
-};
+import type { SourceProjectionMode } from "../geometry/source-projection.js";
 
 const INPAINT_GUIDE_PROMPT = `Treat colored guide fill inside the projection circle as missing pixels to fill, not objects. The black rings, spokes, horizon, and source-circle marks are construction guides for fisheye continuity; remove them from the final image. Keep the pure black area outside the circular projection black.`;
 const NADIR_INPAINT_GUIDE_PROMPT = `This is a bottom-facing nadir fisheye repair guide, not a zenith dome view. The center of the circle is the floor, ground, or lower surface directly below the viewer. Do not put sky, clouds, sun, ceiling, treetops, or overhead canopy in the center. ${INPAINT_GUIDE_PROMPT}`;
@@ -148,65 +138,4 @@ Do not output a room render, perspective view, cube map, hallway, panels, visibl
 Before output, verify: no green, no cyan/blue, no black guide lines, no visible floor-wall seam, no wall-corner outlines, no pasted plate edges, no generic fog.
 
 Output one clean opaque square warped projection-source texture only.`;
-}
-export const DEFAULT_DEPTH_PROMPT = `Generate a metric depth map visualization where depth values are represented on a grayscale gradient from black (nearest objects) to white (farthest objects). Use precise linear interpolation across the depth range. Render as a clean, high-contrast grayscale image with smooth tonal transitions. No color, no overlays, no labels. Pure depth-to-brightness mapping where each shade of gray corresponds to a specific distance value in the scene. Preserve the square 180-degree domemaster fisheye layout exactly, including zenith center, circular horizon, and pure black outside the projection circle.`;
-export const DEFAULT_SEEDANCE_PROMPT = `Use the input video as a rough fulldome domemaster motion guide. Preserve the circular fisheye composition, camera timing, parallax direction, scene identity, and pitch-black area outside the projection circle. Convert the depth-projected guide into coherent natural motion without adding text, borders, rectangular framing, UI marks, or visible mask artifacts.`;
-
-export function createInitialState(): ZenithState {
-  return {
-    viewMode: DEFAULT_VIEW_MODE as ViewMode,
-    activeWorkspace: "source",
-    mediaKind: "image",
-    sourceUrl: null,
-    sourceName: "Procedural 180 map",
-    sourceWidth: 2048,
-    sourceHeight: 2048,
-    sourceCanvas: null,
-    mediaDuration: 0,
-    mediaFps: 24,
-    lastFrameMediaTime: null,
-    pointer: {
-      active: false,
-      mode: null,
-      x: 0,
-      y: 0,
-    },
-    camera: { ...DEFAULT_CAMERA },
-    timelineSeeking: false,
-    pendingVideoUpload: false,
-    videoFrameCallbackId: null,
-    panelHidden: false,
-    fps: 0,
-    fpsSampleTime: performance.now(),
-    fpsFrameCount: 0,
-    plates: [],
-    platePlacements: [],
-    activePlateIndex: 0,
-    plateCompositeCanvas: null,
-    plateCompositeDirty: false,
-    plateCompositeTexture: null,
-    inpaintWhiteCanvas: null,
-    inpaintMaskCanvas: null,
-    runwayOutputs: [],
-    activeRunwayOutputIndex: 0,
-    seedanceOutputs: [],
-    activeSeedanceOutputIndex: 0,
-    runwayConfigured: null,
-    depthMapCanvas: null,
-    depthMapName: "",
-    depthMapModel: "",
-    depthMapPrompt: "",
-    depthMotionPreviewCanvas: null,
-    depthFinalStateCanvas: null,
-    depthFinalStateName: "",
-    depthFinalStateFingerprint: "",
-    depthFinalReconstructedCanvas: null,
-    depthFinalReconstructedName: "",
-    depthFinalReconstructedFingerprint: "",
-    depthPreviewActive: false,
-    depthPreviewWidth: 0,
-    depthPreviewHeight: 0,
-    depthPreviewName: "",
-    depthPreviewSourceKind: "",
-  };
 }

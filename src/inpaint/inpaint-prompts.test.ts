@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inpaintPromptForProjection, shouldReplaceWithProjectionInpaintPrompt } from "./app-state.js";
+import { inpaintPromptForProjection, shouldReplaceWithProjectionInpaintPrompt } from "./inpaint-prompts.js";
 
 describe("projection inpaint prompts", () => {
   it("keeps nadir inpaint prompts aligned with floor-centered source language", () => {
