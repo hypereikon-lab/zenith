@@ -251,15 +251,30 @@ export function replaceArtifactMedia(
 }
 
 export function selectArtifactResult(artifactId: ArtifactSlotId, resultId: string): void {
+  const oldUrls = collectWorkbenchObjectUrls();
   const artifact = getArtifact(artifactId);
   const result = artifact.results.find((item) => item.id === resultId);
   if (!result) return;
+  if (result.selected && artifactMediaDescriptorsMatch(artifact.media, result.media)) return;
   artifact.results.forEach((item) => {
     item.selected = item.id === resultId;
   });
   artifact.media = result.media;
   artifact.prompt = result.prompt || artifact.prompt;
   artifact.updatedAt = now();
+  setArtifactMediaHandle(artifactId, { blob: null, file: null, canvas: null });
+  markDownstreamStale(artifactId);
+  revokeObjectUrlsNoLongerInUse(oldUrls);
+}
+
+function artifactMediaDescriptorsMatch(left: ArtifactMedia, right: ArtifactMedia): boolean {
+  return (
+    left.kind === right.kind &&
+    left.url === right.url &&
+    left.name === right.name &&
+    left.mime === right.mime &&
+    left.alt === right.alt
+  );
 }
 
 export function setProjectionProfile(profile: SourceProjectionMode): void {

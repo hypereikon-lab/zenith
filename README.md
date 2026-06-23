@@ -19,22 +19,6 @@ Most AI image and video tools think in rectangular frames. Fulldome production n
 
 Zenith reframes the pipeline as image-to-space-to-motion instead of blind prompt-to-video.
 
-## Hiring Review Path
-
-For a concise evaluator path, see `docs/hiring-evaluation.md`.
-
-Safe no-secret verification:
-
-```sh
-npm install
-npm run typecheck
-npm run lint
-npm test
-npm run smoke:prod
-```
-
-`npm run smoke:prod` builds and runs the adapter-node app locally without requiring a Runway key or calling paid generation routes. Run `npm run test:e2e` as the browser/server smoke check.
-
 ## Codex Prompt Planning
 
 Zenith has server-side Codex prompt-planning routes for Seedance handoffs. Those routes accept the current domemaster image, depth/motion context, and the repo-local prompt packs, then stream back a structured Seedance prompt, diagnosis, variants, negative terms, and practical warnings. The server/client boundary is in place; dedicated prompt-planning controls are not currently mounted as a first-class workbench UI flow.
@@ -56,8 +40,6 @@ npm run dev
 On Windows PowerShell, use `Copy-Item .env.example .env.local` instead of `cp`.
 
 Open the printed local URL, usually `http://127.0.0.1:5173/`. SvelteKit serves both the workbench and the Runway/Codex API routes.
-
-For the full routing, server-only module, shared-contract, streaming, and data-handling boundary, see `docs/sveltekit-architecture.md`. For the longer-term durable project/job/asset target, see `docs/ultimate-architecture-roadmap.md`.
 
 ## Local Production Smoke
 
@@ -111,6 +93,4 @@ npm run start
 - `src/ui`: Svelte UI pieces, stage panels, media viewers, controls, and workbench components.
 - `docs/seedance_prompt_pack`: prompt-planning context for repairing 2.5D/depth-warp motion plates with Seedance.
 - `docs/seedance_image_prompt_pack`: prompt-planning context for direct Seedance image-to-video from a still dome image.
-- `docs/sveltekit-architecture.md`: SvelteKit architecture, SSR/API boundaries, streaming contract, and Runway/Codex data procedures.
-- `docs/ultimate-architecture-roadmap.md`: end-state architecture roadmap for durable projects, assets, jobs, and production operations.
 - `docs/default-depth-motion-config.json`: captured working-profile defaults; active code currently reads its `plateSketch` defaults through `src/plates/default-plate-profile.ts`.

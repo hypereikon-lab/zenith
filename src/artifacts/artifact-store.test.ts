@@ -6,7 +6,14 @@ import {
   type ProjectSnapshotV1,
 } from "../lib/shared/contracts/projects.js";
 import type { ArtifactMedia } from "./artifact-types.js";
-import { replaceArtifactMedia, updateArtifact, workbench } from "./artifact-store.svelte.js";
+import {
+  getArtifactMediaHandle,
+  replaceArtifactMedia,
+  selectArtifactResult,
+  setArtifactMediaHandle,
+  updateArtifact,
+  workbench,
+} from "./artifact-store.svelte.js";
 import { restoreProjectSnapshot } from "../app/project-persistence.js";
 
 type ProjectArtifactSlotId = (typeof PROJECT_ARTIFACT_SLOT_IDS)[number];
@@ -162,6 +169,151 @@ describe("artifact store ownership", () => {
     expect(workbench.artifacts["start-state"].results.map((result) => result.media.url)).toContain(
       "blob:http://127.0.0.1/old-result",
     );
+  });
+
+  test("selects historical artifact results and marks transitive descendants stale", () => {
+    const revokeSpy = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    const currentMedia = imageMedia("blob:http://127.0.0.1/current-start", "current-start.png");
+    const historicalMedia = imageMedia("blob:http://127.0.0.1/historical-start", "historical-start.png");
+    const staleHandle = new Blob(["stale"], { type: "image/png" });
+    workbench.artifacts["start-state"].media = currentMedia;
+    workbench.artifacts["start-state"].prompt = "Current prompt";
+    setArtifactMediaHandle("start-state", { blob: staleHandle, file: null, canvas: null });
+    workbench.artifacts["start-state"].results = [
+      {
+        id: "current-result",
+        label: "Current Result",
+        createdAt: "2026-06-23T12:01:00.000Z",
+        media: currentMedia,
+        prompt: "Current prompt",
+        selected: true,
+      },
+      {
+        id: "historical-result",
+        label: "Historical Result",
+        createdAt: "2026-06-23T12:00:00.000Z",
+        media: historicalMedia,
+        prompt: "Historical prompt",
+        selected: false,
+      },
+    ];
+
+    selectArtifactResult("start-state", "historical-result");
+
+    expect(workbench.artifacts["start-state"]).toMatchObject({
+      status: "ready",
+      stale: false,
+      prompt: "Historical prompt",
+      media: { url: "blob:http://127.0.0.1/historical-start" },
+    });
+    expect(workbench.artifacts["start-state"].results.map((result) => [result.id, result.selected])).toEqual([
+      ["current-result", false],
+      ["historical-result", true],
+    ]);
+    expect(getArtifactMediaHandle("start-state")).toEqual({ blob: null, file: null, canvas: null });
+    expect(revokeSpy).not.toHaveBeenCalledWith("blob:http://127.0.0.1/current-start");
+    expect(revokeSpy).not.toHaveBeenCalledWith("blob:http://127.0.0.1/historical-start");
+
+    const staleArtifacts = [
+      "start-depth",
+      "motion-draft",
+      "displaced-endpoint",
+      "end-state",
+      "end-depth",
+      "video-take",
+      "deliverables",
+    ] as const;
+    for (const artifactId of staleArtifacts) {
+      expect(workbench.artifacts[artifactId]).toMatchObject({
+        status: "stale",
+        stale: true,
+      });
+      expect(workbench.artifacts[artifactId].warnings).toContain(
+        "Input artifact changed after this result was produced.",
+      );
+    }
+  });
+
+  test("ignores unknown artifact result selections without mutating state", () => {
+    const revokeSpy = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    const media = imageMedia("blob:http://127.0.0.1/current-start", "current-start.png");
+    const currentHandle = new Blob(["current"], { type: "image/png" });
+    workbench.artifacts["start-state"].media = media;
+    workbench.artifacts["start-state"].prompt = "Current prompt";
+    setArtifactMediaHandle("start-state", { blob: currentHandle, file: null, canvas: null });
+    workbench.artifacts["start-state"].results = [
+      {
+        id: "current-result",
+        label: "Current Result",
+        createdAt: "2026-06-23T12:01:00.000Z",
+        media,
+        prompt: "Current prompt",
+        selected: true,
+      },
+    ];
+
+    selectArtifactResult("start-state", "missing-result");
+
+    expect(workbench.artifacts["start-state"]).toMatchObject({
+      status: "ready",
+      stale: false,
+      prompt: "Current prompt",
+      media: { url: "blob:http://127.0.0.1/current-start" },
+    });
+    expect(workbench.artifacts["start-state"].results).toMatchObject([{ id: "current-result", selected: true }]);
+    expect(workbench.artifacts["start-depth"]).toMatchObject({ status: "ready", stale: false });
+    expect(getArtifactMediaHandle("start-state")?.blob).toBe(currentHandle);
+    expect(revokeSpy).not.toHaveBeenCalled();
+  });
+
+  test("reselecting the active artifact result does not stale descendants or clear runtime handles", () => {
+    const revokeSpy = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    const media = imageMedia("blob:http://127.0.0.1/current-start", "current-start.png");
+    const currentHandle = new Blob(["current"], { type: "image/png" });
+    workbench.artifacts["start-state"].media = media;
+    setArtifactMediaHandle("start-state", { blob: currentHandle, file: null, canvas: null });
+    workbench.artifacts["start-state"].results = [
+      {
+        id: "current-result",
+        label: "Current Result",
+        createdAt: "2026-06-23T12:01:00.000Z",
+        media,
+        selected: true,
+      },
+    ];
+
+    selectArtifactResult("start-state", "current-result");
+
+    expect(workbench.artifacts["start-state"]).toMatchObject({
+      status: "ready",
+      stale: false,
+      media: { url: "blob:http://127.0.0.1/current-start" },
+    });
+    expect(workbench.artifacts["start-depth"]).toMatchObject({ status: "ready", stale: false });
+    expect(getArtifactMediaHandle("start-state")?.blob).toBe(currentHandle);
+    expect(revokeSpy).not.toHaveBeenCalled();
+  });
+
+  test("selecting a result revokes replaced object URLs no longer referenced", () => {
+    const revokeSpy = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    workbench.artifacts["start-state"].media = imageMedia(
+      "blob:http://127.0.0.1/import-preview",
+      "import-preview.png",
+    );
+    workbench.artifacts["start-state"].results = [
+      {
+        id: "kept-result",
+        label: "Kept Result",
+        createdAt: "2026-06-23T12:00:00.000Z",
+        media: imageMedia("blob:http://127.0.0.1/kept-result", "kept-result.png"),
+        selected: false,
+      },
+    ];
+
+    selectArtifactResult("start-state", "kept-result");
+
+    expect(revokeSpy).toHaveBeenCalledWith("blob:http://127.0.0.1/import-preview");
+    expect(revokeSpy).not.toHaveBeenCalledWith("blob:http://127.0.0.1/kept-result");
   });
 });
 
