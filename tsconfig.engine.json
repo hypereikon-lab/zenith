@@ -11,8 +11,7 @@
     "src/plates/plate-placement.ts",
     "src/geometry/flat-domemaster.ts",
     "src/geometry/dome-view.ts",
-    "src/geometry/plate-screen-controls.ts",
-    "src/ui/pointer-geometry.ts"
+    "src/geometry/plate-screen-controls.ts"
   ],
   "include": []
 }
