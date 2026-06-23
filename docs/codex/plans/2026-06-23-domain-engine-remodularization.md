@@ -313,12 +313,17 @@ Rollback is straightforward: revert the Plate Sketch session commit because no e
 - The next active implementation target is Plate Sketch ownership, not repeating prior shader/source-map work.
 - Read-only reviewers agreed this remains Phase 2 browser-engine/UI-thinning work and warned against generic engine, asset, durable job, or RGBD expansion inside this slice.
 - `PlateSketchEditor.svelte` still owns pointer hit testing, camera/guide intent, overlay drawing, and store mutation application. The extracted modules own source loading, default arrangement/serialization, preview scheduling/render options, handoff rendering, and commit payload construction.
+- Repo mapping found one remaining small coupling after the Plate Sketch extraction: source-map preview and plate sketch preview independently assembled the same projection-preview uniform ABI. A second focused commit moved that option-to-uniform assembly into `src/graphics/projection-preview-render-uniforms.ts`.
 - Verification passed before the first commit:
   - `npm test -- src/plates/plate-sketch-arrangement.test.ts src/plates/plate-sketch-commit.test.ts src/plates/plate-sketch-preview-session.test.ts src/graphics/projection-preview-uniforms.test.ts src/graphics/shaders.test.ts src/geometry/projection-shader-parity.test.ts src/sketch/depth-webgpu-renderer.test.ts src/plates/plate-gpu-compositor.test.ts src/architecture/import-boundaries.test.ts`
   - `npm run typecheck`
   - `npm run lint`
   - `git diff --check`
   - `npx prettier --check docs/codex/plans/2026-06-23-domain-engine-remodularization.md src/plates/plate-sketch-arrangement.ts src/plates/plate-sketch-arrangement.test.ts src/plates/plate-sketch-commit.ts src/plates/plate-sketch-commit.test.ts src/plates/plate-sketch-preview-session.ts src/plates/plate-sketch-preview-session.test.ts src/plates/plate-sketch-sources.ts`
+- Verification passed before the second commit:
+  - `npm test -- src/graphics/projection-preview-render-uniforms.test.ts src/graphics/projection-preview-uniforms.test.ts src/graphics/shaders.test.ts src/geometry/projection-shader-parity.test.ts src/plates/plate-sketch-preview-session.test.ts src/plates/plate-gpu-compositor.test.ts src/architecture/import-boundaries.test.ts`
+  - `npm run typecheck`
+  - `npm run lint`
 
 ## Final result
 

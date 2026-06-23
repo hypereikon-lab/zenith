@@ -1,25 +1,10 @@
 import { PlateGpuCompositor } from "./plate-gpu-compositor.js";
 import { buildCaveRoomGeometry, buildDomeGeometry } from "../graphics/geometry.js";
 import { caveShaderCode, domeShaderCode } from "../graphics/projection-preview-shaders.js";
-import {
-  buildProjectionPreviewUniformArray,
-  PROJECTION_PREVIEW_UNIFORM_BYTES,
-} from "../graphics/projection-preview-uniforms.js";
-import { multiplyMat4 } from "../projection.js";
-import {
-  normalizePlateEditorCamera,
-  plateEditorProjectionMatrix,
-  plateEditorViewMatrix,
-  type PlateEditorCamera,
-  type PlateEditorViewMode,
-} from "./plate-editor-view.js";
-import {
-  sourceProjectionGeometryRange,
-  sourceProjectionProfileForMode,
-  sourceProjectionShaderTheta,
-} from "../geometry/source-projection.js";
-import { sourceGuideCarrierHorizonRadius } from "../geometry/source-guide-semantics.js";
-import { normalizeDomeGuideSemanticSplit } from "../geometry/dome-handoff-guide.js";
+import { PROJECTION_PREVIEW_UNIFORM_BYTES } from "../graphics/projection-preview-uniforms.js";
+import { buildProjectionPreviewRenderUniforms } from "../graphics/projection-preview-render-uniforms.js";
+import { type PlateEditorCamera, type PlateEditorViewMode } from "./plate-editor-view.js";
+import { sourceProjectionGeometryRange } from "../geometry/source-projection.js";
 import type { PlateRenderOptions } from "./plate-gpu-compositor.js";
 import type { SourceProjectionMode } from "../geometry/source-projection.js";
 
@@ -351,40 +336,21 @@ export async function createPlateSketchGpuRenderer(canvas: HTMLCanvasElement): P
 
   function writeProjectionUniforms(size: number, options: PlateSketchRenderOptions): void {
     const sourceProjectionMode = options.sourceProjectionMode || "zenith-180";
-    const camera = normalizePlateEditorCamera(options.projectionCamera || {});
     const projectionViewMode =
       options.projectionViewMode === "cave-room" ? "cave-room" : options.projectionViewMode || "dome-orbit";
-    const projection = plateEditorProjectionMatrix(camera, sourceProjectionMode, 1);
-    const view = plateEditorViewMatrix(
-      projectionViewMode === "source-map" ? "dome-orbit" : projectionViewMode,
-      camera,
+    const data = buildProjectionPreviewRenderUniforms({
+      targetWidth: size,
+      targetHeight: size,
+      sourceWidth: size,
+      sourceHeight: size,
       sourceProjectionMode,
-    );
-    const mvp = multiplyMat4(projection, view);
-    const profile = sourceProjectionProfileForMode(sourceProjectionMode, size, size, 1);
-    const sourceCarrierSplit = normalizeDomeGuideSemanticSplit(options.domeGuideSemanticSplit);
-    const data = buildProjectionPreviewUniformArray({
-      mvp,
-      fisheyeScale: [profile.fisheyeScaleX, profile.fisheyeScaleY],
-      overlayOpacity: options.showProjectionGuides ? 0.78 : 0.28,
-      showGuides: Boolean(options.showProjectionGuides),
-      shellShade: projectionViewMode === "dome-pov" ? 0.12 : 0.3,
-      sourceCarrierSplit,
-      sourceCarrierHorizon: sourceGuideCarrierHorizonRadius(
-        sourceProjectionMode,
-        sourceCarrierSplit,
-        options.domeGuideHorizonSplit,
-      ),
-      sourceCenterAxis: profile.centerAxis,
-      sourceTheta: sourceProjectionShaderTheta(
-        sourceProjectionMode,
-        profile.fieldOfViewDegrees,
-        options.domeGuideSemanticSplit,
-      ),
-      sourceRightAxis: profile.imageRightAxis,
-      sourceUpAxis: profile.imageUpAxis,
-      caveMaskMode: options.showCaveMask ? (options.invertCaveMask ? 2 : 1) : 0,
-      cameraPosition: camera.position,
+      projectionViewMode,
+      projectionCamera: options.projectionCamera,
+      showProjectionGuides: options.showProjectionGuides,
+      domeGuideSemanticSplit: options.domeGuideSemanticSplit,
+      domeGuideHorizonSplit: options.domeGuideHorizonSplit,
+      showCaveMask: options.showCaveMask,
+      invertCaveMask: options.invertCaveMask,
     });
     device.queue.writeBuffer(projectionUniformBuffer, 0, data);
   }

@@ -1,21 +1,9 @@
 import { buildCaveRoomGeometry, buildDomeGeometry } from "./geometry.js";
 import { caveShaderCode, domeShaderCode, flatShaderCode } from "./projection-preview-shaders.js";
-import { buildProjectionPreviewUniformArray, PROJECTION_PREVIEW_UNIFORM_BYTES } from "./projection-preview-uniforms.js";
-import {
-  sourceProjectionGeometryRange,
-  sourceProjectionProfileForMode,
-  sourceProjectionShaderTheta,
-} from "../geometry/source-projection.js";
-import { sourceGuideCarrierHorizonRadius } from "../geometry/source-guide-semantics.js";
-import { normalizeDomeGuideSemanticSplit } from "../geometry/dome-handoff-guide.js";
-import { multiplyMat4 } from "../projection.js";
-import {
-  normalizePlateEditorCamera,
-  plateEditorProjectionMatrix,
-  plateEditorViewMatrix,
-  type PlateEditorCamera,
-  type PlateEditorViewMode,
-} from "../plates/plate-editor-view.js";
+import { PROJECTION_PREVIEW_UNIFORM_BYTES } from "./projection-preview-uniforms.js";
+import { buildProjectionPreviewRenderUniforms } from "./projection-preview-render-uniforms.js";
+import { sourceProjectionGeometryRange } from "../geometry/source-projection.js";
+import type { PlateEditorCamera, PlateEditorViewMode } from "../plates/plate-editor-view.js";
 import type { SourceProjectionMode } from "../geometry/source-projection.js";
 
 const TEXTURE_FORMAT: GPUTextureFormat = "rgba8unorm";
@@ -351,35 +339,12 @@ export async function createSourceMapPreviewRenderer(canvas: HTMLCanvasElement):
   }
 
   function writeUniforms(width: number, height: number, options: SourceMapPreviewRenderOptions): void {
-    const sourceProjectionMode = options.sourceProjectionMode;
-    const camera = normalizePlateEditorCamera(options.projectionCamera || {});
-    const projectionViewMode = options.projectionViewMode === "source-map" ? "dome-orbit" : options.projectionViewMode;
-    const projection = plateEditorProjectionMatrix(camera, sourceProjectionMode, width / Math.max(1, height));
-    const view = plateEditorViewMatrix(projectionViewMode, camera, sourceProjectionMode);
-    const profile = sourceProjectionProfileForMode(sourceProjectionMode, sourceWidth, sourceHeight, 1);
-    const sourceCarrierSplit = normalizeDomeGuideSemanticSplit(options.domeGuideSemanticSplit);
-    const data = buildProjectionPreviewUniformArray({
-      mvp: multiplyMat4(projection, view),
-      fisheyeScale: [profile.fisheyeScaleX, profile.fisheyeScaleY],
-      overlayOpacity: options.showProjectionGuides ? 0.78 : 0.28,
-      showGuides: Boolean(options.showProjectionGuides),
-      shellShade: options.projectionViewMode === "dome-pov" ? 0.12 : 0.3,
-      sourceCarrierSplit,
-      sourceCarrierHorizon: sourceGuideCarrierHorizonRadius(
-        sourceProjectionMode,
-        sourceCarrierSplit,
-        options.domeGuideHorizonSplit,
-      ),
-      sourceCenterAxis: profile.centerAxis,
-      sourceTheta: sourceProjectionShaderTheta(
-        sourceProjectionMode,
-        profile.fieldOfViewDegrees,
-        options.domeGuideSemanticSplit,
-      ),
-      sourceRightAxis: profile.imageRightAxis,
-      sourceUpAxis: profile.imageUpAxis,
-      caveMaskMode: options.showCaveMask ? (options.invertCaveMask ? 2 : 1) : 0,
-      cameraPosition: camera.position,
+    const data = buildProjectionPreviewRenderUniforms({
+      targetWidth: width,
+      targetHeight: height,
+      sourceWidth,
+      sourceHeight,
+      ...options,
     });
     device.queue.writeBuffer(uniformBuffer, 0, data);
   }
