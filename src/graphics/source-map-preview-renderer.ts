@@ -1,5 +1,6 @@
 import { buildCaveRoomGeometry, buildDomeGeometry } from "./geometry.js";
-import { caveShaderCode, domeShaderCode, flatShaderCode } from "./shaders.js";
+import { caveShaderCode, domeShaderCode, flatShaderCode } from "./projection-preview-shaders.js";
+import { buildProjectionPreviewUniformArray, PROJECTION_PREVIEW_UNIFORM_BYTES } from "./projection-preview-uniforms.js";
 import {
   sourceProjectionGeometryRange,
   sourceProjectionProfileForMode,
@@ -86,13 +87,15 @@ export async function createSourceMapPreviewRenderer(canvas: HTMLCanvasElement):
       if (destroyed || info.reason === "destroyed") return;
       console.warn("Source Map Preview WebGPU device lost. Re-initializing...", info.message);
       cleanup();
-      void init().then(() => {
-        if (lastSourceImage) {
-          setSourceImage(lastSourceImage);
-        }
-      }).catch((error) => {
-        console.error("Failed to re-initialize WebGPU renderer after device loss:", error);
-      });
+      void init()
+        .then(() => {
+          if (lastSourceImage) {
+            setSourceImage(lastSourceImage);
+          }
+        })
+        .catch((error) => {
+          console.error("Failed to re-initialize WebGPU renderer after device loss:", error);
+        });
     });
 
     context = canvas.getContext("webgpu")!;
@@ -210,7 +213,7 @@ export async function createSourceMapPreviewRenderer(canvas: HTMLCanvasElement):
     });
 
     uniformBuffer = device.createBuffer({
-      size: 192,
+      size: PROJECTION_PREVIEW_UNIFORM_BYTES,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
     caveVertexBuffer = createBuffer(caveGeometry.vertices, GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST);
@@ -350,42 +353,34 @@ export async function createSourceMapPreviewRenderer(canvas: HTMLCanvasElement):
   function writeUniforms(width: number, height: number, options: SourceMapPreviewRenderOptions): void {
     const sourceProjectionMode = options.sourceProjectionMode;
     const camera = normalizePlateEditorCamera(options.projectionCamera || {});
-    const projectionViewMode =
-      options.projectionViewMode === "source-map" ? "dome-orbit" : options.projectionViewMode;
+    const projectionViewMode = options.projectionViewMode === "source-map" ? "dome-orbit" : options.projectionViewMode;
     const projection = plateEditorProjectionMatrix(camera, sourceProjectionMode, width / Math.max(1, height));
     const view = plateEditorViewMatrix(projectionViewMode, camera, sourceProjectionMode);
     const profile = sourceProjectionProfileForMode(sourceProjectionMode, sourceWidth, sourceHeight, 1);
-    const showGuides = options.showProjectionGuides ? 1 : 0;
-    const data = new Float32Array(48);
-    data.set(multiplyMat4(projection, view), 0);
-    data[16] = profile.fisheyeScaleX;
-    data[17] = profile.fisheyeScaleY;
-    data[18] = 0;
-    data[19] = 1;
-    data[20] = options.showProjectionGuides ? 0.78 : 0.28;
-    data[21] = 0;
-    data[22] = 0;
-    data[23] = 0;
-    data[24] = showGuides;
-    data[25] = showGuides;
-    data[26] = showGuides;
-    data[27] = showGuides;
-    data[28] = showGuides;
-    data[29] = options.projectionViewMode === "dome-pov" ? 0.12 : 0.3;
-    data[30] = normalizeDomeGuideSemanticSplit(options.domeGuideSemanticSplit);
-    data[31] = sourceGuideCarrierHorizonRadius(sourceProjectionMode, data[30], options.domeGuideHorizonSplit);
-    data.set(profile.centerAxis, 32);
-    data[35] = sourceProjectionShaderTheta(
-      sourceProjectionMode,
-      profile.fieldOfViewDegrees,
-      options.domeGuideSemanticSplit,
-    );
-    data.set(profile.imageRightAxis, 36);
-    data.set(profile.imageUpAxis, 40);
-    data[44] = options.showCaveMask ? (options.invertCaveMask ? 2 : 1) : 0;
-    data[45] = camera.position[0];
-    data[46] = camera.position[1];
-    data[47] = camera.position[2];
+    const sourceCarrierSplit = normalizeDomeGuideSemanticSplit(options.domeGuideSemanticSplit);
+    const data = buildProjectionPreviewUniformArray({
+      mvp: multiplyMat4(projection, view),
+      fisheyeScale: [profile.fisheyeScaleX, profile.fisheyeScaleY],
+      overlayOpacity: options.showProjectionGuides ? 0.78 : 0.28,
+      showGuides: Boolean(options.showProjectionGuides),
+      shellShade: options.projectionViewMode === "dome-pov" ? 0.12 : 0.3,
+      sourceCarrierSplit,
+      sourceCarrierHorizon: sourceGuideCarrierHorizonRadius(
+        sourceProjectionMode,
+        sourceCarrierSplit,
+        options.domeGuideHorizonSplit,
+      ),
+      sourceCenterAxis: profile.centerAxis,
+      sourceTheta: sourceProjectionShaderTheta(
+        sourceProjectionMode,
+        profile.fieldOfViewDegrees,
+        options.domeGuideSemanticSplit,
+      ),
+      sourceRightAxis: profile.imageRightAxis,
+      sourceUpAxis: profile.imageUpAxis,
+      caveMaskMode: options.showCaveMask ? (options.invertCaveMask ? 2 : 1) : 0,
+      cameraPosition: camera.position,
+    });
     device.queue.writeBuffer(uniformBuffer, 0, data);
   }
 
