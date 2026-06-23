@@ -28,7 +28,7 @@ What is not ideal yet:
 
 ## Current Implementation Checkpoint
 
-In the current working tree based on `c052e71c11af5a4653540088311ebafe0ad216cb`, the roadmap has these landed boundaries:
+At the current implementation checkpoint, the roadmap has these landed boundaries:
 
 - Phase 1 project snapshot boundary: `ProjectSnapshotV1` lives in `src/lib/shared/contracts/projects.ts`, while browser-owned save/load creation, parsing, cleanup, and restore live in `src/app/project-persistence.ts`.
 - Phase 2 artifact workbench command ownership split: `src/app/workbench-commands.ts` keeps stable UI entry points and delegates paid operator execution to `src/app/paid-operator-execution.ts` and local render/export orchestration to `src/app/local-render-operators.ts`.

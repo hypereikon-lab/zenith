@@ -19,6 +19,22 @@ Most AI image and video tools think in rectangular frames. Fulldome production n
 
 Zenith reframes the pipeline as image-to-space-to-motion instead of blind prompt-to-video.
 
+## Hiring Review Path
+
+For a concise evaluator path, see `docs/hiring-evaluation.md`.
+
+Safe no-secret verification:
+
+```sh
+npm install
+npm run typecheck
+npm run lint
+npm test
+npm run smoke:prod
+```
+
+`npm run smoke:prod` builds and runs the adapter-node app locally without requiring a Runway key or calling paid generation routes. Run `npm run test:e2e` as the browser/server smoke check.
+
 ## Codex Prompt Planning
 
 Zenith has server-side Codex prompt-planning routes for Seedance handoffs. Those routes accept the current domemaster image, depth/motion context, and the repo-local prompt packs, then stream back a structured Seedance prompt, diagnosis, variants, negative terms, and practical warnings. The server/client boundary is in place; dedicated prompt-planning controls are not currently mounted as a first-class workbench UI flow.
