@@ -1,0 +1,82 @@
+import { countWarpedPlateSketchCorners, serializePlateSketchPlacement } from "./plate-sketch-arrangement.js";
+import type { SerializedPlatePlacement } from "./plate-sketch-arrangement.js";
+import type { ArtifactMedia, ArtifactRecord, ArtifactResult } from "../artifacts/artifact-types.js";
+import type { SourceProjectionMode } from "../geometry/source-projection.js";
+import type { NormalizedPlatePlacement } from "./plate-placement.js";
+
+export type PlateSketchCommitInput = {
+  dataUrl: string;
+  plateCount: number;
+  placements: NormalizedPlatePlacement[];
+  plateFit: string;
+  plateFeather: number;
+  domeGuideSemanticSplit: number;
+  domeGuideHorizonSplit: number;
+  plateEditMode: "scale" | "warp";
+  projectionProfile: SourceProjectionMode;
+  commitSize: number;
+};
+
+export type PlateSketchCommitPayload = {
+  artifactPatch: Partial<Omit<ArtifactRecord, "id" | "type">>;
+  result: Omit<ArtifactResult, "id" | "createdAt">;
+  status: string;
+  serializedPlacements: SerializedPlatePlacement[];
+  warpedCornerCount: number;
+};
+
+export function buildPlateSketchCommitPayload({
+  dataUrl,
+  plateCount,
+  placements,
+  plateFit,
+  plateFeather,
+  domeGuideSemanticSplit,
+  domeGuideHorizonSplit,
+  plateEditMode,
+  projectionProfile,
+  commitSize,
+}: PlateSketchCommitInput): PlateSketchCommitPayload {
+  const serializedPlacements = placements.slice(0, plateCount).map(serializePlateSketchPlacement);
+  const warpedCornerCount = countWarpedPlateSketchCorners(serializedPlacements);
+  const warpedCornerSuffix = warpedCornerCount > 0 ? ` with ${warpedCornerCount} warped corners` : "";
+  const media: ArtifactMedia = {
+    kind: "image" as const,
+    url: dataUrl,
+    name: `Committed Plate Sketch (${plateCount} plates)`,
+    mime: "image/png",
+    alt: "Committed semantic-color Plate Sketch inpaint handoff",
+    blob: null,
+    file: null,
+    canvas: null,
+  };
+
+  return {
+    artifactPatch: {
+      status: "ready",
+      stale: false,
+      summary: `${plateCount} plates committed as ${commitSize} square inpaint handoff${warpedCornerSuffix}.`,
+      operatorId: "commit-plates",
+      media,
+      config: {
+        plateCount,
+        plateFit,
+        plateFeather,
+        domeGuideSemanticSplit,
+        domeGuideHorizonSplit,
+        plateEditMode,
+        placements: serializedPlacements,
+        projectionProfile,
+      },
+      warnings: [],
+    },
+    result: {
+      label: `Committed Plate Sketch (${plateCount})`,
+      media,
+      operatorId: "commit-plates",
+    },
+    status: `${commitSize} x ${commitSize} Plate Sketch handoff committed for inpaint${warpedCornerSuffix}.`,
+    serializedPlacements,
+    warpedCornerCount,
+  };
+}

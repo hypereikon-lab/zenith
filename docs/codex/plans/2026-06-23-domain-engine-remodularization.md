@@ -170,3 +170,160 @@ Deferred:
 - `PlateSketchEditor.svelte` still owns plate image loading, editor state, projection overlay drawing, commit payload/result mutation, and renderer session scheduling. It should be a separate slice because artifact mutation makes it broader than the source-map session.
 - RGBD scene command ownership and portable manifest risks remain real but are deferred to a separate paid-effect/canvas-runtime command split with direct tests and mocks.
 - Camera path/editor command extraction remains deferred because the current pure camera/gizmo math and canvas renderer boundaries are already clearer than the source-map preview session was.
+
+# Plate Sketch Editor Session Ownership
+
+Status: active
+Roadmap phase: Phase 2 continuation: thin UI and browser engine ownership
+Baseline commit: 4f9c2dbc432d0d2944cfa00c6896e453f732a865
+Last updated: 2026-06-23 11:55 America/Santiago
+
+## Goal
+
+Make the remaining Plate Sketch editor runtime and commit path easier to reason about by moving browser-side source loading, default arrangement, render-session scheduling, render option construction, and artifact commit payload shaping out of `src/ui/PlateSketchEditor.svelte` into concrete product-shaped modules while preserving current editor behavior.
+
+## Why this slice now
+
+The current repository already contains the earlier projection-preview shader/uniform split and the source-map preview session extraction. Fresh baseline evidence shows the next largest justified domain-engine entanglement is `src/ui/PlateSketchEditor.svelte`: it is a 1500-line component that still owns WebGPU renderer lifetime, image bitmap/canvas downscaling, default arrangement rules, render option construction, projected-view scheduling, plate drag mutation, overlay drawing, and artifact graph commit payloads.
+
+This is still current-browser-workbench stabilization. It does not introduce durable assets, server jobs, queues, workers, databases, auth, collaboration, deployment infrastructure, or a generic engine framework.
+
+## Current behavior and evidence
+
+- Baseline status: `git status --short --branch` reported `## main...origin/main` with no short-status entries.
+- Baseline HEAD: `4f9c2dbc432d0d2944cfa00c6896e453f732a865`.
+- Baseline projection shader/uniform/parity check passed: `npm test -- src/graphics/projection-preview-uniforms.test.ts src/graphics/shaders.test.ts src/geometry/projection-shader-parity.test.ts`.
+- `src/graphics/projection-preview-shaders.ts` now owns `domeShaderCode`, `flatShaderCode`, and `caveShaderCode`; static search found no active `roomShaderCode`.
+- `src/graphics/projection-preview-uniforms.ts` owns the 48-float/192-byte projection-preview uniform ABI and is imported by both `src/graphics/source-map-preview-renderer.ts` and `src/plates/plate-sketch-gpu-renderer.ts`.
+- `src/graphics/source-map-preview-session.ts` already owns the source-map media preview image/video render lifecycle.
+- `src/ui/PlateSketchEditor.svelte` currently owns:
+  - `HTMLCanvasElement`, source plate canvases, and `PlateSketchGpuRenderer` handles;
+  - default plate fetch/load/downscale logic;
+  - default arrangement and active plate selection rules;
+  - render session creation, requestAnimationFrame scheduling, render option construction, preview status strings, and renderer cleanup;
+  - commit/download render payloads;
+  - artifact result/media/config construction for `commit-plates`;
+  - direct UI state, controls, pointer/camera/guide intent, overlay drawing, and plate drag mutation.
+- `src/plates/plate-sketch-gpu-renderer.ts` is a browser-only WebGPU renderer that consumes the shared projection-preview shader/uniform owner and owns GPU resources.
+- `src/plates/plate-drag-math.ts`, `src/plates/plate-placement.ts`, and `src/plates/plate-editor-projection-adapter.ts` already hold substantial pure math and projection adapter logic, so this slice should not rewrite their formulas for churn.
+
+## Invariants
+
+- Preserve current Plate Sketch UX, default references, default arrangement behavior, projected preview modes, guide behavior, overlay drawing, commit media, artifact summary/config shape, and PNG download behavior.
+- Keep WebGPU, canvas, DOM, `Blob/File`, object URLs, image bitmaps, and local media handling in browser-owned modules.
+- Keep `src/lib/shared` JSON-safe and side-effect free; do not move runtime handles there.
+- Keep server secrets, paid upstream calls, filesystem effects, SDK clients, and server trust boundaries under `src/lib/server` or route handlers.
+- Do not call paid Runway, Codex, OpenAI, Gemini, Runway, or model APIs.
+- Do not add dependencies, `src/engine`, a generic renderer framework, workflow framework, database, durable queue, worker, sidecar server, auth, durable asset store, collaboration model, or deployment infrastructure.
+- Preserve unrelated user changes and avoid unrelated cleanup.
+
+## Scope
+
+### In scope
+
+- Add a concrete browser-only Plate Sketch source/session module under `src/plates`.
+- Move plate image loading/downscaling and default reference loading helpers out of the Svelte component.
+- Move default arrangement and serialized placement/warped-corner commit metadata helpers into testable plate-domain modules.
+- Move WebGPU renderer creation, preview scheduling, render option construction, commit/download render-to-canvas calls, and deterministic cleanup into a Plate Sketch preview session.
+- Move artifact commit payload/result construction into a focused browser app/domain helper that returns plain mutation payloads for the existing artifact store calls.
+- Keep `PlateSketchEditor.svelte` responsible for reactive state, markup, controls, pointer/camera/guide intent, canvas mounting, overlay drawing, and applying artifact mutations through the existing store APIs.
+- Add focused tests for arrangement/commit metadata and render-session lifecycle behavior where practical with fakes.
+- Run targeted graphics/plate/boundary tests and the required repository checks.
+
+### Explicit non-goals
+
+- No shader math, WGSL, projection formula, plate drag math, guide semantic, overlay visual, or render-order changes.
+- No rewrite of `src/plates/plate-sketch-gpu-renderer.ts` unless a small helper is needed for the session boundary.
+- No RGBD command split in this commit.
+- No camera path/editor extraction in this commit.
+- No source-map media viewer changes except if type compatibility requires it.
+- No shared contract, server route, job, asset, persistence, API, or deployment changes.
+- No live paid API calls.
+
+## Proposed design
+
+Add product-shaped browser modules instead of a generic engine layer:
+
+- `src/plates/plate-sketch-sources.ts` owns `PlateSketchImage`, `loadPlateSource`, `loadDefaultPlateSources`, and `loadPlateFiles`. It stays browser-only because it uses `Blob`, `File`, `createImageBitmap`, canvas, and `fetch` for local default references.
+- `src/plates/plate-sketch-arrangement.ts` owns default placement selection, `autoArrangePlateSketch`, placement serialization, and warped-corner counting. It is pure TypeScript over plate-domain inputs and is directly testable.
+- `src/plates/plate-sketch-commit.ts` owns the plain artifact update/result payload construction for a committed Plate Sketch. It does not mutate the store and does not render.
+- `src/plates/plate-sketch-preview-session.ts` owns lazy `PlateSketchGpuRenderer` creation, requestAnimationFrame preview scheduling, render option construction from explicit inputs, commit/download canvas rendering, and `destroy()`. It stays browser-only and concrete to Plate Sketch.
+
+`PlateSketchEditor.svelte` will keep Svelte state and direct pointer/overlay UI behavior. It will call the session with explicit input snapshots and then apply returned status strings or canvases. Store mutations stay in the component for now through existing artifact-store functions, but payload construction moves to the commit helper.
+
+## Alternatives considered
+
+- Status quo: avoids risk but leaves the largest remaining domain-heavy UI component as the owner of runtime rendering, source loading, and artifact payload construction.
+- Extract all pointer/overlay drag handling now: high potential value, but it is more coupled to canvas hit testing and visual overlay behavior; the first safer slice is runtime/source/commit ownership.
+- Create a generic GPU preview session: rejected because the evidence supports a concrete Plate Sketch session, not a cross-renderer framework.
+- Move commit payload types to `src/lib/shared`: rejected because this is current browser artifact-store shape, not a versioned persistence/API contract.
+
+## Acceptance matrix
+
+| Concern                     | Evidence required                                                                                                                                      | Command/test                                                                                                                              |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Source loading              | Plate source helper downscales images and reports no-image selections without the component owning the logic                                           | Targeted plate-source/arrangement tests where browser fakes are practical; typecheck                                                      |
+| Arrangement/commit metadata | Default placements, active index, serialized placement rounding, warped-corner counts, summaries, config/media/result payloads match existing behavior | `npm test -- src/plates/plate-sketch-arrangement.test.ts src/plates/plate-sketch-commit.test.ts`                                          |
+| Preview behavior            | Preview session builds the same render options, schedules at most one frame, renders commit/download canvases, and destroys renderer on cleanup        | `npm test -- src/plates/plate-sketch-preview-session.test.ts`                                                                             |
+| Projection behavior         | Existing shader/uniform/parity tests remain green                                                                                                      | `npm test -- src/graphics/projection-preview-uniforms.test.ts src/graphics/shaders.test.ts src/geometry/projection-shader-parity.test.ts` |
+| Existing GPU renderer       | Plate compositor/depth renderer tests remain green                                                                                                     | `npm test -- src/sketch/depth-webgpu-renderer.test.ts src/plates/plate-gpu-compositor.test.ts`                                            |
+| Browser boundary            | New modules stay browser-owned and do not leak browser runtime types into shared/server/routes                                                         | `npm test -- src/architecture/import-boundaries.test.ts`, `npm run typecheck`, `npm run build`                                            |
+| UI regression               | Svelte component compiles, lints, hydrates in existing e2e smoke                                                                                       | `npm run typecheck`, `npm run lint`, `npm run test:e2e`                                                                                   |
+| Production demo             | Built adapter smoke remains no-paid-call demonstrable                                                                                                  | `npm run build`, `npm run smoke:prod:built`                                                                                               |
+
+## Implementation sequence
+
+1. Wait for read-only repo mapping, roadmap, test, simplification, and boundary subagents; reconcile with repository evidence.
+2. Extract pure arrangement/commit helpers and tests.
+3. Extract browser-only plate source loading helpers.
+4. Extract browser-only Plate Sketch preview session and tests with fake renderer/timer hooks.
+5. Update `PlateSketchEditor.svelte` to use the new owners while preserving UI state, pointer behavior, overlay drawing, and artifact-store mutations.
+6. Run targeted tests after each coherent step, then full checks.
+7. Spawn read-only final boundary and diff reviewers, fix material findings, rerun affected checks, and record outcomes.
+8. Commit and push the verified slice.
+
+## Risks and recovery
+
+- Risk: commit artifact payload shape drifts. Detection: focused commit helper tests and project/shared contract tests. Recovery: keep the helper as a pure copy of the old payload shape or inline it back into the component.
+- Risk: preview scheduling changes status timing or renders stale options. Detection: preview-session fake tests, typecheck, e2e. Recovery: narrow the session to renderer lifecycle only.
+- Risk: image loading extraction mishandles default reference fetches or selected files. Detection: typecheck and direct review; avoid adding complex fetch abstractions. Recovery: keep default fetch orchestration in the component and only extract source decoding.
+- Risk: browser runtime types leak into shared/server code. Detection: import-boundary tests and final boundary audit.
+- Risk: large Svelte edit causes accidental UI markup/style churn. Detection: diff review, typecheck, lint, e2e. Recovery: keep markup and CSS unchanged.
+
+Rollback is straightforward: revert the Plate Sketch session commit because no external API, persisted snapshot, shader math, or data format is intended to change.
+
+## Progress log
+
+- [x] Baseline status and HEAD recorded.
+- [x] Required docs, skill references, package scripts, prior plans, and hotspot files inspected.
+- [x] Baseline projection shader/uniform/parity tests passed.
+- [x] Read-only repo mapping, roadmap review, test strategy, simplification, and boundary audit completed.
+- [x] Arrangement and commit helpers extracted and tested.
+- [x] Source loading helper extracted.
+- [x] Preview session extracted and tested.
+- [x] `PlateSketchEditor.svelte` updated.
+- [x] Targeted verification complete.
+- [ ] Full verification complete.
+- [ ] Final read-only review complete.
+- [ ] Commit and push complete.
+
+## Decisions and discoveries
+
+- Current HEAD already contains the projection-preview shader/uniform ownership split, `roomShaderCode` removal, and source-map preview session extraction.
+- The next active implementation target is Plate Sketch ownership, not repeating prior shader/source-map work.
+- Read-only reviewers agreed this remains Phase 2 browser-engine/UI-thinning work and warned against generic engine, asset, durable job, or RGBD expansion inside this slice.
+- `PlateSketchEditor.svelte` still owns pointer hit testing, camera/guide intent, overlay drawing, and store mutation application. The extracted modules own source loading, default arrangement/serialization, preview scheduling/render options, handoff rendering, and commit payload construction.
+- Verification passed before the first commit:
+  - `npm test -- src/plates/plate-sketch-arrangement.test.ts src/plates/plate-sketch-commit.test.ts src/plates/plate-sketch-preview-session.test.ts src/graphics/projection-preview-uniforms.test.ts src/graphics/shaders.test.ts src/geometry/projection-shader-parity.test.ts src/sketch/depth-webgpu-renderer.test.ts src/plates/plate-gpu-compositor.test.ts src/architecture/import-boundaries.test.ts`
+  - `npm run typecheck`
+  - `npm run lint`
+  - `git diff --check`
+  - `npx prettier --check docs/codex/plans/2026-06-23-domain-engine-remodularization.md src/plates/plate-sketch-arrangement.ts src/plates/plate-sketch-arrangement.test.ts src/plates/plate-sketch-commit.ts src/plates/plate-sketch-commit.test.ts src/plates/plate-sketch-preview-session.ts src/plates/plate-sketch-preview-session.test.ts src/plates/plate-sketch-sources.ts`
+
+## Final result
+
+Pending.
+
+---
+
+# Prior Completed Slice: Source Map Preview Session Ownership

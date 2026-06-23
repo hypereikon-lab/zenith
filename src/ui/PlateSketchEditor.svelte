@@ -7,7 +7,7 @@
     setDomeGuideHorizonSplit,
     setDomeGuideSemanticSplit,
   } from "../app/workbench-commands.js";
-  import { DEFAULT_ACTIVE_PLATE_INDEX, DEFAULT_PLATE_PLACEMENTS, DEFAULT_PLATE_REFERENCES } from "../plates/default-plate-profile.js";
+  import { DEFAULT_PLATE_REFERENCES } from "../plates/default-plate-profile.js";
   import {
     addArtifactResult,
     selectArtifact,
@@ -40,6 +40,13 @@
   } from "../geometry/source-projection.js";
   import { canvasToBlob, downloadBlob } from "../media/canvas-utils.js";
   import {
+    arrangePlateSketchDefaults,
+    defaultPlateSketchPlacement,
+  } from "../plates/plate-sketch-arrangement.js";
+  import { buildPlateSketchCommitPayload } from "../plates/plate-sketch-commit.js";
+  import { createPlateSketchPreviewSession } from "../plates/plate-sketch-preview-session.js";
+  import { loadDefaultPlateSketchSources, loadPlateSketchFiles } from "../plates/plate-sketch-sources.js";
+  import {
     MAX_PLATE_SCALE,
     MIN_PLATE_SCALE,
     clonePlateCornerOffsets,
@@ -61,7 +68,6 @@
     spinFromSourceLocalRotateDrag,
   } from "../plates/plate-drag-math.js";
   import { createPlateEditorProjectionAdapter } from "../plates/plate-editor-projection-adapter.js";
-  import { createPlateSketchGpuRenderer } from "../plates/plate-sketch-gpu-renderer.js";
   import CameraControlsPanel from "./CameraControlsPanel.svelte";
   import { clamp, wrapDegrees } from "../projection.js";
   import type {
@@ -73,9 +79,8 @@
     PreparedPlatePlacement,
   } from "../plates/plate-placement.js";
   import type { PlateEditorProjectionAdapter } from "../plates/plate-editor-projection-adapter.js";
-  import type { PlateSketchGpuRenderer } from "../plates/plate-sketch-gpu-renderer.js";
-  import type { PlateSketchRenderOptions } from "../plates/plate-sketch-gpu-renderer.js";
-  import type { PlateRenderOptions } from "../plates/plate-gpu-compositor.js";
+  import type { PlateSketchPreviewSession } from "../plates/plate-sketch-preview-session.js";
+  import type { PlateSketchImage } from "../plates/plate-sketch-sources.js";
   import type { PlateEditorViewMode } from "../plates/plate-editor-view.js";
   import type { ProjectionCameraDragModifiers } from "../geometry/projection-camera-controls.js";
   import type { SourceGuideBreakpoint } from "../geometry/source-guide-semantics.js";
@@ -102,19 +107,11 @@
   let canvasHeight = $state(768);
   let viewCamera = $state(defaultPlateEditorCamera(workbench.projectionProfile));
   let renderStatus = $state("Load plates or use the default references.");
-  let gpuRenderer = $state.raw<PlateSketchGpuRenderer | null>(null);
-  let gpuRendererPromise: Promise<PlateSketchGpuRenderer> | null = null;
+  let previewSession = $state.raw<PlateSketchPreviewSession | null>(null);
   let activeDrag: PlateEditorDrag | null = null;
   let activeGuideBreakpointDrag: GuideBreakpointDrag | null = null;
-  let previewFrame: number | null = null;
   let previousProjectionProfile = workbench.projectionProfile;
   let previousViewerMode = workbench.viewerMode;
-
-  type PlateSketchImage = PlateRenderOptions["plates"][number] & {
-    name: string;
-    aspect: number;
-    canvas: HTMLCanvasElement;
-  };
 
   let activePlacement = $derived(placements[activeIndex] || null);
   let activePlate = $derived(plates[activeIndex] || null);
@@ -181,12 +178,11 @@
 
   onMount(() => {
     const cleanup = installPlateSketchCommitHandler(commitPlateSketch);
-    void ensureGpuRenderer();
+    ensurePreviewSession();
     void loadDefaultPlates();
     return () => {
       cleanup();
-      if (previewFrame !== null) cancelAnimationFrame(previewFrame);
-      gpuRenderer?.destroy();
+      previewSession?.destroy();
     };
   });
 
@@ -255,12 +251,7 @@
   async function loadDefaultPlates() {
     if (plates.length > 0 || DEFAULT_PLATE_REFERENCES.length === 0) return;
     renderStatus = "Loading default plate references...";
-    const loaded: PlateSketchImage[] = [];
-    for (const reference of DEFAULT_PLATE_REFERENCES) {
-      const response = await fetch(reference.url);
-      if (!response.ok) continue;
-      loaded.push(await loadPlateSource(reference.name, await response.blob()));
-    }
+    const loaded = await loadDefaultPlateSketchSources(DEFAULT_PLATE_REFERENCES);
     if (loaded.length > 0) {
       plates = loaded;
       autoArrange(false);
@@ -277,46 +268,21 @@
       return;
     }
     renderStatus = "Loading plate images...";
-    plates = await Promise.all(imageFiles.map((file) => loadPlateSource(file.name, file)));
+    plates = await loadPlateSketchFiles(imageFiles);
     autoArrange(false);
     renderPreview();
-  }
-
-  async function loadPlateSource(name: string, blob: Blob): Promise<PlateSketchImage> {
-    const bitmap = await createImageBitmap(blob, { imageOrientation: "from-image" });
-    const maxSide = 1600;
-    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-    const width = Math.max(1, Math.round(bitmap.width * scale));
-    const height = Math.max(1, Math.round(bitmap.height * scale));
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    canvas.getContext("2d").drawImage(bitmap, 0, 0, width, height);
-    return { name, width, height, aspect: width / height, canvas };
   }
 
   function autoArrange(force: boolean) {
     if (plates.length === 0) return;
     if (!force && placements.length === plates.length) return;
-    placements = plates.map((plate, index) => normalizePlatePlacement(defaultPlatePlacement(index, plates.length, plate), plate));
-    activeIndex = plates.length === DEFAULT_PLATE_PLACEMENTS.length ? DEFAULT_ACTIVE_PLATE_INDEX : 0;
+    const arrangement = arrangePlateSketchDefaults(plates);
+    placements = arrangement.placements;
+    activeIndex = arrangement.activeIndex;
   }
 
   function defaultPlatePlacement(index: number, plateCount: number, plate: PlateLike): PlatePlacementInput {
-    if (plateCount === DEFAULT_PLATE_PLACEMENTS.length && DEFAULT_PLATE_PLACEMENTS[index]) {
-      return { ...DEFAULT_PLATE_PLACEMENTS[index] };
-    }
-    const goldenAngle = 137.507764;
-    return {
-      azimuth: wrapDegrees(index * goldenAngle + 180),
-      radius: plateCount === 1 ? 0.35 : clamp(0.16 + 0.78 * Math.sqrt(index / Math.max(1, plateCount - 1)), 0, 0.94),
-      scale: clamp(1.18 / Math.sqrt(Math.max(1, plateCount)), 0.22, 0.92),
-      spin: 0,
-      opacity: 1,
-      flipX: false,
-      flipY: false,
-      aspect: plate.aspect,
-    };
+    return defaultPlateSketchPlacement(index, plateCount, plate);
   }
 
   function updateActivePlacement(patch: Partial<NormalizedPlatePlacement>) {
@@ -333,16 +299,11 @@
     renderPreview();
   }
 
-  async function ensureGpuRenderer(): Promise<PlateSketchGpuRenderer> {
-    if (gpuRenderer) return gpuRenderer;
+  function ensurePreviewSession(): PlateSketchPreviewSession {
+    if (previewSession) return previewSession;
     if (!renderCanvas) throw new Error("Plate Sketch WebGPU canvas is not mounted.");
-    if (!gpuRendererPromise) {
-      gpuRendererPromise = createPlateSketchGpuRenderer(renderCanvas).then((renderer) => {
-        gpuRenderer = renderer;
-        return renderer;
-      });
-    }
-    return gpuRendererPromise;
+    previewSession = createPlateSketchPreviewSession(renderCanvas);
+    return previewSession;
   }
 
   function renderPreview() {
@@ -351,49 +312,37 @@
 
   async function renderPreviewAsync() {
     if (!renderCanvas || !previewCanvas || plates.length === 0 || placements.length === 0) return;
-    if (previewFrame !== null) {
-      cancelAnimationFrame(previewFrame);
-      previewFrame = null;
-    }
     try {
       renderStatus = "Rendering WebGPU plate sketch preview...";
-      const gpu = await ensureGpuRenderer();
-      gpu.renderPreview(buildRenderOptions(canvasWidth));
+      const status = await ensurePreviewSession().renderPreview(buildPreviewInput());
       renderOverlay();
-      const viewMode = currentPlateProjectionViewMode();
-      renderStatus = `${plates.length} plate${plates.length === 1 ? "" : "s"} previewed through WebGPU ${workbench.projectionProfile} ${plateEditorViewLabel(viewMode)}.`;
+      if (status) renderStatus = status;
     } catch (error) {
       console.error(error);
       renderStatus = error instanceof Error ? error.message : "Could not render Plate Sketch preview.";
     }
   }
 
-  function buildRenderOptions(size: number): PlateSketchRenderOptions {
+  function buildPreviewInput() {
     return {
       plates,
-      platePlacements: placements,
-      plateCount: plates.length,
-      size,
+      placements,
+      canvasWidth,
       plateFit,
       plateFeather,
       domeGuideSemanticSplit: workbench.domeGuideSemanticSplit,
       domeGuideHorizonSplit: workbench.domeGuideHorizonSplit,
       sourceProjectionMode: workbench.projectionProfile,
-      guideMode: "inpaint-handoff",
       projectionViewMode: currentPlateProjectionViewMode(),
       projectionCamera: viewCamera,
-      showProjectionGuides: workbench.viewerMode !== "domemaster",
+      viewerMode: workbench.viewerMode,
       showCaveMask,
       invertCaveMask,
     };
   }
 
   function scheduleRenderPreview() {
-    if (previewFrame !== null) return;
-    previewFrame = requestAnimationFrame(() => {
-      previewFrame = null;
-      renderPreview();
-    });
+    ensurePreviewSession().scheduleRenderPreview(renderPreview);
   }
 
   function renderOverlay() {
@@ -621,72 +570,25 @@
       return;
     }
     renderStatus = "Committing 2048 square inpaint handoff...";
-    const committedPlacements = placements.slice(0, plates.length).map(serializePlacement);
-    const warpedCornerCount = committedPlacements.reduce(
-      (count, placement) =>
-        count +
-        Object.values(placement.cornerOffsets).filter((offset) => Math.abs(offset.x) > 0.0001 || Math.abs(offset.y) > 0.0001)
-          .length,
-      0,
-    );
-    const gpu = await ensureGpuRenderer();
-    const handoff = await gpu.renderToCanvas({
-      plates,
-      platePlacements: placements,
+    const handoff = await ensurePreviewSession().renderHandoffCanvas(buildPreviewInput(), COMMIT_SIZE);
+    const dataUrl = handoff.toDataURL("image/png");
+    const commit = buildPlateSketchCommitPayload({
+      dataUrl,
       plateCount: plates.length,
-      size: COMMIT_SIZE,
+      placements,
       plateFit,
       plateFeather,
       domeGuideSemanticSplit: workbench.domeGuideSemanticSplit,
       domeGuideHorizonSplit: workbench.domeGuideHorizonSplit,
-      sourceProjectionMode: workbench.projectionProfile,
-      guideMode: "inpaint-handoff",
+      plateEditMode,
+      projectionProfile: workbench.projectionProfile,
+      commitSize: COMMIT_SIZE,
     });
-    const dataUrl = handoff.toDataURL("image/png");
     setArtifactMediaHandle("plate-sketch", { canvas: handoff });
-    updateArtifact("plate-sketch", {
-      status: "ready",
-      stale: false,
-      summary: `${plates.length} plates committed as ${COMMIT_SIZE} square inpaint handoff${warpedCornerCount > 0 ? ` with ${warpedCornerCount} warped corners` : ""}.`,
-      operatorId: "commit-plates",
-      media: {
-        kind: "image",
-        url: dataUrl,
-        name: `Committed Plate Sketch (${plates.length} plates)`,
-        mime: "image/png",
-        alt: "Committed semantic-color Plate Sketch inpaint handoff",
-        blob: null,
-        file: null,
-        canvas: null,
-      },
-      config: {
-        plateCount: plates.length,
-        plateFit,
-        plateFeather,
-        domeGuideSemanticSplit: workbench.domeGuideSemanticSplit,
-        domeGuideHorizonSplit: workbench.domeGuideHorizonSplit,
-        plateEditMode,
-        placements: committedPlacements,
-        projectionProfile: workbench.projectionProfile,
-      },
-      warnings: [],
-    });
-    addArtifactResult("plate-sketch", {
-      label: `Committed Plate Sketch (${plates.length})`,
-      media: {
-        kind: "image",
-        url: dataUrl,
-        name: `Committed Plate Sketch (${plates.length} plates)`,
-        mime: "image/png",
-        alt: "Committed semantic-color Plate Sketch inpaint handoff",
-        blob: null,
-        file: null,
-        canvas: null,
-      },
-      operatorId: "commit-plates",
-    });
+    updateArtifact("plate-sketch", commit.artifactPatch);
+    addArtifactResult("plate-sketch", commit.result);
     selectArtifact("plate-sketch");
-    renderStatus = `${COMMIT_SIZE} x ${COMMIT_SIZE} Plate Sketch handoff committed for inpaint${warpedCornerCount > 0 ? ` with ${warpedCornerCount} warped corners` : ""}.`;
+    renderStatus = commit.status;
   }
 
   async function downloadCurrentHandoff() {
@@ -695,19 +597,7 @@
       return;
     }
     renderStatus = `Rendering ${COMMIT_SIZE} square Plate Sketch PNG...`;
-    const gpu = await ensureGpuRenderer();
-    const handoff = await gpu.renderToCanvas({
-      plates,
-      platePlacements: placements,
-      plateCount: plates.length,
-      size: COMMIT_SIZE,
-      plateFit,
-      plateFeather,
-      domeGuideSemanticSplit: workbench.domeGuideSemanticSplit,
-      domeGuideHorizonSplit: workbench.domeGuideHorizonSplit,
-      sourceProjectionMode: workbench.projectionProfile,
-      guideMode: "inpaint-handoff",
-    });
+    const handoff = await ensurePreviewSession().renderHandoffCanvas(buildPreviewInput(), COMMIT_SIZE);
     const blob = await canvasToBlob(handoff, "image/png");
     downloadBlob(blob, `zenith-plate-sketch-${COMMIT_SIZE}-${Date.now()}.png`);
     renderStatus = `${COMMIT_SIZE} x ${COMMIT_SIZE} Plate Sketch PNG downloaded.`;
@@ -1075,40 +965,6 @@
         sw: { x: 0, y: 0 },
       },
     });
-  }
-
-  function serializePlacement(placement: NormalizedPlatePlacement) {
-    return {
-      azimuth: roundPlacementValue(placement.azimuth),
-      radius: roundPlacementValue(placement.radius),
-      scale: roundPlacementValue(placement.scale),
-      spin: roundPlacementValue(placement.spin),
-      opacity: roundPlacementValue(placement.opacity),
-      flipX: placement.flipX,
-      flipY: placement.flipY,
-      cornerOffsets: {
-        nw: {
-          x: roundPlacementValue(placement.cornerOffsets.nw.x),
-          y: roundPlacementValue(placement.cornerOffsets.nw.y),
-        },
-        ne: {
-          x: roundPlacementValue(placement.cornerOffsets.ne.x),
-          y: roundPlacementValue(placement.cornerOffsets.ne.y),
-        },
-        se: {
-          x: roundPlacementValue(placement.cornerOffsets.se.x),
-          y: roundPlacementValue(placement.cornerOffsets.se.y),
-        },
-        sw: {
-          x: roundPlacementValue(placement.cornerOffsets.sw.x),
-          y: roundPlacementValue(placement.cornerOffsets.sw.y),
-        },
-      },
-    };
-  }
-
-  function roundPlacementValue(value: number): number {
-    return Math.round(value * 10000) / 10000;
   }
 
   function distance2d(a: Point2D, b: Point2D): number {
