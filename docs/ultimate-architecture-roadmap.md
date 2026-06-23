@@ -21,7 +21,7 @@ What is not ideal yet:
 - Project/workbench state is still primarily browser module state. Portable project snapshots now exist, but Zenith does not yet have durable project records, multiple open projects, collaboration, resumable jobs, or cloud deployment semantics.
 - Most paid Runway/Codex operations still use local progress streams. Depth generation now has a first-class in-memory job boundary underneath the compatibility stream, but production media jobs should eventually be durable, cancellable, retryable, inspectable, and recoverable after refresh.
 - Artifact media is still often represented by object URLs, data URLs, blobs, canvases, and saved JSON snapshots. That works locally, but data URLs should not be the long-term artifact storage model.
-- `workbench-commands.ts` is now a public command bridge, with project persistence, paid operator execution, and local render orchestration extracted into focused browser modules. Artifact mutation, import commands, and UI thinning can still be improved incrementally.
+- Workbench product commands are split into focused browser modules for media import/promotion, operator dispatch, project import/export, and projection/view state. UI components now import those owners directly. UI thinning can still be improved incrementally.
 - Some UI components still contain too much orchestration logic. Large Svelte components should become thinner shells around tested domain modules.
 - Shared project and job contracts now exist under `src/lib/shared/contracts`; artifact, asset, event, and error contracts remain future work.
 - There is no server-wide request context: request IDs, structured logging, security headers, auth/session context, or rate limits.
@@ -31,7 +31,7 @@ What is not ideal yet:
 At the current implementation checkpoint, the roadmap has these landed boundaries:
 
 - Phase 1 project snapshot boundary: `ProjectSnapshotV1` lives in `src/lib/shared/contracts/projects.ts`, while browser-owned save/load creation, parsing, cleanup, and restore live in `src/app/project-persistence.ts`.
-- Phase 2 artifact workbench command ownership split: `src/app/workbench-commands.ts` keeps stable UI entry points and delegates paid operator execution to `src/app/paid-operator-execution.ts` and local render/export orchestration to `src/app/local-render-operators.ts`.
+- Phase 2 artifact workbench command ownership split: Svelte components call focused command owners directly under `src/app`, including media import/promotion, operator dispatch, project import/export, and projection/view state. Paid operator execution and local render/export orchestration remain in focused browser modules.
 - Phase 3 first job boundary: `src/lib/shared/contracts/jobs.ts` and `src/lib/server/jobs` implement in-memory start-depth and end-depth jobs, status reads, raw job-event streams, cancellation, and a depth-stream compatibility wrapper.
 
 Important limits remain:
@@ -512,7 +512,7 @@ Deliverables:
 
 - `src/lib/shared/contracts/projects.ts` defines `ProjectSnapshotV1` and validates portable project data.
 - `src/app/project-persistence.ts` owns browser-side snapshot creation, parsing, runtime media cleanup, and restore.
-- `src/app/workbench-commands.ts` keeps the Save Project and Load Project UI entry points while delegating persistence.
+- `src/app/workbench-project-commands.ts` keeps the Save Project and Load Project UI entry points while delegating persistence.
 - Tests cover valid snapshots, invalid versions, malformed artifacts, JSON-safe media cleanup, state restoration, and atomic invalid import failure.
 - Runtime behavior and visible UI entry points remain mostly unchanged.
 
@@ -528,7 +528,7 @@ Status: landed for artifact workbench project persistence, paid operator executi
 
 Deliverables:
 
-- Keep `workbench-commands.ts` as the stable command bridge used by Svelte components.
+- Keep Svelte components pointed at focused browser command owners instead of a shared command bridge.
 - Move paid API payload creation and result application into `src/app/paid-operator-execution.ts`.
 - Move local render, preview, capture, and export orchestration into `src/app/local-render-operators.ts`.
 - Keep Svelte components calling commands, not assembling complex payloads.

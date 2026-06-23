@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { importDepthFile } from "../app/workbench-commands.js";
+  import { importDepthFile } from "../app/workbench-media-commands.js";
 
   async function handleEndDepthFile(event: Event) {
     const input = event.currentTarget as HTMLInputElement;

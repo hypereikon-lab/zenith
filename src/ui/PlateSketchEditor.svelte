@@ -3,10 +3,10 @@
   import {
     changeViewerMode,
     changeProjectionProfile,
-    installPlateSketchCommitHandler,
     setDomeGuideHorizonSplit,
     setDomeGuideSemanticSplit,
-  } from "../app/workbench-commands.js";
+  } from "../app/workbench-view-commands.js";
+  import { installPlateSketchCommitHandler } from "../app/workbench-operator-commands.js";
   import { DEFAULT_PLATE_REFERENCES } from "../plates/default-plate-profile.js";
   import {
     replaceArtifactMedia,

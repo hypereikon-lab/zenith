@@ -59,19 +59,19 @@ Do not run paid flows as automated hiring verification. Outputs depend on upstre
 
 ## Code Evidence Map
 
-| Topic                                  | Files to inspect                                                                                                                             |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Main SvelteKit page and API routes     | `src/routes`                                                                                                                                 |
-| Browser workbench commands             | `src/app/workbench-commands.ts`, `src/app/project-persistence.ts`, `src/app/paid-operator-execution.ts`, `src/app/local-render-operators.ts` |
-| Artifact graph and runtime state       | `src/artifacts/artifact-store.svelte.ts`, `src/artifacts/artifact-types.ts`, `src/artifacts/artifact-graph-consistency.test.ts`              |
-| Shared JSON-safe contracts             | `src/lib/shared/contracts/projects.ts`, `src/lib/shared/contracts/jobs.ts`, `src/lib/shared/contracts/artifact-topology.ts`                  |
-| Server-only Runway/Codex boundary      | `src/lib/server/runway`, `src/routes/api/runway`, `src/routes/api/codex`                                                                     |
-| In-memory job boundary                 | `src/lib/server/jobs`, `src/routes/api/jobs`, `src/routes/api/projects/[projectId]/jobs`                                                     |
-| Local graphics/media engine            | `src/graphics`, `src/media`, `src/sketch`, `src/plates`, `src/geometry`                                                                      |
-| Browser smoke and invalid-input checks | `tests/e2e/app.smoke.spec.ts`                                                                                                                |
-| Adapter-node smoke                     | `scripts/smoke-adapter-node.mjs`                                                                                                             |
-| Prompt planning packs                  | `docs/seedance_prompt_pack`, `docs/seedance_image_prompt_pack`                                                                               |
-| Tracked visual inputs/experiments      | `public/default-plates`, `exports/cave-carrier-experiments`                                                                                  |
+| Topic                                  | Files to inspect                                                                                                                                                                                                                          |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Main SvelteKit page and API routes     | `src/routes`                                                                                                                                                                                                                              |
+| Browser workbench commands             | `src/app/workbench-media-commands.ts`, `src/app/workbench-operator-commands.ts`, `src/app/workbench-project-commands.ts`, `src/app/workbench-view-commands.ts`, `src/app/paid-operator-execution.ts`, `src/app/local-render-operators.ts` |
+| Artifact graph and runtime state       | `src/artifacts/artifact-store.svelte.ts`, `src/artifacts/artifact-types.ts`, `src/artifacts/artifact-graph-consistency.test.ts`                                                                                                           |
+| Shared JSON-safe contracts             | `src/lib/shared/contracts/projects.ts`, `src/lib/shared/contracts/jobs.ts`, `src/lib/shared/contracts/artifact-topology.ts`                                                                                                               |
+| Server-only Runway/Codex boundary      | `src/lib/server/runway`, `src/routes/api/runway`, `src/routes/api/codex`                                                                                                                                                                  |
+| In-memory job boundary                 | `src/lib/server/jobs`, `src/routes/api/jobs`, `src/routes/api/projects/[projectId]/jobs`                                                                                                                                                  |
+| Local graphics/media engine            | `src/graphics`, `src/media`, `src/sketch`, `src/plates`, `src/geometry`                                                                                                                                                                   |
+| Browser smoke and invalid-input checks | `tests/e2e/app.smoke.spec.ts`                                                                                                                                                                                                             |
+| Adapter-node smoke                     | `scripts/smoke-adapter-node.mjs`                                                                                                                                                                                                          |
+| Prompt planning packs                  | `docs/seedance_prompt_pack`, `docs/seedance_image_prompt_pack`                                                                                                                                                                            |
+| Tracked visual inputs/experiments      | `public/default-plates`, `exports/cave-carrier-experiments`                                                                                                                                                                               |
 
 ## What This Project Demonstrates
 

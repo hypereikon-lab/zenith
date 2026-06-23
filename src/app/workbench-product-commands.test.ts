@@ -5,19 +5,16 @@ import {
 } from "./project-persistence.js";
 import { executeLocalRenderOperator } from "./local-render-operators.js";
 import { executePaidOperator } from "./paid-operator-execution.js";
+import { importProjectSnapshotFile as importProjectSnapshotFileCommand } from "./workbench-project-commands.js";
+import { importPreviewMediaFile, promotePreviewMedia } from "./workbench-media-commands.js";
+import { cancelPendingPaidAction, confirmPendingPaidAction, executeOperator } from "./workbench-operator-commands.js";
 import {
-  cancelPendingPaidAction,
   changeProjectionProfile,
   changeSurfaceMode,
   changeViewerMode,
-  confirmPendingPaidAction,
-  executeOperator,
-  importProjectSnapshotFile as importProjectSnapshotFileCommand,
-  importPreviewMediaFile,
-  promotePreviewMedia,
   setDomeGuideHorizonSplit,
   setDomeGuideSemanticSplit,
-} from "./workbench-commands.js";
+} from "./workbench-view-commands.js";
 import { inpaintPromptForProjection } from "../inpaint/inpaint-prompts.js";
 import { workbench } from "../artifacts/artifact-store.svelte.js";
 

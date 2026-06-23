@@ -1,6 +1,6 @@
 <script lang="ts">
   import { workbench } from "../artifacts/artifact-store.svelte.js";
-  import { cancelPendingPaidAction, confirmPendingPaidAction } from "../app/workbench-commands.js";
+  import { cancelPendingPaidAction, confirmPendingPaidAction } from "../app/workbench-operator-commands.js";
 </script>
 
 {#if workbench.pendingPaidAction}

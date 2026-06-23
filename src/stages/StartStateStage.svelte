@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { importDepthFile, importPlateSketchFile, importSourceFile } from "../app/workbench-commands.js";
+  import { importDepthFile, importPlateSketchFile, importSourceFile } from "../app/workbench-media-commands.js";
 
   async function handlePlateSketchFile(event: Event) {
     const input = event.currentTarget as HTMLInputElement;

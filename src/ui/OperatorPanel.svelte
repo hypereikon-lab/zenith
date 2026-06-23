@@ -1,6 +1,8 @@
 <script lang="ts">
   import { getSelectedArtifact, workbench } from "../artifacts/artifact-store.svelte.js";
-  import { changeProjectionProfile, executeOperator, importDepthFile, importPlateSketchFile, importSourceFile } from "../app/workbench-commands.js";
+  import { importDepthFile, importPlateSketchFile, importSourceFile } from "../app/workbench-media-commands.js";
+  import { executeOperator } from "../app/workbench-operator-commands.js";
+  import { changeProjectionProfile } from "../app/workbench-view-commands.js";
   import { operatorsForArtifact } from "../app/operator-registry.js";
   import { SOURCE_PROJECTION_MODES, sourceProjectionLabel, type SourceProjectionMode } from "../geometry/source-projection.js";
   import PromptEditor from "./PromptEditor.svelte";

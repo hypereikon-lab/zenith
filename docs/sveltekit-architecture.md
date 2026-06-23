@@ -30,7 +30,7 @@ This is idiomatic SvelteKit because framework boundaries match the framework's o
 
 Most active paid UI flows still use local progress streams. Codex prompt-planning routes and browser client helpers also use the same stream primitive, but dedicated prompt-planning controls are not currently mounted as a first-class workbench UI flow:
 
-1. A Svelte component calls `src/app/workbench-commands.ts`, which delegates to focused browser modules such as `src/app/paid-operator-execution.ts`.
+1. A Svelte component calls a focused browser command owner under `src/app`, such as `workbench-operator-commands.ts`, `workbench-media-commands.ts`, `workbench-project-commands.ts`, or `workbench-view-commands.ts`.
 2. The browser module calls a helper in `src/runway/client.ts`.
 3. The helper sends JSON to a local endpoint such as `/api/runway/inpaint-stream`, `/api/runway/seedance-stream`, or `/api/codex/seedance-prompt-stream`.
 4. The endpoint in `src/routes/api/.../+server.ts` uses `readJsonPayload` from `src/lib/server/runway/route-response.ts` to parse object-shaped JSON, reject malformed JSON with `400`, and enforce the `128 MB` body cap before service code runs.
@@ -76,7 +76,7 @@ Shared contracts must not import Svelte stores, DOM APIs, Blob/File/canvas objec
 The browser remains the owner of interactive state and runtime media handles:
 
 - `src/artifacts/artifact-store.svelte.ts` owns the current in-browser workbench state, selected artifact/stage, artifact graph state, UI job indicators, QC state, and runtime media handles.
-- `src/app/workbench-commands.ts` is the public command bridge used by Svelte components. It keeps existing UI entry points stable and delegates specialized work.
+- Focused browser command owners under `src/app` are imported directly by Svelte components: media import/promotion, operator dispatch, project import/export, and projection/view state each have their own module.
 - `src/app/project-persistence.ts` creates, parses, downloads, and restores `ProjectSnapshotV1` values in the browser.
 - `src/app/paid-operator-execution.ts` assembles browser-safe payloads for paid API endpoints and applies returned artifact results.
 - `src/app/local-render-operators.ts` owns local WebGPU/WebCodecs preview, capture, and export orchestration.

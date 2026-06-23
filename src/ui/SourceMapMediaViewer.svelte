@@ -4,7 +4,7 @@
     changeViewerMode,
     setDomeGuideHorizonSplit,
     setDomeGuideSemanticSplit,
-  } from "../app/workbench-commands.js";
+  } from "../app/workbench-view-commands.js";
   import { workbench } from "../artifacts/artifact-store.svelte.js";
   import {
     eulerDegreesFromQuaternion,

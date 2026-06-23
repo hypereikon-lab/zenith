@@ -1,6 +1,6 @@
 <script lang="ts">
   import { clearMediaPreview, workbench } from "../artifacts/artifact-store.svelte.js";
-  import { importPreviewMediaFile, promotePreviewMedia } from "../app/workbench-commands.js";
+  import { importPreviewMediaFile, promotePreviewMedia } from "../app/workbench-media-commands.js";
   import SourceMapMediaViewer from "./SourceMapMediaViewer.svelte";
   import type { ArtifactSlotId } from "../artifacts/artifact-types.js";
 

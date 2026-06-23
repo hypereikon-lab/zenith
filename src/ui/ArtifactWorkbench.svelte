@@ -8,14 +8,10 @@
     workbench,
     WORKFLOW_STAGES,
   } from "../artifacts/artifact-store.svelte.js";
-  import {
-    changeProjectionProfile,
-    changeSurfaceMode,
-    changeViewerMode,
-    executeOperator,
-    importPreviewMediaFile,
-    importProjectSnapshotFile,
-  } from "../app/workbench-commands.js";
+  import { importPreviewMediaFile } from "../app/workbench-media-commands.js";
+  import { executeOperator } from "../app/workbench-operator-commands.js";
+  import { importProjectSnapshotFile } from "../app/workbench-project-commands.js";
+  import { changeProjectionProfile, changeSurfaceMode, changeViewerMode } from "../app/workbench-view-commands.js";
   import {
     SOURCE_PROJECTION_MODES,
     sourceProjectionLabel,

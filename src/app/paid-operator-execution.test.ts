@@ -14,7 +14,7 @@ import {
   type ProjectSnapshotV1,
 } from "../lib/shared/contracts/projects.js";
 import { restoreProjectSnapshot } from "./project-persistence.js";
-import { executeOperator } from "./workbench-commands.js";
+import { executeOperator } from "./workbench-operator-commands.js";
 import { executePaidOperator } from "./paid-operator-execution.js";
 
 vi.mock("../runway/client.js", () => ({

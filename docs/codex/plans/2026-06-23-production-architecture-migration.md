@@ -22,7 +22,7 @@ The roadmap currently recommends a contract-only `AssetRef` slice. The read-only
 - Baseline targeted check passed: `npm test -- src/architecture/import-boundaries.test.ts src/artifacts/artifact-graph-consistency.test.ts src/app/project-persistence.test.ts` ran 3 files / 12 tests.
 - `src/artifacts/artifact-store.svelte.ts` owns the singleton browser workbench state, artifact records, runtime media handles, jobs, errors, and direct-only `markDownstreamStale`.
 - `src/artifacts/artifact-types.ts` duplicates slot/stage unions that already exist in `src/lib/shared/contracts/artifact-topology.ts`, and `ArtifactMedia` still allows browser runtime handles directly.
-- `src/app/workbench-commands.ts` creates object URLs for imports and media preview, mutates artifact records, adds results, gates paid actions, delegates local/paid operators, and exports manifests.
+- At baseline, a single broad workbench command module created object URLs for imports and media preview, mutated artifact records, added results, gated paid actions, delegated local/paid operators, and exported manifests.
 - `src/app/project-persistence.ts` privately converts runtime media to portable snapshot media and revokes old object URLs only after valid snapshot restore.
 - `src/app/paid-operator-execution.ts` privately reads artifact media as data URLs with `FileReader`, canvas `toDataURL`, and `fetch`.
 - `src/app/local-render-operators.ts` privately reads artifact media as canvases and applies WebGPU/WebCodecs output media/results.
@@ -49,7 +49,7 @@ The roadmap currently recommends a contract-only `AssetRef` slice. The read-only
 
 - Artifact graph/store: stale propagation only checks direct dependents even though topology contains multi-hop dependencies.
 - Runtime media: object URL creation and conversion are duplicated across workbench imports, project persistence, paid execution, local render, depth motion, and RGBD.
-- Browser commands: `workbench-commands.ts` is a stable facade but still owns multiple workflows directly.
+- Browser commands: one stable command bridge still owned multiple workflows directly.
 - Paid operator execution: paid orchestration also owns media resolution and artifact result application.
 - RGBD: one command file mixes state mutation, runtime canvas/media, paid wrapper calls, alignment sampling, artifact builders, and manifest export.
 - Renderer sessions: runtime placement is correct, but cleanup/readback contracts are uneven and should be audited in a separate verified slice.
@@ -96,7 +96,7 @@ First commit: artifact graph and runtime media ownership.
 - `src/artifacts/artifact-store.svelte.ts` exposes product-shaped replacement helpers such as artifact media/result replacement and media preview replacement. These helpers collect old runtime object URLs, update artifact media/handles/results atomically, mark transitive downstream artifacts stale, then revoke only object URLs that are no longer referenced by the live workbench state.
 - A browser-only runtime media module under `src/artifacts` or `src/app` owns `blobToDataUrl`, `readArtifactMediaAsDataUrl`, `toRuntimeMedia`, `toPortableMedia`, `collectRuntimeObjectUrls`, and `revokeRuntimeObjectUrls`. It is not imported by `src/lib/shared` or `src/lib/server`.
 - `project-persistence.ts` keeps validation and snapshot ownership but delegates runtime-media conversion/revocation mechanics to the browser media owner.
-- `workbench-commands.ts`, `paid-operator-execution.ts`, and `local-render-operators.ts` keep public APIs stable while delegating media/result plumbing.
+- Focused workbench command modules, `paid-operator-execution.ts`, and `local-render-operators.ts` keep behavior stable while delegating media/result plumbing.
 
 Failure behavior:
 
@@ -106,7 +106,7 @@ Failure behavior:
 
 Reversal path:
 
-- The first commit is isolated to artifact/media ownership and focused tests. If a helper proves too broad, callers can be narrowed back behind the same public command facade.
+- The first commit is isolated to artifact/media ownership and focused tests. If a helper proves too broad, callers can be narrowed through the concrete command owner that uses it.
 
 ## Alternatives considered
 
@@ -119,7 +119,7 @@ Reversal path:
 | Concern                        | Evidence required                                                                                                                                                      | Command/test                                                                                        |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | Transitive stale propagation   | Updating `plate-sketch`, `start-depth`, or `end-state` marks all topology descendants stale while preserving missing artifacts.                                        | `npm test -- src/artifacts/artifact-store.test.ts src/artifacts/artifact-graph-consistency.test.ts` |
-| Media replacement ownership    | Central replacement updates artifact media/handle/result, preserves selected result behavior, and revokes old unused object URLs exactly after successful replacement. | `npm test -- src/artifacts/artifact-store.test.ts src/app/workbench-commands.test.ts`               |
+| Media replacement ownership    | Central replacement updates artifact media/handle/result, preserves selected result behavior, and revokes old unused object URLs exactly after successful replacement. | `npm test -- src/artifacts/artifact-store.test.ts src/app/workbench-product-commands.test.ts`       |
 | Snapshot atomicity             | Invalid restore does not mutate live state, clear handles, or revoke object URLs; valid restore still revokes old URLs.                                                | `npm test -- src/app/project-persistence.test.ts`                                                   |
 | Paid/local media safety        | Paid/local operators resolve data URL/canvas/blob/fetch media through the shared browser helper and reject missing media before external calls/rendering.              | `npm test -- src/app/paid-operator-execution.test.ts src/app/local-render-operators.test.ts`        |
 | Shared/server/browser boundary | No runtime media helper leaks into shared/server/routes.                                                                                                               | `npm test -- src/architecture/import-boundaries.test.ts`                                            |
@@ -131,7 +131,7 @@ Reversal path:
 1. Add topology-derived runtime types and pure transitive dependency helper; test stale propagation.
 2. Add browser runtime media helper and central artifact/media replacement helpers; test URL cleanup and snapshot preservation.
 3. Update workbench import/promotion and local/paid result application to use replacement/media helpers; run targeted tests and commit.
-4. If verification remains healthy, split `workbench-commands.ts` into product-shaped facade modules for media commands and projection/view commands; run targeted tests and commit.
+4. If verification remains healthy, split the broad command bridge into product-shaped modules for media commands, operator dispatch, project import/export, and projection/view commands; run targeted tests and commit.
 5. If still healthy, extract paid operator media resolution/result application into browser-owned modules; run targeted tests and commit.
 6. Defer RGBD, renderer lifecycle, and UI thinning to later commits unless the first slices are stable and the diff remains reviewable.
 
@@ -141,7 +141,7 @@ Reversal path:
 - Risk: object URL revocation could revoke a URL still referenced in result history or preview. Replacement helpers must collect live references after mutation and revoke only unused old URLs.
 - Risk: snapshot restore could revoke too early. Keep parse/validation before mutation and revoke after replacement only.
 - Risk: moving media conversion into a helper could accidentally import browser APIs into shared/server. Import-boundary tests and build catch this.
-- Recovery: revert the last coherent commit. Public command facades remain stable so rollback should be narrow.
+- Recovery: revert the last coherent commit. Product command owners are small enough that rollback should be narrow.
 
 ## Progress log
 
@@ -161,16 +161,17 @@ Reversal path:
 - [x] Commit 4: RGBD artifact, runtime media, and manifest ownership cleanup.
 - [x] Final review found RGBD proxy rerender object URL cleanup gap; follow-up fix implemented and covered by command-flow regression test.
 - [x] Commit 5: RGBD proxy rerender cleanup follow-up.
+- [x] Follow-up request removed the workbench command facade; Svelte components and tests now import concrete command owners directly.
 - [x] Final boundary and diff review.
 - [x] Push and sync.
 
 ## Decisions and discoveries
 
 - Decision: defer `AssetRef` despite the roadmap’s old next recommendation because current runtime media ownership is a smaller prerequisite with direct evidence.
-- Discovery: `workbench-commands.ts`, `paid-operator-execution.ts`, `local-render-operators.ts`, `project-persistence.ts`, and `rgbd-scene-commands.ts` all implement their own media conversion or object URL logic.
+- Discovery: the former broad workbench command bridge, `paid-operator-execution.ts`, `local-render-operators.ts`, `project-persistence.ts`, and `rgbd-scene-commands.ts` all implemented their own media conversion or object URL logic.
 - Discovery: import-boundary tests are already strong and should be run after every ownership move.
 - Discovery: renderer lifecycle and UI thinning are real concerns but should follow the artifact/media owner so extracted code has a stable destination.
 
 ## Final result
 
-Completed and pushed. The migration landed artifact graph/runtime media ownership, workbench command ownership, operator artifact result ownership, RGBD artifact/runtime media/manifest ownership, and the final RGBD proxy rerender object URL cleanup found during review.
+Completed and pushed. The migration landed artifact graph/runtime media ownership, direct workbench command ownership, operator artifact result ownership, RGBD artifact/runtime media/manifest ownership, and the final RGBD proxy rerender object URL cleanup found during review.
