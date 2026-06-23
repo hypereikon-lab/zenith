@@ -152,8 +152,9 @@ Reversal path:
 - [x] Test strategist, simplifier, contract designer, and boundary auditor spawned where capacity allowed.
 - [x] Baseline targeted tests passed for import boundaries, artifact graph consistency, and project persistence.
 - [x] Commit 1 implementation verified locally with targeted artifact/media, boundary, typecheck, lint, full unit, and build checks.
-- [ ] Commit 1: artifact graph/runtime media ownership.
-- [ ] Commit 2: workbench command split, if first commit remains healthy.
+- [x] Commit 1: artifact graph/runtime media ownership.
+- [x] Commit 2 implementation verified locally with command tests, import boundary, typecheck, lint, Prettier check, and diff check.
+- [ ] Commit 2: workbench command split.
 - [ ] Commit 3: paid operator runtime cleanup, if prior commits remain healthy.
 - [ ] Final boundary and diff review.
 - [ ] Push and sync.
