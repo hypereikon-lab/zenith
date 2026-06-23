@@ -156,7 +156,9 @@ Reversal path:
 - [x] Commit 2 implementation verified locally with command tests, import boundary, typecheck, lint, Prettier check, and diff check.
 - [x] Commit 2: workbench command split.
 - [x] Commit 3 implementation verified locally with paid/local/operator tests, import boundary, typecheck, lint, Prettier check, and diff check.
-- [ ] Commit 3: paid and local operator result application cleanup.
+- [x] Commit 3: paid and local operator result application cleanup.
+- [x] Commit 4 implementation verified locally with RGBD ownership tests, import boundary, typecheck, lint, Prettier check, and diff check.
+- [ ] Commit 4: RGBD artifact, runtime media, and manifest ownership cleanup.
 - [ ] Final boundary and diff review.
 - [ ] Push and sync.
 

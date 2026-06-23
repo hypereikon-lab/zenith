@@ -1,11 +1,15 @@
 import { getArtifact, getArtifactMediaHandle, workbench } from "../artifacts/artifact-store.svelte.js";
-import { canvasToBlob, downloadBlob, loadCanvasFromImageSource } from "../media/canvas-utils.js";
+import { canvasToBlob, downloadBlob } from "../media/canvas-utils.js";
 import { renderRgbdProxyViews } from "../graphics/rgbd-proxy-renderer.js";
-import { createPointCloudExportManifest } from "../graphics/point-cloud-export.js";
 import { reconstructProxyViewWithGptImage2 } from "../services/gpt-image-reconstruction-service.js";
 import { generateRelativeDepthWithGemini } from "../services/gemini-depth-service.js";
 import { buildCanonicalRgbdScene } from "./rgbd-scene-builder.js";
-import { applyInverseDepthAlignment, fitInverseDepthAlignment, grayscaleToDepthMeters, type DepthAlignmentSample } from "./depth-alignment.js";
+import {
+  applyInverseDepthAlignment,
+  fitInverseDepthAlignment,
+  grayscaleToDepthMeters,
+  type DepthAlignmentSample,
+} from "./depth-alignment.js";
 import { createExternalFeatureAnchorService } from "./feature-anchor-service.js";
 import { fuseReconstructedView } from "./rgbd-scene-fusion.js";
 import {
@@ -21,7 +25,16 @@ import {
   startRgbdJob,
   updateRgbdJob,
 } from "./rgbd-scene-store.svelte.js";
-import type { RgbdDepthArtifact, RgbdMediaRef, RgbdReconstructionArtifact } from "./rgbd-scene-types.js";
+import { createRgbdDepthArtifact, createRgbdReconstructionArtifact } from "./rgbd-scene-artifacts.js";
+import { createRgbdSceneExportManifest } from "./rgbd-scene-manifest.js";
+import {
+  artifactImageCanvasForRgbd,
+  revokeRgbdMediaObjectUrl,
+  rgbdImageFileToCanvas,
+  rgbdMediaRefFromFile,
+  rgbdMediaUrlToCanvas,
+  rgbdUrlToDataUrl,
+} from "./rgbd-runtime-media.js";
 
 export async function buildRgbdSceneFromWorkbench(): Promise<void> {
   try {
@@ -54,8 +67,10 @@ export async function buildRgbdSceneFromWorkbench(): Promise<void> {
 
 export async function renderSelectedRgbdProxy(): Promise<void> {
   try {
-    if (!canRenderRgbdProxy() || !rgbdLab.scene) throw new Error("Build the canonical RGBD scene before rendering a proxy.");
-    if (!rgbdCanvasHandles.sourceCanvas || !rgbdCanvasHandles.depthCanvas) throw new Error("Scene canvases are not loaded.");
+    if (!canRenderRgbdProxy() || !rgbdLab.scene)
+      throw new Error("Build the canonical RGBD scene before rendering a proxy.");
+    if (!rgbdCanvasHandles.sourceCanvas || !rgbdCanvasHandles.depthCanvas)
+      throw new Error("Scene canvases are not loaded.");
     const keyframe = getSelectedRgbdKeyframe();
     startRgbdJob("render-proxy", "Render RGBD Proxy", "Rendering WebGPU proxy views");
     const result = await renderRgbdProxyViews({
@@ -89,10 +104,11 @@ export async function renderSelectedRgbdProxy(): Promise<void> {
 export async function importRgbdReconstructionFile(file: File): Promise<void> {
   try {
     if (!rgbdLab.proxy) throw new Error("Render a proxy before importing a reconstructed view.");
-    const canvas = await imageFileToCanvas(file);
+    const canvas = await rgbdImageFileToCanvas(file);
+    const media = rgbdMediaRefFromFile(file, "Imported reconstructed proxy view");
+    revokeRgbdMediaObjectUrl(rgbdLab.reconstruction?.media);
     rgbdCanvasHandles.reconstructionCanvas = canvas;
-    const media = mediaRefFromFile(file, "Imported reconstructed proxy view");
-    rgbdLab.reconstruction = reconstructionArtifact(media, "manual-import");
+    rgbdLab.reconstruction = createRgbdReconstruction(media);
     rgbdLab.depth = null;
     rgbdLab.alignment = null;
     rgbdLab.fusedView = null;
@@ -117,8 +133,10 @@ export async function reconstructRgbdProxyWithApi(): Promise<void> {
     const output = result.outputs?.find((item) => item.dataUri || item.url);
     if (!output) throw new Error("API returned no reconstructed proxy view.");
     const url = output.dataUri || output.url || "";
-    rgbdCanvasHandles.reconstructionCanvas = await loadCanvasFromImageSource(url);
-    rgbdLab.reconstruction = reconstructionArtifact(
+    const canvas = await rgbdMediaUrlToCanvas(url);
+    revokeRgbdMediaObjectUrl(rgbdLab.reconstruction?.media);
+    rgbdCanvasHandles.reconstructionCanvas = canvas;
+    rgbdLab.reconstruction = createRgbdReconstruction(
       {
         kind: "image",
         url,
@@ -138,9 +156,11 @@ export async function reconstructRgbdProxyWithApi(): Promise<void> {
 export async function importRgbdDepthFile(file: File): Promise<void> {
   try {
     if (!rgbdLab.reconstruction) throw new Error("Import or generate a reconstructed view before adding depth.");
-    const canvas = await imageFileToCanvas(file);
+    const canvas = await rgbdImageFileToCanvas(file);
+    const media = rgbdMediaRefFromFile(file, "Imported proxy relative depth");
+    revokeRgbdMediaObjectUrl(rgbdLab.depth?.media);
     rgbdCanvasHandles.generatedDepthCanvas = canvas;
-    rgbdLab.depth = depthArtifact(mediaRefFromFile(file, "Imported proxy relative depth"), "manual import");
+    rgbdLab.depth = createRgbdDepth(media, "manual import");
     rgbdLab.alignment = null;
     rgbdLab.fusedView = null;
     setRgbdStep("align");
@@ -151,9 +171,12 @@ export async function importRgbdDepthFile(file: File): Promise<void> {
 
 export async function generateRgbdDepthWithApi(): Promise<void> {
   try {
-    if (!rgbdLab.reconstruction?.media.url) throw new Error("Import or generate a reconstructed view before depth generation.");
+    if (!rgbdLab.reconstruction?.media.url)
+      throw new Error("Import or generate a reconstructed view before depth generation.");
     startRgbdJob("generate-proxy-depth", "Generate Proxy Depth", "Preparing Gemini depth request");
-    const imageDataUrl = rgbdCanvasHandles.reconstructionCanvas?.toDataURL("image/png") || (await urlToDataUrl(rgbdLab.reconstruction.media.url));
+    const imageDataUrl =
+      rgbdCanvasHandles.reconstructionCanvas?.toDataURL("image/png") ||
+      (await rgbdUrlToDataUrl(rgbdLab.reconstruction.media.url));
     const result = await generateRelativeDepthWithGemini({
       imageDataUrl,
       prompt: rgbdLab.promptDrafts.depth,
@@ -162,8 +185,10 @@ export async function generateRgbdDepthWithApi(): Promise<void> {
     const output = result.outputs?.find((item) => item.dataUri || item.url);
     if (!output) throw new Error("API returned no depth map.");
     const url = output.dataUri || output.url || "";
-    rgbdCanvasHandles.generatedDepthCanvas = await loadCanvasFromImageSource(url);
-    rgbdLab.depth = depthArtifact(
+    const canvas = await rgbdMediaUrlToCanvas(url);
+    revokeRgbdMediaObjectUrl(rgbdLab.depth?.media);
+    rgbdCanvasHandles.generatedDepthCanvas = canvas;
+    rgbdLab.depth = createRgbdDepth(
       {
         kind: "image",
         url,
@@ -185,7 +210,11 @@ export async function alignCurrentRgbdDepth(): Promise<void> {
     if (!canAlignRgbdDepth() || !rgbdLab.proxy || !rgbdLab.depth || !rgbdLab.scene) {
       throw new Error("Proxy, reconstruction, and depth must exist before alignment.");
     }
-    if (!rgbdCanvasHandles.proxyDepthCanvas || !rgbdCanvasHandles.generatedDepthCanvas || !rgbdCanvasHandles.knownMaskCanvas) {
+    if (
+      !rgbdCanvasHandles.proxyDepthCanvas ||
+      !rgbdCanvasHandles.generatedDepthCanvas ||
+      !rgbdCanvasHandles.knownMaskCanvas
+    ) {
       throw new Error("Depth alignment requires proxy depth, generated depth, and known mask canvases.");
     }
     startRgbdJob("align-depth", "Align Depth", "Sampling reliable overlap");
@@ -240,11 +269,25 @@ export async function markFeatureAnchorsUnavailable(): Promise<void> {
 
 export async function fuseCurrentRgbdView(): Promise<void> {
   try {
-    if (!canFuseRgbdView() || !rgbdLab.scene || !rgbdLab.proxy || !rgbdLab.reconstruction || !rgbdLab.depth || !rgbdLab.alignment) {
+    if (
+      !canFuseRgbdView() ||
+      !rgbdLab.scene ||
+      !rgbdLab.proxy ||
+      !rgbdLab.reconstruction ||
+      !rgbdLab.depth ||
+      !rgbdLab.alignment
+    ) {
       throw new Error("Scene, proxy, reconstruction, depth, and alignment must exist before fusion.");
     }
     startRgbdJob("fuse-view", "Fuse View", "Updating canonical RGBD scene");
-    const result = fuseReconstructedView(rgbdLab.scene, rgbdLab.proxy, rgbdLab.reconstruction, rgbdLab.depth, rgbdLab.alignment, rgbdLab.featureReport || undefined);
+    const result = fuseReconstructedView(
+      rgbdLab.scene,
+      rgbdLab.proxy,
+      rgbdLab.reconstruction,
+      rgbdLab.depth,
+      rgbdLab.alignment,
+      rgbdLab.featureReport || undefined,
+    );
     rgbdLab.scene = result.scene;
     rgbdLab.fusedView = result.fusedView;
     setRgbdStep("render");
@@ -265,7 +308,7 @@ export function downloadRgbdSceneManifest(): void {
     recordRgbdError("Build the RGBD scene before exporting a scene manifest.");
     return;
   }
-  const manifest = {
+  const manifest = createRgbdSceneExportManifest({
     scene: rgbdLab.scene,
     cameraPath: rgbdLab.cameraPath,
     selectedKeyframeId: rgbdLab.selectedKeyframeId,
@@ -275,43 +318,33 @@ export function downloadRgbdSceneManifest(): void {
     alignment: rgbdLab.alignment,
     featureReport: rgbdLab.featureReport,
     fusedView: rgbdLab.fusedView,
-    splatCandidate: createPointCloudExportManifest(rgbdLab.scene),
-  };
+  });
   const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: "application/json" });
   downloadBlob(blob, `zenith-rgbd-scene-${Date.now()}.json`);
 }
 
-function reconstructionArtifact(media: RgbdMediaRef, model: RgbdReconstructionArtifact["model"]): RgbdReconstructionArtifact {
+function createRgbdReconstruction(
+  media: Parameters<typeof createRgbdReconstructionArtifact>[0]["media"],
+  model: Parameters<typeof createRgbdReconstructionArtifact>[0]["model"] = "manual-import",
+) {
   if (!rgbdLab.proxy) throw new Error("Proxy is missing.");
-  return {
-    id: `reconstruction-${rgbdLab.proxy.id}`,
+  return createRgbdReconstructionArtifact({
     proxyId: rgbdLab.proxy.id,
-    label: "Reconstructed Proxy View",
-    status: "ready",
     media,
     prompt: rgbdLab.promptDrafts.reconstruct,
     model,
-    createdAt: new Date().toISOString(),
-    warnings: model === "manual-import" ? ["Manual import bypassed paid API; verify it preserves the proxy camera geometry."] : [],
-  };
+  });
 }
 
-function depthArtifact(media: RgbdMediaRef, sourceLabel: string): RgbdDepthArtifact {
+function createRgbdDepth(media: Parameters<typeof createRgbdDepthArtifact>[0]["media"], sourceLabel: string) {
   if (!rgbdLab.reconstruction || !rgbdLab.scene) throw new Error("Reconstruction and scene are required.");
-  return {
-    id: `depth-${rgbdLab.reconstruction.id}`,
+  return createRgbdDepthArtifact({
     reconstructionId: rgbdLab.reconstruction.id,
-    label: "Proxy Relative Depth",
-    status: "ready",
     media,
     prompt: rgbdLab.promptDrafts.depth,
-    convention: {
-      ...rgbdLab.scene.depthConvention,
-      source: sourceLabel.includes("Gemini") ? "gemini-relative" : "imported-relative",
-    },
-    createdAt: new Date().toISOString(),
-    warnings: ["Depth is a relative dense prior and must be aligned before fusion."],
-  };
+    depthConvention: rgbdLab.scene.depthConvention,
+    sourceLabel,
+  });
 }
 
 function sampleDepthAlignmentPairs(input: {
@@ -396,46 +429,7 @@ function luma(data: Uint8ClampedArray, index: number): number {
 }
 
 async function artifactCanvas(artifactId: "start-state" | "start-depth"): Promise<HTMLCanvasElement> {
-  const artifact = getArtifact(artifactId);
-  if (artifact.media.kind !== "image" && artifact.media.kind !== "canvas") {
-    throw new Error(`${artifact.label} must be an image artifact for RGBD scene expansion.`);
-  }
-  const handle = getArtifactMediaHandle(artifactId);
-  if (handle?.canvas) return handle.canvas;
-  if (handle?.blob) return loadCanvasFromImageSource(await blobToDataUrl(handle.blob));
-  if (artifact.media.blob) return loadCanvasFromImageSource(await blobToDataUrl(artifact.media.blob));
-  if (!artifact.media.url) throw new Error(`${artifact.label} has no readable media.`);
-  return loadCanvasFromImageSource(artifact.media.url);
-}
-
-async function imageFileToCanvas(file: File): Promise<HTMLCanvasElement> {
-  return loadCanvasFromImageSource(await blobToDataUrl(file));
-}
-
-function mediaRefFromFile(file: File, alt: string): RgbdMediaRef {
-  return {
-    kind: "image",
-    url: URL.createObjectURL(file),
-    name: file.name,
-    mime: file.type || "image/png",
-    alt,
-  };
-}
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error || new Error("Could not read blob."));
-    reader.readAsDataURL(blob);
-  });
-}
-
-async function urlToDataUrl(url: string): Promise<string> {
-  if (url.startsWith("data:")) return url;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error("Could not fetch RGBD media.");
-  return blobToDataUrl(await response.blob());
+  return artifactImageCanvasForRgbd(getArtifact(artifactId), getArtifactMediaHandle(artifactId));
 }
 
 function handleError(error: unknown, jobId: string): void {
