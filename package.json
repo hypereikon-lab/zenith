@@ -8,6 +8,8 @@
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "start": "node build",
+    "smoke:prod": "npm run build && node scripts/smoke-adapter-node.mjs",
+    "smoke:prod:built": "node scripts/smoke-adapter-node.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",

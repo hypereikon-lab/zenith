@@ -90,6 +90,7 @@ Portable snapshots and job contracts do not store runtime handles. Browser media
 
 The Runway/Codex server boundary is split by responsibility:
 
+- `src/lib/server/status.ts`: neutral app/runtime status for adapter-node smoke checks. It does not read secrets, inspect browser capabilities, or call upstream services.
 - `src/lib/server/runway/types.ts`: shared API, progress, task, and media types.
 - `src/lib/server/runway/schemas.ts`: Zod schemas for browser-to-server request payloads.
 - `src/lib/server/runway/config.ts`: private environment reads, model names, defaults, timeouts, and prompt-pack paths.
@@ -183,6 +184,14 @@ Codex prompt planning is also server-only:
 Private environment reads happen only in `src/lib/server/runway/config.ts` through SvelteKit's `$env/dynamic/private` module. Browser modules must not import server modules or read private environment variables. Public, browser-safe values would need a `PUBLIC_` prefix, but this project currently keeps Runway/Codex configuration private.
 
 In development, Vite/SvelteKit loads `.env.local`. In production, the adapter-node server reads from the process environment, so deployment systems must inject `RUNWAYML_API_SECRET` and any optional Codex/Seedance variables before `npm run start`.
+
+## Production Demonstrability
+
+`GET /api/status` is the neutral app health endpoint for local adapter-node smoke checks. It reports only app/runtime readiness: service name, adapter/runtime identity, `ok: true`, and a timestamp. It intentionally does not report Runway/Codex readiness, prompt-pack availability, browser graphics capabilities, database state, worker state, or queue state.
+
+`GET /api/runway/status` remains the integration-specific status endpoint for local Runway configuration. It may report whether a key is configured, but it does not validate the key with an upstream request.
+
+`npm run smoke:prod` is the production-demo command. It runs `npm run build`, starts `node build` on a local random port with known paid-service env vars and asserted Runway status override vars removed from the runtime child process, probes `/api/status`, `/api/runway/status`, and `/`, then shuts the server down. This demonstrates the current adapter-node deployment path without adding storage, queues, auth, hosted observability, or paid upstream calls.
 
 ## Playwright QA
 

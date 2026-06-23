@@ -43,6 +43,18 @@ Open the printed local URL, usually `http://127.0.0.1:5173/`. SvelteKit serves b
 
 For the full routing, server-only module, shared-contract, streaming, and data-handling boundary, see `docs/sveltekit-architecture.md`. For the longer-term durable project/job/asset target, see `docs/ultimate-architecture-roadmap.md`.
 
+## Local Production Smoke
+
+Use this when you need to demonstrate the built Node adapter path rather than the Vite dev server:
+
+```sh
+npm run smoke:prod
+```
+
+The smoke command builds the app, starts `node build` on a local random port with known paid-service environment variables removed from that runtime child process, requests `/api/status`, `/api/runway/status`, and `/`, then shuts the server down. It does not require a Runway key and does not call paid generation routes.
+
+This proves Zenith is production-demonstrable as a local single-user SvelteKit adapter-node app. It does not claim durable project storage, resumable jobs after restart, queues, workers, auth, quotas, multi-process deployment, or hosted observability.
+
 ## Environment
 
 - `RUNWAYML_API_SECRET`: server-side Runway API key.
@@ -63,6 +75,7 @@ npm run lint
 npm test
 npm run test:e2e
 npm run build
+npm run smoke:prod
 npm run start
 ```
 
