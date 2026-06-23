@@ -173,10 +173,10 @@ Deferred:
 
 # Plate Sketch Editor Session Ownership
 
-Status: active
+Status: complete
 Roadmap phase: Phase 2 continuation: thin UI and browser engine ownership
 Baseline commit: 4f9c2dbc432d0d2944cfa00c6896e453f732a865
-Last updated: 2026-06-23 11:55 America/Santiago
+Last updated: 2026-06-23 12:05 America/Santiago
 
 ## Goal
 
@@ -303,9 +303,9 @@ Rollback is straightforward: revert the Plate Sketch session commit because no e
 - [x] Preview session extracted and tested.
 - [x] `PlateSketchEditor.svelte` updated.
 - [x] Targeted verification complete.
-- [ ] Full verification complete.
-- [ ] Final read-only review complete.
-- [ ] Commit and push complete.
+- [x] Full verification complete.
+- [x] Final read-only review complete.
+- [x] Commit and push complete.
 
 ## Decisions and discoveries
 
@@ -324,10 +324,39 @@ Rollback is straightforward: revert the Plate Sketch session commit because no e
   - `npm test -- src/graphics/projection-preview-render-uniforms.test.ts src/graphics/projection-preview-uniforms.test.ts src/graphics/shaders.test.ts src/geometry/projection-shader-parity.test.ts src/plates/plate-sketch-preview-session.test.ts src/plates/plate-gpu-compositor.test.ts src/architecture/import-boundaries.test.ts`
   - `npm run typecheck`
   - `npm run lint`
+- Final reviewer found a lifecycle bug where `renderHandoffCanvas` could call `renderToCanvas` on a renderer that resolved after session teardown. Commit `572d7a4` fixed this and added a regression test.
+- Final boundary audit found no material boundary issues. It confirmed that browser runtime APIs remain under `src/plates`/`src/graphics`, no server/routes/shared files changed, and runtime media fields in `plate-sketch-commit.ts` are explicitly null in portable artifact media.
+- Final full verification passed after reviewer fixes:
+  - `npm run typecheck`
+  - `npm run lint`
+  - `npm test` passed with 56 files and 297 tests.
+  - `npm run build` passed with existing Vite large-client-chunk and plugin-timing warnings.
+  - `npm run test:e2e` passed with 4 Playwright tests.
+  - `npm run smoke:prod:built` passed.
+  - `git diff --check`
+  - `npx prettier --check docs/codex/plans/2026-06-23-domain-engine-remodularization.md src/plates/plate-sketch-arrangement.ts src/plates/plate-sketch-arrangement.test.ts src/plates/plate-sketch-commit.ts src/plates/plate-sketch-commit.test.ts src/plates/plate-sketch-preview-session.ts src/plates/plate-sketch-preview-session.test.ts src/plates/plate-sketch-sources.ts src/graphics/projection-preview-render-uniforms.ts src/graphics/projection-preview-render-uniforms.test.ts src/graphics/source-map-preview-renderer.ts src/plates/plate-sketch-gpu-renderer.ts`
+- Commits pushed on `codex/plate-sketch-session-ownership`:
+  - `80cd66e refactor: isolate plate sketch preview session`
+  - `28829b9 refactor: centralize projection preview uniform assembly`
+  - `572d7a4 fix: guard plate sketch handoff after teardown`
 
 ## Final result
 
-Pending.
+Delivered:
+
+- Added `src/plates/plate-sketch-sources.ts` as the browser-owned plate source loader/downscaler for default references and selected image files.
+- Added `src/plates/plate-sketch-arrangement.ts` for default placement selection, active default index, placement serialization, and warped-corner counting.
+- Added `src/plates/plate-sketch-commit.ts` for browser artifact-store payload construction without mutating the store or rendering.
+- Added `src/plates/plate-sketch-preview-session.ts` for lazy `PlateSketchGpuRenderer` creation, preview frame scheduling, render option construction, handoff canvas rendering, and deterministic teardown.
+- Updated `src/ui/PlateSketchEditor.svelte` to keep UI state, markup, controls, pointer/camera/guide intent, overlay drawing, and artifact-store mutation application while delegating source/session/commit ownership.
+- Added `src/graphics/projection-preview-render-uniforms.ts` so source-map preview and plate sketch preview assemble the projection-preview uniform ABI through one owner.
+- Added focused tests for arrangement/commit metadata, preview session lifecycle, late teardown handoff guarding, and projection render uniform assembly.
+
+Deferred:
+
+- Pointer hit testing, drag mutation, and overlay drawing remain in `PlateSketchEditor.svelte` because they are tightly coupled to direct canvas UI interaction and were not necessary for this verified ownership slice.
+- RGBD scene command ownership and object URL manifest portability remain deferred to a separate browser-command/effect slice.
+- Depth renderer explicit cleanup remains a potential separate narrow slice; it was not mixed into this Plate Sketch/projection-preview work.
 
 ---
 
