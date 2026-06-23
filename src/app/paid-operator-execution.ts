@@ -1,15 +1,15 @@
 import {
-  addArtifactResult,
   finishJob,
   getArtifact,
   getArtifactMediaHandle,
+  replaceArtifactMedia,
   selectArtifact,
   startJob,
-  updateArtifact,
   updateJob,
   workbench,
 } from "../artifacts/artifact-store.svelte.js";
 import type { ArtifactMedia, ArtifactSlotId, OperatorId } from "../artifacts/artifact-types.js";
+import { readArtifactMediaAsDataUrl } from "../artifacts/artifact-runtime-media.js";
 import { requestRunwayDepthMap, requestRunwayInpaint, requestRunwaySeedanceVideo } from "../runway/client.js";
 import type { RunwayStreamResult } from "../runway/client.js";
 import { getOperator } from "./operator-registry.js";
@@ -140,16 +140,19 @@ function applyImageResult(
     file: null,
     canvas: null,
   };
-  updateArtifact(artifactId, {
-    status: "ready",
-    stale: false,
-    summary: `${label} ready from ${result.model || "API"}.`,
-    operatorId,
-    prompt,
-    media,
-    warnings: [],
+  replaceArtifactMedia(artifactId, {
+    patch: {
+      status: "ready",
+      stale: false,
+      summary: `${label} ready from ${result.model || "API"}.`,
+      operatorId,
+      prompt,
+      media,
+      warnings: [],
+    },
+    handle: { blob: null, file: null, canvas: null },
+    result: { label, media, prompt, operatorId },
   });
-  addArtifactResult(artifactId, { label, media, prompt, operatorId });
   finishJob(operatorId, "Complete");
   selectArtifact(artifactId);
 }
@@ -173,40 +176,23 @@ function applyVideoResult(
     file: null,
     canvas: null,
   };
-  updateArtifact(artifactId, {
-    status: "ready",
-    stale: false,
-    summary: `${label} ready from ${result.model || "Seedance"}.`,
-    operatorId,
-    prompt,
-    media,
-    warnings: [],
+  replaceArtifactMedia(artifactId, {
+    patch: {
+      status: "ready",
+      stale: false,
+      summary: `${label} ready from ${result.model || "Seedance"}.`,
+      operatorId,
+      prompt,
+      media,
+      warnings: [],
+    },
+    handle: { blob: null, file: null, canvas: null },
+    result: { label, media, prompt, operatorId },
   });
-  addArtifactResult(artifactId, { label, media, prompt, operatorId });
   finishJob(operatorId, "Complete");
   selectArtifact(artifactId);
 }
 
 async function mediaToDataUrl(artifactId: ArtifactSlotId): Promise<string> {
-  const media = getArtifact(artifactId).media;
-  const handle = getArtifactMediaHandle(artifactId);
-  if (media.kind === "none") throw new Error("Artifact has no media.");
-  if (media.url?.startsWith("data:")) return media.url;
-  if (handle?.canvas) return handle.canvas.toDataURL("image/png");
-  if (handle?.blob) return blobToDataUrl(handle.blob);
-  if (media.blob) return blobToDataUrl(media.blob);
-  if (!media.url) throw new Error("Artifact media is missing a URL.");
-  const response = await fetch(media.url);
-  if (!response.ok) throw new Error(`Could not read artifact media: ${media.name || media.url}`);
-  const blob = await response.blob();
-  return blobToDataUrl(blob);
-}
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error || new Error("Could not read blob."));
-    reader.readAsDataURL(blob);
-  });
+  return readArtifactMediaAsDataUrl(getArtifact(artifactId), getArtifactMediaHandle(artifactId));
 }

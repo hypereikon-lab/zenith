@@ -8,6 +8,7 @@ import {
   setProjectionProfile,
   workbench,
 } from "../artifacts/artifact-store.svelte.js";
+import { toPortableArtifactMedia, toRuntimeArtifactMedia } from "../artifacts/artifact-runtime-media.js";
 import type {
   ArtifactMedia,
   ArtifactRecord,
@@ -88,7 +89,6 @@ function applyProjectSnapshot(snapshot: ProjectSnapshotV1): void {
     restored[id as ArtifactSlotId] = toRuntimeArtifactRecord(snapshot.artifacts[id]);
   }
 
-  const oldObjectUrls = collectRuntimeObjectUrls();
   for (const id of PROJECT_ARTIFACT_SLOT_IDS) {
     setArtifactMediaHandle(id as ArtifactSlotId, { blob: null, file: null, canvas: null });
   }
@@ -111,7 +111,6 @@ function applyProjectSnapshot(snapshot: ProjectSnapshotV1): void {
   setProjectionProfile(snapshot.projectionProfile);
   workbench.selectedStageId = snapshot.selectedStageId as WorkflowStageId;
   selectArtifact(snapshot.selectedArtifactId as ArtifactSlotId);
-  revokeObjectUrls(oldObjectUrls);
 }
 
 async function serializeArtifactRecord(artifact: ArtifactRecord): Promise<ProjectArtifactRecordV1> {
@@ -156,50 +155,7 @@ async function serializableMedia(
   media: ArtifactMedia,
   preferLiveHandle: boolean,
 ): Promise<ProjectArtifactMediaV1> {
-  const cleanMedia = toPortableMedia(media);
-  if (media.kind === "none") return cleanMedia;
-  if (media.url?.startsWith("data:")) return cleanMedia;
-
-  const handle = getArtifactMediaHandle(artifactId);
-  if (preferLiveHandle && handle?.canvas) {
-    return { ...cleanMedia, kind: "image", url: handle.canvas.toDataURL("image/png"), mime: "image/png" };
-  }
-  if (preferLiveHandle && handle?.blob) {
-    return { ...cleanMedia, url: await blobToDataUrl(handle.blob), mime: handle.blob.type || cleanMedia.mime };
-  }
-  if (media.canvas) {
-    return { ...cleanMedia, kind: "image", url: media.canvas.toDataURL("image/png"), mime: "image/png" };
-  }
-  if (media.blob) {
-    return { ...cleanMedia, url: await blobToDataUrl(media.blob), mime: media.blob.type || cleanMedia.mime };
-  }
-  if (!media.url) return cleanMedia;
-
-  try {
-    const response = await fetch(media.url);
-    if (!response.ok) return withoutRuntimeObjectUrl(cleanMedia);
-    const blob = await response.blob();
-    return { ...cleanMedia, url: await blobToDataUrl(blob), mime: blob.type || cleanMedia.mime };
-  } catch {
-    return withoutRuntimeObjectUrl(cleanMedia);
-  }
-}
-
-function toPortableMedia(media: ArtifactMedia): ProjectArtifactMediaV1 {
-  const kind = media.kind === "canvas" ? "image" : media.kind;
-  return compactOptional({
-    kind,
-    url: media.url,
-    name: media.name,
-    mime: media.mime,
-    alt: media.alt,
-  });
-}
-
-function withoutRuntimeObjectUrl(media: ProjectArtifactMediaV1): ProjectArtifactMediaV1 {
-  if (!media.url?.startsWith("blob:")) return media;
-  const { url: _url, ...rest } = media;
-  return rest;
+  return toPortableArtifactMedia(media, getArtifactMediaHandle(artifactId), { preferLiveHandle });
 }
 
 function toRuntimeArtifactRecord(artifact: ProjectArtifactRecordV1): ArtifactRecord {
@@ -238,50 +194,11 @@ function toRuntimeArtifactResult(result: ProjectArtifactResultV1): ArtifactResul
 }
 
 function toRuntimeMedia(media: ProjectArtifactMediaV1): ArtifactMedia {
-  return {
-    ...media,
-    blob: null,
-    file: null,
-    canvas: null,
-  } as ArtifactMedia;
-}
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error || new Error("Could not read blob."));
-    reader.readAsDataURL(blob);
-  });
+  return toRuntimeArtifactMedia(media);
 }
 
 function jsonClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
-}
-
-function collectRuntimeObjectUrls(): string[] {
-  const urls = new Set<string>();
-  for (const artifact of Object.values(workbench.artifacts)) {
-    addObjectUrl(urls, artifact.media.url);
-    for (const result of artifact.results) {
-      addObjectUrl(urls, result.media.url);
-    }
-  }
-  addObjectUrl(urls, workbench.mediaPreview.media.url);
-  return [...urls];
-}
-
-function addObjectUrl(urls: Set<string>, url: string | undefined): void {
-  if (url?.startsWith("blob:")) {
-    urls.add(url);
-  }
-}
-
-function revokeObjectUrls(urls: readonly string[]): void {
-  if (typeof URL === "undefined" || typeof URL.revokeObjectURL !== "function") return;
-  for (const url of urls) {
-    URL.revokeObjectURL(url);
-  }
 }
 
 function compactOptional<T extends Record<string, unknown>>(value: T): T {

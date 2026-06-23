@@ -18,7 +18,7 @@ export type PlateSketchCommitInput = {
 };
 
 export type PlateSketchCommitPayload = {
-  artifactPatch: Partial<Omit<ArtifactRecord, "id" | "type">>;
+  artifactPatch: Partial<Omit<ArtifactRecord, "id" | "type" | "media">> & Pick<ArtifactRecord, "media">;
   result: Omit<ArtifactResult, "id" | "createdAt">;
   status: string;
   serializedPlacements: SerializedPlatePlacement[];

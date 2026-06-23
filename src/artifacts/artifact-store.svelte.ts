@@ -3,25 +3,27 @@ import type {
   ArtifactRecord,
   ArtifactResult,
   ArtifactSlotId,
+  ArtifactMediaHandle,
   JobState,
   PendingPaidAction,
   QcItem,
   WorkflowStage,
   WorkflowStageId,
 } from "./artifact-types.js";
+import { transitiveDependentArtifactIds } from "./artifact-dependencies.js";
+import { collectObjectUrlsFromArtifacts, revokeObjectUrls } from "./artifact-runtime-media.js";
 import { inpaintPromptForProjection } from "../inpaint/inpaint-prompts.js";
 import { DOME_HANDOFF_GUIDE } from "../geometry/dome-handoff-guide.js";
 import { defaultSourceGuideCarrierHorizonRadius } from "../geometry/source-guide-semantics.js";
 import type { SourceProjectionMode } from "../geometry/source-projection.js";
-import { PROJECT_ARTIFACT_INPUTS_BY_ID, PROJECT_ARTIFACT_STAGE_BY_ID } from "../lib/shared/contracts/artifact-topology.js";
+import {
+  PROJECT_ARTIFACT_INPUTS_BY_ID,
+  PROJECT_ARTIFACT_STAGE_BY_ID,
+} from "../lib/shared/contracts/artifact-topology.js";
 
-export type ArtifactMediaHandle = {
-  blob?: Blob | null;
-  file?: File | null;
-  canvas?: HTMLCanvasElement | null;
-};
-
-const DEFAULT_PLATE_SKETCH = "/default-plates/hypereikon_httpss.mj.runH1b_6iuqGYI_httpss.mj.rungE7F-sXgL5s_ht_b8d28ad8-33c1-4c3e-8099-385dddae3428.png";
+const DEFAULT_PLATE_SKETCH =
+  "/default-plates/hypereikon_httpss.mj.runH1b_6iuqGYI_httpss.mj.rungE7F-sXgL5s_ht_b8d28ad8-33c1-4c3e-8099-385dddae3428.png";
+const STALE_INPUT_WARNING = "Input artifact changed after this result was produced.";
 
 export const WORKFLOW_STAGES: WorkflowStage[] = [
   {
@@ -199,17 +201,18 @@ export function artifactInputsReady(artifact: Pick<ArtifactRecord, "inputs">): b
   return artifact.inputs.every(artifactIsReady);
 }
 
-export function updateArtifact(
-  artifactId: ArtifactSlotId,
-  patch: Partial<Omit<ArtifactRecord, "id" | "type">>,
-): void {
+export function updateArtifact(artifactId: ArtifactSlotId, patch: Partial<Omit<ArtifactRecord, "id" | "type">>): void {
+  const oldUrls = patch.media ? collectWorkbenchObjectUrls() : [];
   const artifact = getArtifact(artifactId);
   Object.assign(artifact, patch, { updatedAt: now() });
   markDownstreamStale(artifactId);
+  if (oldUrls.length > 0) revokeObjectUrlsNoLongerInUse(oldUrls);
 }
 
 export function replaceArtifacts(artifacts: Record<ArtifactSlotId, ArtifactRecord>): void {
+  const oldUrls = collectWorkbenchObjectUrls();
   workbench.artifacts = artifacts;
+  revokeObjectUrlsNoLongerInUse(oldUrls);
 }
 
 export function replaceQcItems(qcItems: QcItem[]): void {
@@ -218,16 +221,33 @@ export function replaceQcItems(qcItems: QcItem[]): void {
 
 export function addArtifactResult(artifactId: ArtifactSlotId, result: Omit<ArtifactResult, "id" | "createdAt">): void {
   const artifact = getArtifact(artifactId);
-  artifact.results.forEach((item) => {
-    item.selected = false;
-  });
-  artifact.results.unshift({
-    ...result,
-    id: `${artifactId}-result-${Date.now()}`,
-    createdAt: now(),
-    selected: true,
-  });
+  prependArtifactResult(artifact, artifactId, result);
   artifact.updatedAt = now();
+}
+
+export function replaceArtifactMedia(
+  artifactId: ArtifactSlotId,
+  {
+    patch,
+    handle,
+    result,
+  }: {
+    patch: Partial<Omit<ArtifactRecord, "id" | "type">> & Pick<ArtifactRecord, "media">;
+    handle?: ArtifactMediaHandle;
+    result?: Omit<ArtifactResult, "id" | "createdAt">;
+  },
+): void {
+  const oldUrls = collectWorkbenchObjectUrls();
+  const artifact = getArtifact(artifactId);
+  Object.assign(artifact, patch, { updatedAt: now() });
+  if (handle !== undefined) {
+    setArtifactMediaHandle(artifactId, handle);
+  }
+  if (result) {
+    prependArtifactResult(artifact, artifactId, result);
+  }
+  markDownstreamStale(artifactId);
+  revokeObjectUrlsNoLongerInUse(oldUrls);
 }
 
 export function selectArtifactResult(artifactId: ArtifactSlotId, resultId: string): void {
@@ -274,17 +294,32 @@ export function recordWorkbenchError(message: string, scope?: string): void {
 }
 
 export function setMediaPreview(media: ArtifactMedia, summary: string): void {
+  const oldUrls = collectWorkbenchObjectUrls();
   workbench.mediaPreview.media = media;
   workbench.mediaPreview.summary = summary;
   workbench.mediaPreview.updatedAt = now();
   workbench.surfaceMode = "media-preview";
+  revokeObjectUrlsNoLongerInUse(oldUrls);
+}
+
+export function replaceMediaPreview(media: ArtifactMedia, summary: string, handle: ArtifactMediaHandle): void {
+  const oldUrls = collectWorkbenchObjectUrls();
+  workbench.mediaPreview.media = media;
+  workbench.mediaPreview.summary = summary;
+  workbench.mediaPreview.updatedAt = now();
+  setMediaPreviewHandle(handle);
+  workbench.surfaceMode = "media-preview";
+  revokeObjectUrlsNoLongerInUse(oldUrls);
 }
 
 export function clearMediaPreview(): void {
+  const oldUrls = collectWorkbenchObjectUrls();
   workbench.mediaPreview.media = { kind: "none", blob: null, file: null, canvas: null };
-  workbench.mediaPreview.summary = "Drop an outside generation here to inspect it through the selected projection geometry.";
+  workbench.mediaPreview.summary =
+    "Drop an outside generation here to inspect it through the selected projection geometry.";
   workbench.mediaPreview.updatedAt = now();
   setMediaPreviewHandle({ blob: null, file: null, canvas: null });
+  revokeObjectUrlsNoLongerInUse(oldUrls);
 }
 
 export function setDropActive(active: boolean, depth = 0): void {
@@ -293,14 +328,40 @@ export function setDropActive(active: boolean, depth = 0): void {
 }
 
 function markDownstreamStale(changed: ArtifactSlotId): void {
-  for (const artifact of Object.values(workbench.artifacts)) {
-    if (!artifact.inputs.includes(changed)) continue;
-    if (artifact.status === "ready" || artifact.status === "done") {
+  for (const artifactId of transitiveDependentArtifactIds(changed)) {
+    const artifact = workbench.artifacts[artifactId];
+    if (artifact.status === "ready" || artifact.status === "done" || artifact.status === "warning") {
       artifact.stale = true;
       artifact.status = "stale";
-      artifact.warnings = [...new Set([...artifact.warnings, "Input artifact changed after this result was produced."])];
+      artifact.warnings = [...new Set([...artifact.warnings, STALE_INPUT_WARNING])];
     }
   }
+}
+
+function prependArtifactResult(
+  artifact: ArtifactRecord,
+  artifactId: ArtifactSlotId,
+  result: Omit<ArtifactResult, "id" | "createdAt">,
+): void {
+  artifact.results.forEach((item) => {
+    item.selected = false;
+  });
+  artifact.results.unshift({
+    ...result,
+    id: `${artifactId}-result-${Date.now()}`,
+    createdAt: now(),
+    selected: true,
+  });
+}
+
+function collectWorkbenchObjectUrls(): string[] {
+  return collectObjectUrlsFromArtifacts(Object.values(workbench.artifacts), [workbench.mediaPreview.media]);
+}
+
+function revokeObjectUrlsNoLongerInUse(oldUrls: readonly string[]): void {
+  if (oldUrls.length === 0) return;
+  const liveUrls = new Set(collectWorkbenchObjectUrls());
+  revokeObjectUrls(oldUrls.filter((url) => !liveUrls.has(url)));
 }
 
 function artifact(
@@ -407,7 +468,11 @@ function createInitialArtifacts(): Record<ArtifactSlotId, ArtifactRecord> {
   return records;
 }
 
-function seedInitialResult(records: Record<ArtifactSlotId, ArtifactRecord>, artifactId: ArtifactSlotId, label: string): void {
+function seedInitialResult(
+  records: Record<ArtifactSlotId, ArtifactRecord>,
+  artifactId: ArtifactSlotId,
+  label: string,
+): void {
   const source = records[artifactId];
   source.results = [
     {

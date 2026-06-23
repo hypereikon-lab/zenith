@@ -4,15 +4,15 @@ import {
   getArtifact,
   getMediaPreviewHandle,
   recordWorkbenchError,
+  replaceArtifactMedia,
+  replaceMediaPreview,
   selectArtifact,
   selectSurfaceMode,
-  setMediaPreview,
-  setMediaPreviewHandle,
-  setArtifactMediaHandle,
   setProjectionProfile,
   updateArtifact,
   workbench,
 } from "../artifacts/artifact-store.svelte.js";
+import { artifactMediaFromFile } from "../artifacts/artifact-runtime-media.js";
 import { getOperator } from "./operator-registry.js";
 import { inpaintPromptForProjection, shouldReplaceWithProjectionInpaintPrompt } from "../inpaint/inpaint-prompts.js";
 import { downloadBlob } from "../media/canvas-utils.js";
@@ -46,87 +46,75 @@ export function installPlateSketchCommitHandler(handler: (() => Promise<void>) |
 }
 
 export async function importPlateSketchFile(file: File): Promise<void> {
-  const url = URL.createObjectURL(file);
-  setArtifactMediaHandle("plate-sketch", { blob: file, file, canvas: null });
-  updateArtifact("plate-sketch", {
-    status: "ready",
-    stale: false,
-    summary: `${file.name} imported as Plate Sketch inpaint handoff.`,
-    operatorId: "import-plate-sketch",
-    media: {
-      kind: "image",
-      url,
-      name: file.name,
-      mime: file.type,
-      alt: "Imported fulldome Plate Sketch composition handoff",
-      blob: null,
-      file: null,
-      canvas: null,
-    },
-    warnings: file.type.startsWith("image/") ? [] : ["Plate Sketch should be a square image handoff for inpaint."],
+  const { media, handle } = artifactMediaFromFile(file, {
+    kind: "image",
+    alt: "Imported fulldome Plate Sketch composition handoff",
   });
-  addArtifactResult("plate-sketch", {
-    label: `Imported ${file.name}`,
-    media: getArtifact("plate-sketch").media,
-    operatorId: "import-plate-sketch",
+  replaceArtifactMedia("plate-sketch", {
+    patch: {
+      status: "ready",
+      stale: false,
+      summary: `${file.name} imported as Plate Sketch inpaint handoff.`,
+      operatorId: "import-plate-sketch",
+      media,
+      warnings: file.type.startsWith("image/") ? [] : ["Plate Sketch should be a square image handoff for inpaint."],
+    },
+    handle,
+    result: {
+      label: `Imported ${file.name}`,
+      media,
+      operatorId: "import-plate-sketch",
+    },
   });
   selectArtifact("plate-sketch");
 }
 
 export async function importSourceFile(file: File): Promise<void> {
-  const url = URL.createObjectURL(file);
   const kind = file.type.startsWith("video/") ? "video" : "image";
-  setArtifactMediaHandle("start-state", { blob: file, file, canvas: null });
-  updateArtifact("start-state", {
-    status: "ready",
-    stale: false,
-    summary: `${file.name} imported as already-clean Start State.`,
-    operatorId: "import-source",
-    media: {
-      kind,
-      url,
-      name: file.name,
-      mime: file.type,
-      alt: `Imported ${kind} Start State`,
-      blob: null,
-      file: null,
-      canvas: null,
-    },
-    warnings: kind === "video" ? ["Video sources should be paused/selected before paid still-image operations."] : [],
+  const { media, handle } = artifactMediaFromFile(file, {
+    kind,
+    alt: `Imported ${kind} Start State`,
   });
-  addArtifactResult("start-state", {
-    label: `Imported ${file.name}`,
-    media: getArtifact("start-state").media,
-    operatorId: "import-source",
+  replaceArtifactMedia("start-state", {
+    patch: {
+      status: "ready",
+      stale: false,
+      summary: `${file.name} imported as already-clean Start State.`,
+      operatorId: "import-source",
+      media,
+      warnings: kind === "video" ? ["Video sources should be paused/selected before paid still-image operations."] : [],
+    },
+    handle,
+    result: {
+      label: `Imported ${file.name}`,
+      media,
+      operatorId: "import-source",
+    },
   });
   selectArtifact("start-state");
 }
 
 export async function importDepthFile(artifactId: "start-depth" | "end-depth", file: File): Promise<void> {
-  const url = URL.createObjectURL(file);
   const operatorId = artifactId === "start-depth" ? "import-start-depth" : "import-end-depth";
-  setArtifactMediaHandle(artifactId, { blob: file, file, canvas: null });
-  updateArtifact(artifactId, {
-    status: "ready",
-    stale: false,
-    summary: `${file.name} imported as ${getArtifact(artifactId).label}.`,
-    operatorId,
-    media: {
-      kind: "image",
-      url,
-      name: file.name,
-      mime: file.type,
-      alt: `Imported ${getArtifact(artifactId).label}`,
-      blob: null,
-      file: null,
-      canvas: null,
-    },
-    warnings: file.type.startsWith("image/") ? [] : ["Depth maps should be image files."],
+  const { media, handle } = artifactMediaFromFile(file, {
+    kind: "image",
+    alt: `Imported ${getArtifact(artifactId).label}`,
   });
-  addArtifactResult(artifactId, {
-    label: `Imported ${file.name}`,
-    media: getArtifact(artifactId).media,
-    operatorId,
+  replaceArtifactMedia(artifactId, {
+    patch: {
+      status: "ready",
+      stale: false,
+      summary: `${file.name} imported as ${getArtifact(artifactId).label}.`,
+      operatorId,
+      media,
+      warnings: file.type.startsWith("image/") ? [] : ["Depth maps should be image files."],
+    },
+    handle,
+    result: {
+      label: `Imported ${file.name}`,
+      media,
+      operatorId,
+    },
   });
   selectArtifact(artifactId);
 }
@@ -137,20 +125,14 @@ export async function importPreviewMediaFile(file: File): Promise<void> {
     recordWorkbenchError("Drop an image or video file for Media Preview.", "media-preview");
     return;
   }
-  const url = URL.createObjectURL(file);
-  setMediaPreviewHandle({ blob: file, file, canvas: null });
-  setMediaPreview(
-    {
-      kind,
-      url,
-      name: file.name,
-      mime: file.type,
-      alt: `Imported ${kind} for projection Media Preview`,
-      blob: null,
-      file: null,
-      canvas: null,
-    },
+  const { media, handle } = artifactMediaFromFile(file, {
+    kind,
+    alt: `Imported ${kind} for projection Media Preview`,
+  });
+  replaceMediaPreview(
+    media,
     `${file.name} loaded into Media Preview. It has not changed the production artifact graph.`,
+    handle,
   );
 }
 
@@ -193,34 +175,30 @@ async function importMediaToArtifact(
     recordWorkbenchError(`${artifact.label} should be imported as a still image.`, artifactId);
     return;
   }
-  const url = URL.createObjectURL(file);
-  setArtifactMediaHandle(artifactId, { blob: file, file, canvas: null });
-  updateArtifact(artifactId, {
-    status: "ready",
-    stale: false,
-    summary: `${file.name} imported as ${artifact.label} from Media Preview.`,
-    operatorId: `import-${artifactId}`,
-    media: {
-      kind,
-      url,
-      name: file.name,
-      mime: file.type,
-      alt: `Imported ${artifact.label}`,
-      blob: null,
-      file: null,
-      canvas: null,
-    },
-    warnings:
-      artifactId === "motion-draft" && kind !== "video"
-        ? [
-            "Motion Draft is normally a video proxy. A still image can be inspected, but it will not drive video choreography.",
-          ]
-        : [],
+  const { media, handle } = artifactMediaFromFile(file, {
+    kind,
+    alt: `Imported ${artifact.label}`,
   });
-  addArtifactResult(artifactId, {
-    label: `Imported ${file.name}`,
-    media: getArtifact(artifactId).media,
-    operatorId: `import-${artifactId}`,
+  replaceArtifactMedia(artifactId, {
+    patch: {
+      status: "ready",
+      stale: false,
+      summary: `${file.name} imported as ${artifact.label} from Media Preview.`,
+      operatorId: `import-${artifactId}`,
+      media,
+      warnings:
+        artifactId === "motion-draft" && kind !== "video"
+          ? [
+              "Motion Draft is normally a video proxy. A still image can be inspected, but it will not drive video choreography.",
+            ]
+          : [],
+    },
+    handle,
+    result: {
+      label: `Imported ${file.name}`,
+      media,
+      operatorId: `import-${artifactId}`,
+    },
   });
   selectArtifact(artifactId);
 }

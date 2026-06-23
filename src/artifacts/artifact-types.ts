@@ -1,17 +1,9 @@
 import type { SourceProjectionMode } from "../geometry/source-projection.js";
+import type { ProjectArtifactSlotId, ProjectWorkflowStageId } from "../lib/shared/contracts/artifact-topology.js";
 
-export type WorkflowStageId = "start" | "motion" | "end" | "video" | "deliver";
+export type WorkflowStageId = ProjectWorkflowStageId;
 
-export type ArtifactSlotId =
-  | "plate-sketch"
-  | "start-state"
-  | "start-depth"
-  | "motion-draft"
-  | "displaced-endpoint"
-  | "end-state"
-  | "end-depth"
-  | "video-take"
-  | "deliverables";
+export type ArtifactSlotId = ProjectArtifactSlotId;
 
 export type ArtifactStatus = "missing" | "ready" | "working" | "done" | "warning" | "stale";
 
@@ -23,6 +15,12 @@ export type ArtifactMedia = {
   name?: string;
   mime?: string;
   alt?: string;
+  blob?: Blob | null;
+  file?: File | null;
+  canvas?: HTMLCanvasElement | null;
+};
+
+export type ArtifactMediaHandle = {
   blob?: Blob | null;
   file?: File | null;
   canvas?: HTMLCanvasElement | null;

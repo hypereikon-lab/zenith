@@ -9,10 +9,8 @@
   } from "../app/workbench-commands.js";
   import { DEFAULT_PLATE_REFERENCES } from "../plates/default-plate-profile.js";
   import {
-    addArtifactResult,
+    replaceArtifactMedia,
     selectArtifact,
-    setArtifactMediaHandle,
-    updateArtifact,
     workbench,
   } from "../artifacts/artifact-store.svelte.js";
   import { visiblePlateUvBounds } from "../geometry/flat-domemaster.js";
@@ -584,9 +582,11 @@
       projectionProfile: workbench.projectionProfile,
       commitSize: COMMIT_SIZE,
     });
-    setArtifactMediaHandle("plate-sketch", { canvas: handoff });
-    updateArtifact("plate-sketch", commit.artifactPatch);
-    addArtifactResult("plate-sketch", commit.result);
+    replaceArtifactMedia("plate-sketch", {
+      patch: commit.artifactPatch,
+      handle: { canvas: handoff },
+      result: commit.result,
+    });
     selectArtifact("plate-sketch");
     renderStatus = commit.status;
   }

@@ -1,16 +1,15 @@
 import {
-  addArtifactResult,
   finishJob,
   getArtifact,
   getArtifactMediaHandle,
+  replaceArtifactMedia,
   selectArtifact,
-  setArtifactMediaHandle,
   startJob,
-  updateArtifact,
   updateJob,
   workbench,
 } from "../artifacts/artifact-store.svelte.js";
 import type { ArtifactMedia, ArtifactSlotId, OperatorId } from "../artifacts/artifact-types.js";
+import { readArtifactMediaAsDataUrl } from "../artifacts/artifact-runtime-media.js";
 import { downloadBlob } from "../media/canvas-utils.js";
 import {
   exportableDepthMotionConfig,
@@ -67,20 +66,22 @@ async function createMotionDraft(operatorId: OperatorId): Promise<void> {
     file: null,
     canvas: null,
   };
-  setArtifactMediaHandle("motion-draft", { blob: result.blob, file: null, canvas: null });
-  updateArtifact("motion-draft", {
-    status: "ready",
-    stale: false,
-    summary: "Real local WebGPU 2.5D motion proxy ready. This is still a guide, not final production quality.",
-    operatorId,
-    config: exportableDepthMotionConfig(workbench.motionConfig as DepthMotionWorkbenchConfig),
-    media,
-    warnings: ["Motion Draft is a spatial guide/proxy, not a final production render."],
-  });
-  addArtifactResult("motion-draft", {
-    label: `2.5D proxy ${result.settings.frameCount} frames`,
-    media,
-    operatorId,
+  replaceArtifactMedia("motion-draft", {
+    patch: {
+      status: "ready",
+      stale: false,
+      summary: "Real local WebGPU 2.5D motion proxy ready. This is still a guide, not final production quality.",
+      operatorId,
+      config: exportableDepthMotionConfig(workbench.motionConfig as DepthMotionWorkbenchConfig),
+      media,
+      warnings: ["Motion Draft is a spatial guide/proxy, not a final production render."],
+    },
+    handle: { blob: result.blob, file: null, canvas: null },
+    result: {
+      label: `2.5D proxy ${result.settings.frameCount} frames`,
+      media,
+      operatorId,
+    },
   });
   finishJob(operatorId, "Complete");
   selectArtifact("motion-draft");
@@ -107,20 +108,22 @@ async function createDisplacedEndpoint(operatorId: OperatorId): Promise<void> {
     file: null,
     canvas: null,
   };
-  setArtifactMediaHandle("displaced-endpoint", { blob: result.blob, file: null, canvas: result.canvas });
-  updateArtifact("displaced-endpoint", {
-    status: "ready",
-    stale: false,
-    summary: "Displaced endpoint captured from the real local 2.5D depth-motion engine.",
-    operatorId,
-    config: exportableDepthMotionConfig(workbench.motionConfig as DepthMotionWorkbenchConfig),
-    media,
-    warnings: ["Endpoint is structurally useful but should be reconstructed before video generation."],
-  });
-  addArtifactResult("displaced-endpoint", {
-    label: "Captured 2.5D endpoint",
-    media,
-    operatorId,
+  replaceArtifactMedia("displaced-endpoint", {
+    patch: {
+      status: "ready",
+      stale: false,
+      summary: "Displaced endpoint captured from the real local 2.5D depth-motion engine.",
+      operatorId,
+      config: exportableDepthMotionConfig(workbench.motionConfig as DepthMotionWorkbenchConfig),
+      media,
+      warnings: ["Endpoint is structurally useful but should be reconstructed before video generation."],
+    },
+    handle: { blob: result.blob, file: null, canvas: result.canvas },
+    result: {
+      label: "Captured 2.5D endpoint",
+      media,
+      operatorId,
+    },
   });
   finishJob(operatorId, "Complete");
   selectArtifact("displaced-endpoint");
@@ -131,27 +134,13 @@ async function artifactImageCanvas(artifactId: ArtifactSlotId): Promise<HTMLCanv
   if (artifact.media.kind !== "image" && artifact.media.kind !== "canvas") {
     throw new Error(`${artifact.label} must be an image artifact for local depth-motion.`);
   }
-  const handle = getArtifactMediaHandle(artifactId);
-  if (handle?.canvas) return handle.canvas;
-  if (handle?.blob) return imageArtifactUrlToCanvas(await blobToDataUrl(handle.blob));
-  if (artifact.media.blob) return imageArtifactUrlToCanvas(await blobToDataUrl(artifact.media.blob));
-  if (!artifact.media.url) throw new Error(`${artifact.label} has no readable media.`);
-  return imageArtifactUrlToCanvas(artifact.media.url);
+  return imageArtifactUrlToCanvas(await readArtifactMediaAsDataUrl(artifact, getArtifactMediaHandle(artifactId)));
 }
 
 function exportMotionConfig(): void {
   const config = exportableDepthMotionConfig(workbench.motionConfig as DepthMotionWorkbenchConfig);
   const blob = new Blob([JSON.stringify(config, null, 2)], { type: "application/json" });
   downloadBlob(blob, `zenith-depth-motion-config-${Date.now()}.json`);
-}
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error || new Error("Could not read blob."));
-    reader.readAsDataURL(blob);
-  });
 }
 
 async function downloadArtifactMedia(artifactId: ArtifactSlotId, filename: string): Promise<void> {

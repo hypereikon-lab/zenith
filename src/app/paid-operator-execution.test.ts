@@ -205,7 +205,9 @@ describe("paid operator execution", () => {
       progress: 0.01,
       busy: true,
     });
-    await Promise.resolve();
+    for (let index = 0; index < 10 && vi.mocked(requestRunwayInpaint).mock.calls.length === 0; index += 1) {
+      await Promise.resolve();
+    }
     expect(requestRunwayInpaint).toHaveBeenCalledTimes(1);
 
     onProgress("Uploading", 0.42);
@@ -335,7 +337,9 @@ function paidOperatorSnapshot(): ProjectSnapshotV1 {
     domeGuideSemanticSplit: 1 / 3,
     domeGuideHorizonSplit: 0.58,
     viewerMode: "domemaster",
-    artifacts: Object.fromEntries(PROJECT_ARTIFACT_SLOT_IDS.map((id) => [id, artifact(id)])) as ProjectSnapshotV1["artifacts"],
+    artifacts: Object.fromEntries(
+      PROJECT_ARTIFACT_SLOT_IDS.map((id) => [id, artifact(id)]),
+    ) as ProjectSnapshotV1["artifacts"],
     prompts: PROMPTS,
     motionConfig: {
       duration: 8,
