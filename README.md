@@ -9,8 +9,8 @@ The project was built for the Runway API Hackathon. Its core workflow is:
 3. Review the result in center, theater, orbit, flat, split, and cutaway dome views.
 4. Generate a depth map through Runway.
 5. Preview and export depth-aware motion locally with WebGPU and WebCodecs.
-6. Plan a Seedance motion-plate repair prompt with Codex.
-7. Send the exported MP4 guide to Runway Seedance video-to-video.
+6. Refine the Seedance motion prompt for the exported MP4 guide.
+7. Send the guide to Runway Seedance video-to-video.
 8. Save or load a portable project snapshot and export delivery metadata for QC handoff.
 
 ## Why It Exists
@@ -21,7 +21,7 @@ Zenith reframes the pipeline as image-to-space-to-motion instead of blind prompt
 
 ## Codex Prompt Planning
 
-Zenith can use Codex as a local prompt planner for Seedance handoffs. The SvelteKit app sends the current domemaster image, depth/motion context, and the repo-local prompt packs to SvelteKit server routes, then streams back a structured Seedance prompt, diagnosis, variants, negative terms, and practical warnings.
+Zenith has server-side Codex prompt-planning routes for Seedance handoffs. Those routes accept the current domemaster image, depth/motion context, and the repo-local prompt packs, then stream back a structured Seedance prompt, diagnosis, variants, negative terms, and practical warnings. The server/client boundary is in place; dedicated prompt-planning controls are not currently mounted as a first-class workbench UI flow.
 
 The prompt packs live in:
 
@@ -71,17 +71,17 @@ npm run start
 - `src/routes`: SvelteKit pages and API routes for the fulldome workbench.
 - `src/lib/shared`: JSON-safe shared contracts for portable project snapshots and first-class job events/results.
 - `src/lib/server`: server-only Runway/Codex integration, Zod request validation, streaming progress, uploads, depth/inpaint/Seedance handoffs, Codex prompt planning, and in-memory depth jobs.
-- `src/app`: browser-side command bridge plus focused project persistence, paid operator orchestration, local render operators, defaults, and view state.
+- `src/app`: browser-side command bridge plus focused project persistence, paid operator orchestration, local render operators, and view state.
 - `src/stages`: Svelte stage context components for Start State, Motion Draft, End State, Video Take, and Deliverables.
-- `src/artifacts`: primary workbench state, artifact graph nodes, dependencies, jobs, and status logic.
+- `src/artifacts`: primary workbench state, artifact graph records, dependencies, jobs, and status logic.
 - `src/graphics`: WebGPU/WebGL-style dome rendering, projection geometry, shaders, view cameras.
-- `src/plates`: image plate loading, spherical placement, plate-map baking.
-- `src/inpaint`: Runway inpaint handoff and generated-image selection.
+- `src/plates`: image plate loading, default plate profile, spherical placement, plate-map baking.
+- `src/inpaint`: projection-specific inpaint prompts, Runway inpaint handoff, and generated-image selection.
 - `src/sketch`: depth maps, WebGPU depth reprojection, MP4 motion export, Seedance handoff.
 - `src/media`: media loading, canvas helpers, WebCodecs/Mediabunny export helpers.
-- `src/ui`: Svelte UI pieces, DOM actions, HUD rendering, pointer tools, progress buttons.
+- `src/ui`: Svelte UI pieces, stage panels, media viewers, controls, and workbench components.
 - `docs/seedance_prompt_pack`: prompt-planning context for repairing 2.5D/depth-warp motion plates with Seedance.
 - `docs/seedance_image_prompt_pack`: prompt-planning context for direct Seedance image-to-video from a still dome image.
 - `docs/sveltekit-architecture.md`: SvelteKit architecture, SSR/API boundaries, streaming contract, and Runway/Codex data procedures.
 - `docs/ultimate-architecture-roadmap.md`: end-state architecture roadmap for durable projects, assets, jobs, and production operations.
-- `docs/default-depth-motion-config.json`: the default dome placement, inpaint, depth-motion, and Seedance settings captured from the current working profile.
+- `docs/default-depth-motion-config.json`: captured working-profile defaults; active code currently reads its `plateSketch` defaults through `src/plates/default-plate-profile.ts`.

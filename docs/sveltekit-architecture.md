@@ -12,7 +12,7 @@ The ideal shape for this project is:
 - `src/lib/shared`: side-effect-free, JSON-safe contracts importable from browser and server code. Current contracts cover portable project snapshots and first-class job records/events.
 - `src/lib/server`: server-only modules. Anything in this folder is excluded from browser bundles by SvelteKit and is the right place for secrets, request validation, Runway API calls, Codex SDK calls, filesystem access, uploads, polling, streaming helpers, and in-memory job services.
 - `src/runway/client.ts`: browser-safe API client. UI and pipeline code call local SvelteKit endpoints, never Runway directly.
-- `src/app`: browser-side command bridge and focused application modules for project persistence, paid operator orchestration, local render operators, defaults, and view state.
+- `src/app`: browser-side command bridge and focused application modules for project persistence, paid operator orchestration, local render operators, and view state.
 - `src/artifacts`, `src/stages`, `src/ui`, `src/graphics`, `src/media`, `src/sketch`, `src/inpaint`: browser-side workbench state, rendering, media, and workflow modules.
 - `svelte.config.js`: Node adapter configuration. `npm run build` produces the SvelteKit server bundle; `npm run start` runs it.
 
@@ -28,7 +28,7 @@ This is idiomatic SvelteKit because framework boundaries match the framework's o
 
 ## Request Flow
 
-Most active paid and prompt-planning UI flows still use local progress streams:
+Most active paid UI flows still use local progress streams. Codex prompt-planning routes and browser client helpers also use the same stream primitive, but dedicated prompt-planning controls are not currently mounted as a first-class workbench UI flow:
 
 1. A Svelte component calls `src/app/workbench-commands.ts`, which delegates to focused browser modules such as `src/app/paid-operator-execution.ts`.
 2. The browser module calls a helper in `src/runway/client.ts`.

@@ -28,7 +28,7 @@ What is not ideal yet:
 
 ## Current Implementation Checkpoint
 
-In the current working tree based on `52f49e9207e6eb09e4f8b3f57d6d071c313acefa`, the roadmap has these landed boundaries:
+In the current working tree based on `c052e71c11af5a4653540088311ebafe0ad216cb`, the roadmap has these landed boundaries:
 
 - Phase 1 project snapshot boundary: `ProjectSnapshotV1` lives in `src/lib/shared/contracts/projects.ts`, while browser-owned save/load creation, parsing, cleanup, and restore live in `src/app/project-persistence.ts`.
 - Phase 2 artifact workbench command ownership split: `src/app/workbench-commands.ts` keeps stable UI entry points and delegates paid operator execution to `src/app/paid-operator-execution.ts` and local render/export orchestration to `src/app/local-render-operators.ts`.
@@ -171,7 +171,7 @@ Ideal changes:
 
 Optional future name for browser execution logic that is not UI.
 
-Current modules under `src/graphics`, `src/media`, `src/sketch`, `src/plates`, `src/scene`, `src/geometry`, and `src/fulldome` can stay where they are, but the ownership should be clearer:
+Current modules under `src/graphics`, `src/media`, `src/sketch`, `src/plates`, `src/scene`, and `src/geometry` can stay where they are, but the ownership should be clearer:
 
 - Pure math and projection logic stays testable and DOM-free where possible.
 - WebGPU/WebCodecs/canvas modules stay browser-only and are never imported by server modules.
