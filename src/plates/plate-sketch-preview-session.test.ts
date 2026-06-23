@@ -96,6 +96,22 @@ describe("plate sketch preview session", () => {
     expect(renderer.destroy).toHaveBeenCalledTimes(1);
     expect(renderer.renderPreview).not.toHaveBeenCalled();
   });
+
+  test("does not render a handoff canvas through a renderer that resolves after teardown", async () => {
+    const renderer = fakeRenderer();
+    const rendererCreate = deferred<PlateSketchGpuRenderer>();
+    const session = createPlateSketchPreviewSession(canvas, {
+      createRenderer: () => rendererCreate.promise,
+    });
+    const handoff = session.renderHandoffCanvas(previewInput(), 2048);
+
+    session.destroy();
+    rendererCreate.resolve(renderer);
+
+    await expect(handoff).rejects.toThrow("Plate Sketch preview session has been destroyed.");
+    expect(renderer.destroy).toHaveBeenCalledTimes(1);
+    expect(renderer.renderToCanvas).not.toHaveBeenCalled();
+  });
 });
 
 function previewInput(): PlateSketchPreviewInput {

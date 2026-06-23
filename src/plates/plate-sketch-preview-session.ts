@@ -84,6 +84,9 @@ export function createPlateSketchPreviewSession(
 
   async function renderHandoffCanvas(input: PlateSketchPreviewInput, size: number): Promise<HTMLCanvasElement> {
     const gpu = await ensureRenderer();
+    if (destroyed) {
+      throw new Error("Plate Sketch preview session has been destroyed.");
+    }
     return gpu.renderToCanvas(buildPlateSketchHandoffOptions(input, size));
   }
 
